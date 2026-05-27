@@ -255,3 +255,50 @@ form {
   font-weight: 500;
   cursor: pointer;
 }
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .card {
+    width: 550px;
+  }
+
+  .card-left {
+    display: none;
+  }
+
+  .card-right {
+    width: 100%;
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .card {
+    width: 80%;
+    min-height: unset;
+  }
+
+  .card-left {
+    display: none;
+  }
+
+  .card-right {
+    width: 100%;
+    padding: 40px 28px;
+    padding-top: 48px;
+  }
+
+  .r-title {
+    font-size: 24px;
+  }
+
+  .r-sub {
+    font-size: 12px;
+    margin-bottom: 24px;
+  }
+
+  .btn {
+    padding: 12px;
+    font-size: 14px;
+  }
+}
