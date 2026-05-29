@@ -1,3 +1,4 @@
+/* นำเข้าฟอนต์ DM Sans แค่ตัวเดียว */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
 * {
@@ -7,13 +8,14 @@
 }
 
 body {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'DM Sans', sans-serif; /* ตั้งค่าฟอนต์หลักให้ทั้งหน้า */
 }
 
+/* ปรับพื้นหลังเป็นโทนเย็นสว่าง (Cool Ice Blue) */
 .bg {
   width: 100vw;
   height: 100vh;
-  background: radial-gradient(ellipse at 20% 50%, rgb(147, 197, 253) 0%, rgb(219, 234, 254) 45%, rgb(255, 255, 255) 100%);
+  background: #eef2f6; 
   display: flex;
   align-items: center;
   justify-content: center;
@@ -23,42 +25,51 @@ body {
   overflow: hidden;
 }
 
+/* วงกลมฟุ้ง 1: โทนสีกรมท่า (Navy) ล้อกับ Sidebar หน้าหลัก */
 .glow-1 {
   position: absolute;
-  width: 500px;
-  height: 500px;
+  width: 800px;
+  height: 800px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.45) 0%, transparent 70%);
-  top: -150px;
-  left: -100px;
+  background: rgba(96, 165, 250, 0.35); /* สีกรมท่าโปร่งแสง */
+  top: -250px;
+  left: -200px;
+  filter: blur(95px); /*สั่งให้เบลอฟุ้งจนเป็นออร่า */
+  z-index: 0;
 }
 
+/* วงกลมฟุ้ง 2: โทนสีฟ้าสดใส ช่วยให้ไม่จืดชืด และดูเป็นเทคโนโลยีมากขึ้น */
 .glow-2 {
   position: absolute;
-  width: 350px;
-  height: 350px;
+  width: 650px;
+  height: 650px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(147, 197, 253, 0.35) 0%, transparent 70%);
-  bottom: -100px;
-  right: 50px;
+  background: rgba(96, 165, 250, 0.35); /* สีฟ้าโปร่งแสง */
+  bottom: -200px;
+  right: -100px;
+  filter: blur(90px); /* สั่งให้เบลอฟุ้ง */
+  z-index: 0;
 }
 
+/* การ์ดสไตล์กระจกฝ้า */
 .card {
   display: flex;
   width: 860px;
   min-height: 480px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
   overflow: hidden;
   position: relative;
   z-index: 1;
-  box-shadow: 0 8px 40px rgba(37, 99, 235, 0.08);
+  box-shadow: 0 15px 35px rgba(27, 42, 71, 0.06);
 }
 
 /* ฝั่งซ้าย */
 .card-left {
-  width: 44%;
+  width: 50%;
   padding: 40px 32px;
   display: flex;
   flex-direction: column;
@@ -66,11 +77,13 @@ body {
   justify-content: center;
   gap: 16px;
   border-right: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .cctv-img {
   width: 240px;
   object-fit: contain;
+  filter: drop-shadow(0 15px 25px rgba(27, 42, 71, 0.15));
 }
 
 .left-bottom {
@@ -78,25 +91,28 @@ body {
 }
 
 .left-bottom p {
-  font-size: 26px;
-  font-weight: 700;
-  color: rgb(30, 64, 175);
+  /* ลบ Playfair ออก ใช้ DM Sans ที่สืบทอดมาจาก body แทน */
+  font-size: 24px;
+  font-weight: 700; /* ปรับให้หนาขึ้นเพื่อชดเชยความเป็นหัวข้อ */
+  color: #1b2a47;
   margin-bottom: 2px;
   margin-top: 25px;
+  letter-spacing: -0.5px; /* บีบช่องไฟนิดนึงให้ดูโมเดิร์น */
 }
 
 .left-bottom span {
-  font-size: 16px;
-  color: rgb(100, 140, 200);
-  font-weight: 400;
+  font-size: 15px;
+  color: #64748b;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 
 /* ฝั่งขวา */
 .card-right {
-  width: 56%;
+  width: 50%;
   padding: 48px 44px;
-  padding-top: 80px;
-  background: rgba(255, 255, 255, 0.55);
+  padding-top: 60px;
+  background: transparent;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -104,15 +120,17 @@ body {
 }
 
 .r-title {
-  font-size: 28px;
+  /* ลบ Playfair ออกเช่นกัน */
+  font-size: 30px;
   font-weight: 700;
-  color: rgb(11, 35, 112);
+  color: #1b2a47;
   margin-bottom: 6px;
+  letter-spacing: -0.5px;
 }
 
 .r-sub {
-  font-size: 13px;
-  color: rgb(16, 48, 111);
+  font-size: 14px;
+  color: #64748b;
   margin-bottom: 32px;
 }
 
@@ -121,17 +139,17 @@ form {
 }
 
 .f-group {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   width: 100%;
 }
 
 .f-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: rgb(16, 48, 111);
-  margin-bottom: 6px;
+  color: #8e9aab;
+  margin-bottom: 8px;
   display: block;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   text-align: left;
 }
@@ -144,34 +162,40 @@ form {
 
 .f-box {
   width: 100%;
-  padding: 12px 40px 12px 16px;
-  border: 1px solid rgba(200, 220, 255, 0.8);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.6);
+  padding: 14px 40px 14px 16px;
+  border: 1px solid rgba(27, 42, 71, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
   font-size: 14px;
-  color: rgb(15, 30, 60);
+  color: #1b2a47;
   font-family: 'DM Sans', sans-serif;
   outline: none;
-  transition: border 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .f-box:focus {
-  border: 1px solid rgb(147, 197, 253);
-  background: rgba(255, 255, 255, 0.9);
+  border-color: #1b2a47;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(27, 42, 71, 0.05);
 }
 
 .f-box::placeholder {
-  color: rgba(15, 30, 60, 0.35);
+  color: #94a3b8;
 }
 
 .eye-icon {
   position: absolute;
-  right: 13px;
+  right: 16px;
   cursor: pointer;
-  color: rgb(147, 197, 253);
+  color: #94a3b8;
   display: flex;
   align-items: center;
   font-size: 16px;
+  transition: color 0.2s;
+}
+
+.eye-icon:hover {
+  color: #1b2a47;
 }
 
 .remember {
@@ -183,29 +207,30 @@ form {
 }
 
 .remember input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   cursor: pointer;
   appearance: none;
-  border: 1px solid rgba(200, 220, 255, 0.8);
-  border-radius: 4px;
-  background: rgb(255, 255, 255);
+  border: 1.5px solid rgba(27, 42, 71, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
   transition: 0.2s;
   flex-shrink: 0;
   position: relative;
 }
 
 .remember input[type="checkbox"]:checked {
-  background: rgb(37, 99, 235);
-  border-color: rgb(37, 99, 235);
+  background: #1b2a47;
+  border-color: #1b2a47;
 }
+
 .remember input[type="checkbox"]:checked::after {
   content: '';
   position: absolute;
-  left: 3px;
-  top: 0px;
-  width: 5px;
-  height: 9px;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
   border: 2px solid rgb(255, 255, 255);
   border-top: none;
   border-left: none;
@@ -213,47 +238,57 @@ form {
 }
 
 .remember label {
-  font-size: 13px;
-  color: rgb(16, 48, 111);
+  font-size: 14px;
+  color: #4a5568;
   cursor: pointer;
+  font-weight: 500;
 }
 
 .btn {
   width: 100%;
-  padding: 13px;
-  background: linear-gradient(135deg, rgb(11, 35, 112) 0%, rgb(96, 165, 250) 100%);
+  padding: 14px;
+  background: #1b2a47;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   color: rgb(255, 255, 255);
   font-size: 15px;
-  font-weight: 450;
+  font-weight: 600;
   cursor: pointer;
-  margin-top: 20px;
+  margin-top: 24px;
   font-family: 'DM Sans', sans-serif;
-  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 12px rgba(27, 42, 71, 0.15);
   transition: all 0.3s ease;
 }
+
 .btn:hover {
-  transform: translateY(-3px); 
-  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.5); 
+  background: #24375d;
+  transform: translateY(-2px); 
+  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.2); 
 }
+
 .btn:active {
   transform: translateY(1px); 
-  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3); 
+  box-shadow: 0 2px 8px rgba(27, 42, 71, 0.15); 
 }
 
 .forgot {
-  font-size: 12px;
-  color: rgb(16, 48, 111);
-  margin-top: 16px;
+  font-size: 13px;
+  color: #8e9aab;
+  margin-top: 20px;
   width: 100%;
   text-align: center;
 }
 
 .forgot span {
-  color: rgb(37, 99, 235);
-  font-weight: 500;
+  color: #1b2a47;
+  font-weight: 600;
   cursor: pointer;
+  transition: color 0.2s;
+}
+
+.forgot span:hover {
+  text-decoration: underline;
+  color: #24375d;
 }
 
 /* Tablet */
@@ -261,11 +296,9 @@ form {
   .card {
     width: 550px;
   }
-
   .card-left {
     display: none;
   }
-
   .card-right {
     width: 100%;
   }
@@ -274,29 +307,24 @@ form {
 /* Mobile */
 @media (max-width: 768px) {
   .card {
-    width: 80%;
+    width: 90%;
     min-height: unset;
+    padding: 10px;
   }
-
   .card-left {
     display: none;
   }
-
   .card-right {
     width: 100%;
     padding: 40px 28px;
-    padding-top: 48px;
   }
-
   .r-title {
-    font-size: 24px;
+    font-size: 26px;
   }
-
   .r-sub {
-    font-size: 12px;
+    font-size: 13px;
     margin-bottom: 24px;
   }
-
   .btn {
     padding: 12px;
     font-size: 14px;

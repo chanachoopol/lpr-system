@@ -1,0 +1,444 @@
+/* นำเข้าฟอนต์ DM Sans (ตัวเนื้อหา) และ Playfair Display (หัวข้อเพื่อความหรูหรา) */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,600&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%); /* โทนเทาอมฟ้า สว่างและสะอาด */
+  color: #1b2a47;
+}
+
+/* Layout หลัก */
+.layout {
+  display: flex;
+  min-height: 100vh;
+  padding: 20px;
+  gap: 20px;
+}
+
+.layout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.layout-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Sidebar สไตล์สีกรมท่าสุดหรู */
+.sidebar {
+  width: 260px;
+  height: calc(100vh - 40px);
+  background: #1b2a47; /* สีกรมท่าเข้ม */
+  display: flex;
+  flex-direction: column;
+  padding: 32px 20px;
+  position: sticky;
+  top: 20px;
+  flex-shrink: 0;
+  border-radius: 24px; /* โค้งมนมากขึ้น */
+  box-shadow: 0 10px 30px rgba(27, 42, 71, 0.15);
+}
+
+/* User Info */
+.sb-user {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  margin-bottom: 32px;
+}
+
+.sb-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #ffffff; /* สีครีม */
+  color: #1b2a47;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.sb-user-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: rgb(255, 255, 255);
+  margin: 0 0 4px;
+  letter-spacing: 0.5px;
+}
+
+.sb-user-role {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+/* เมนู */
+.sb-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 16px; /* โค้งมนแบบเม็ดยา */
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.sb-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgb(255, 255, 255);
+  transform: translateX(4px);
+}
+
+.sb-item.active {
+  background: #ffffff; /* ปุ่ม Active เป็นสีครีม */
+  color: #1b2a47; /* ตัวอักษรสีกรมท่า */
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.sb-icon {
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Logout */
+.sb-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sb-logout {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: 'DM Sans', sans-serif;
+  width: 100%;
+}
+
+.sb-logout:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: rgb(255, 180, 180);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.navbar {
+  height: 72px;
+  background: rgba(255, 255, 255, 0.6); /* กระจกสีขาวโปร่งแสง 60% */
+  backdrop-filter: blur(20px); /* เบลอพื้นหลังให้ละมุน */
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.9); /* ขอบกระจกสีขาวสว่าง */
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(27, 42, 71, 0.05); /* เงาสีกรมท่าจางๆ ให้ดูลอย */
+  
+  /* โครงสร้างเดิม */
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+  position: sticky;
+  top: 20px;
+  z-index: 10;
+}
+
+.nb-title {
+  font-family: 'Playfair Display', serif; /* ใช้ฟอนต์หรู */
+  font-size: 22px;
+  font-weight: 600;
+  color: #1b2a47;
+  flex: 1;
+}
+
+.nb-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.nb-time {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  background: #ffffff;
+  padding: 6px 16px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+.nb-bell {
+  position: relative;
+  cursor: pointer;
+  font-size: 20px;
+  color: #1b2a47;
+  transition: transform 0.2s;
+}
+
+.nb-bell:hover {
+  transform: scale(1.1);
+}
+
+.nb-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  background: #e27d60; /* สีส้มตุ่นๆ ให้เข้ากับธีม */
+  color: white;
+  font-size: 10px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  border: 2px solid white;
+}
+
+.nb-profile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 6px 16px 6px 6px;
+  border-radius: 30px; /* ทรงเม็ดยา */
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+  transition: background 0.2s;
+}
+
+.nb-profile:hover {
+  background: #f8f6f2;
+}
+
+.nb-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1b2a47;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(255, 255, 255);
+  font-size: 14px;
+}
+
+.nb-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1b2a47;
+}
+
+.nb-chevron {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Dropdown */
+.nb-dropdown {
+  display: none;
+  position: absolute;
+  top: 120%;
+  right: 0;
+  background: rgb(255, 255, 255);
+  border: 1px solid rgba(27, 42, 71, 0.05);
+  border-radius: 16px;
+  width: 180px;
+  box-shadow: 0 10px 30px rgba(27, 42, 71, 0.08);
+  z-index: 100;
+  padding: 8px;
+}
+
+.nb-dropdown.show {
+  display: block;
+}
+
+.nb-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a5568;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.2s;
+}
+
+.nb-dropdown-item:hover {
+  background: #f8f6f2;
+  color: #1b2a47;
+}
+
+.nb-dropdown-item.danger {
+  color: #ef4444;
+}
+
+.nb-dropdown-item.danger:hover {
+  background: #fef2f2;
+}
+
+.nb-divider {
+  border: none;
+  border-top: 1px solid #f1f5f9;
+  margin: 6px 0;
+}
+
+/* =========================================
+   สไตล์เสริมสำหรับหน้า Dashboard (Cards) 
+========================================== */
+.dashboard-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 24px;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.stat-card, .content-card {
+  background: rgba(255, 255, 255, 0.85); /* ขาวเกือบทึบ แต่มีความใสเล็กน้อย */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 1); /* ขอบขาวชัดเจน */
+  border-radius: 24px;
+  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.04);
+  padding: 35px; /* สำหรับ stat-card */
+  display: flex; /* โครงสร้างเดิมของ stat-card */
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.3s ease;
+}
+.content-card {
+  padding: 35px;
+  display: block; /* แก้กลับให้ content-card แสดงผลปกติ */
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+}
+
+.stat-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #8e9aab;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 36px;
+  color: #1b2a47;
+}
+
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.card-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: #1b2a47;
+  margin-bottom: 24px;
+}
+
+.map-placeholder {
+  background: #becadb;
+  border-radius: 16px;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f2e5b;
+  font-weight: 500;
+  border: 2px dashed #2f2e6a;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.history-table th {
+  text-align: left;
+  padding: 0 12px 16px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8e9aab;
+  text-transform: uppercase;
+  border-bottom: 1px solid #eae5de;
+}
+
+.history-table td {
+  padding: 20px 12px;
+  color: #4a5568;
+  font-size: 14px;
+  border-bottom: 1px solid #f4eee6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .layout {
+    padding: 12px;
+    gap: 12px;
+  }
+  .sidebar {
+    display: none;
+  }
+  .stat-row, .bottom-row {
+    grid-template-columns: 1fr;
+  }
+}
