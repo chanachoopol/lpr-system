@@ -1,9 +1,11 @@
+import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import cctvImg from '../assets/cctv.png'
 import '../styles/Login.css'
 
 function Login() {
+  const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -11,9 +13,7 @@ function Login() {
 
   function handleSubmit(e) {
     e.preventDefault()
-    console.log('username:', username)
-    console.log('password:', password)
-    console.log('remember:', remember)
+    navigate('/dashboard')
   }
 
   return (
