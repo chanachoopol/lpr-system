@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { FaVideo } from 'react-icons/fa'
 import Layout from '../components/Layout'
 import '../styles/Monitor.css'
-import { mockLatestCapture, mockRecentHistory, mockCameras } from '../data/mockData'
+import { mockLatestCapture, mockRecentHistory, mockCameraLocations } from '../data/mockData'
 
 function Monitor() {
   const [selectedCamera, setSelectedCamera] = useState('cam1')
