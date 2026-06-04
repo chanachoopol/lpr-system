@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun } from 'react-icons/fa'
+import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars } from 'react-icons/fa'
 import useAuthStore from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
 
-function Navbar({ title }) {
+function Navbar({ title, onToggle }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [time, setTime] = useState('')
@@ -26,7 +26,6 @@ function Navbar({ title }) {
     return () => clearInterval(interval)
   }, [])
 
-  // ปิด dropdown เมื่อคลิกข้างนอก
   useEffect(() => {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -50,6 +49,10 @@ function Navbar({ title }) {
 
   return (
     <header className="navbar">
+      <button className="nb-toggle" onClick={onToggle} aria-label="toggle sidebar">
+        <FaBars />
+      </button>
+
       <h1 className="nb-title">{title}</h1>
 
       <div className="nb-right">

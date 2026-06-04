@@ -1,17 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,600&display=swap');
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%); 
-  color: #1b2a47;
-}
-
 .layout {
   display: flex;
   min-height: 100vh;
@@ -32,22 +18,28 @@ body {
   overflow-y: auto;
 }
 
-/* Sidebar สไตล์สีกรมท่าสุดหรู */
+/* Sidebar */
 .sidebar {
   width: 260px;
   height: calc(100vh - 40px);
-  background: #1b2a47; /* สีกรมท่าเข้ม */
+  background: rgb(27, 42, 71);
   display: flex;
   flex-direction: column;
   padding: 32px 20px;
   position: sticky;
   top: 20px;
   flex-shrink: 0;
-  border-radius: 24px; /* โค้งมนมากขึ้น */
+  border-radius: 24px;
   box-shadow: 0 10px 30px rgba(27, 42, 71, 0.15);
+  transition: width 0.3s ease;
+  overflow: hidden;
 }
 
-/* User Info */
+.sidebar.collapsed {
+  width: 72px;
+  padding: 32px 12px;
+}
+
 .sb-user {
   display: flex;
   align-items: center;
@@ -56,14 +48,26 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 20px;
   margin-bottom: 32px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .sb-user {
+  padding: 12px;
+  justify-content: center;
+  gap: 0;
+}
+
+.sidebar.collapsed .sb-user-info {
+  display: none;
 }
 
 .sb-avatar {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #ffffff; /* สีครีม */
-  color: #1b2a47;
+  background: rgb(255, 255, 255);
+  color: rgb(27, 42, 71);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -101,12 +105,15 @@ body {
   align-items: center;
   gap: 16px;
   padding: 14px 20px;
-  border-radius: 16px; /* โค้งมนแบบเม็ดยา */
+  border-radius: 16px;
   color: rgba(255, 255, 255, 0.6);
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
   transition: all 0.3s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  position: relative;
 }
 
 .sb-item:hover {
@@ -116,10 +123,25 @@ body {
 }
 
 .sb-item.active {
-  background: #ffffff; /* ปุ่ม Active เป็นสีครีม */
-  color: #1b2a47; /* ตัวอักษรสีกรมท่า */
+  background: rgb(255, 255, 255);
+  color: rgb(27, 42, 71);
   font-weight: 600;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar.collapsed .sb-item {
+  padding: 14px;
+  justify-content: center;
+  gap: 0;
+  transform: none;
+}
+
+.sidebar.collapsed .sb-item:hover {
+  transform: none;
+}
+
+.sidebar.collapsed .sb-label {
+  display: none;
 }
 
 .sb-icon {
@@ -127,6 +149,25 @@ body {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+}
+
+/* Tooltip ตอน collapsed */
+.sb-item .sb-tooltip {
+  display: none;
+}
+
+.sidebar.collapsed .sb-item:hover .sb-tooltip {
+  display: block;
+  position: absolute;
+  left: 72px;
+  background: rgb(27, 42, 71);
+  color: rgb(255, 255, 255);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
 }
 
 /* Logout */
@@ -153,6 +194,18 @@ body {
   transition: all 0.3s ease;
   font-family: 'DM Sans', sans-serif;
   width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .sb-logout {
+  padding: 14px;
+  justify-content: center;
+  gap: 0;
+}
+
+.sidebar.collapsed .sb-logout span {
+  display: none;
 }
 
 .sb-logout:hover {
@@ -161,16 +214,15 @@ body {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+/* Navbar */
 .navbar {
   height: 72px;
-  background: rgba(255, 255, 255, 0.6); /* กระจกสีขาวโปร่งแสง 60% */
-  backdrop-filter: blur(20px); /* เบลอพื้นหลังให้ละมุน */
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.9); /* ขอบกระจกสีขาวสว่าง */
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(27, 42, 71, 0.05); /* เงาสีกรมท่าจางๆ ให้ดูลอย */
-  
-  /* โครงสร้างเดิม */
+  box-shadow: 0 8px 32px rgba(27, 42, 71, 0.05);
   display: flex;
   align-items: center;
   padding: 0 24px;
@@ -180,11 +232,29 @@ body {
   z-index: 10;
 }
 
+.nb-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  color: rgb(27, 42, 71);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 8px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.nb-toggle:hover {
+  background: rgba(27, 42, 71, 0.05);
+}
+
 .nb-title {
-  font-family: 'Playfair Display', serif; /* ใช้ฟอนต์หรู */
+  font-family: 'Playfair Display', serif;
   font-size: 22px;
   font-weight: 600;
-  color: #1b2a47;
+  color: rgb(27, 42, 71);
   flex: 1;
   letter-spacing: 1.25px;
 }
@@ -198,18 +268,18 @@ body {
 .nb-time {
   font-size: 14px;
   font-weight: 500;
-  color: #64748b;
-  background: #ffffff;
+  color: rgb(100, 116, 139);
+  background: rgb(255, 255, 255);
   padding: 6px 16px;
   border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
 .nb-bell {
   position: relative;
   cursor: pointer;
   font-size: 20px;
-  color: #1b2a47;
+  color: rgb(27, 42, 71);
   transition: transform 0.2s;
 }
 
@@ -221,8 +291,8 @@ body {
   position: absolute;
   top: -2px;
   right: -4px;
-  background: #e27d60; /* สีส้มตุ่นๆ ให้เข้ากับธีม */
-  color: white;
+  background: rgb(226, 125, 96);
+  color: rgb(255, 255, 255);
   font-size: 10px;
   width: 16px;
   height: 16px;
@@ -231,7 +301,7 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  border: 2px solid white;
+  border: 2px solid rgb(255, 255, 255);
 }
 
 .nb-profile {
@@ -241,21 +311,21 @@ body {
   gap: 12px;
   cursor: pointer;
   padding: 6px 16px 6px 6px;
-  border-radius: 30px; /* ทรงเม็ดยา */
-  background: #ffffff;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+  border-radius: 30px;
+  background: rgb(255, 255, 255);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
   transition: background 0.2s;
 }
 
 .nb-profile:hover {
-  background: #f8f6f2;
+  background: rgb(248, 246, 242);
 }
 
 .nb-avatar {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #1b2a47;
+  background: rgb(27, 42, 71);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -266,12 +336,12 @@ body {
 .nb-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1b2a47;
+  color: rgb(27, 42, 71);
 }
 
 .nb-chevron {
   font-size: 12px;
-  color: #94a3b8;
+  color: rgb(148, 163, 184);
 }
 
 /* Dropdown */
@@ -301,7 +371,7 @@ body {
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
-  color: #4a5568;
+  color: rgb(74, 85, 104);
   cursor: pointer;
   border: none;
   background: none;
@@ -311,124 +381,22 @@ body {
 }
 
 .nb-dropdown-item:hover {
-  background: #f8f6f2;
-  color: #1b2a47;
+  background: rgb(248, 246, 242);
+  color: rgb(27, 42, 71);
 }
 
 .nb-dropdown-item.danger {
-  color: #ef4444;
+  color: rgb(239, 68, 68);
 }
 
 .nb-dropdown-item.danger:hover {
-  background: #fef2f2;
+  background: rgb(254, 242, 242);
 }
 
 .nb-divider {
   border: none;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid rgb(241, 245, 249);
   margin: 6px 0;
-}
-
-/* =========================================
-   สไตล์เสริมสำหรับหน้า Dashboard (Cards) 
-========================================== */
-.dashboard-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding-bottom: 24px;
-}
-
-.stat-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-}
-
-.stat-card {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,0.6);
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.03);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: transform 0.3s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-4px);
-}
-
-.stat-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #8e9aab;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.stat-val {
-  font-family: 'Playfair Display', serif;
-  font-size: 36px;
-  color: #1b2a47;
-}
-
-.bottom-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.content-card {
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 24px;
-  padding: 28px;
-  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.03);
-  border: 1px solid rgba(255,255,255,0.6);
-}
-
-.card-title {
-  font-family: 'Playfair Display', serif;
-  font-size: 20px;
-  color: #1b2a47;
-  margin-bottom: 24px;
-}
-
-.map-placeholder {
-  background: #becadb;
-  border-radius: 16px;
-  height: 300px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #0f2e5b;
-  font-weight: 500;
-  border: 2px dashed #2f2e6a;
-}
-
-.history-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.history-table th {
-  text-align: left;
-  padding: 0 12px 16px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #8e9aab;
-  text-transform: uppercase;
-  border-bottom: 1px solid #eae5de;
-}
-
-.history-table td {
-  padding: 20px 12px;
-  color: #4a5568;
-  font-size: 14px;
-  border-bottom: 1px solid #f4eee6;
 }
 
 /* Responsive */
@@ -437,17 +405,8 @@ body {
     padding: 12px;
     gap: 12px;
   }
+
   .sidebar {
     display: none;
   }
-  .stat-row, .bottom-row {
-    grid-template-columns: 1fr;
-  }
-}
-/* Shared Card — ใช้ได้ทุกหน้า */
-.content-card {
-  background: rgb(255, 255, 255);
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid rgb(226, 232, 240);
 }

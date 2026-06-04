@@ -1,4 +1,5 @@
 import Layout from '../components/Layout'
+import '../styles/Dashboard.css'
 
 function Dashboard() {
   return (

@@ -11,7 +11,7 @@ const menuItems = [
   { path: '/report', icon: <FaChartBar />, label: 'Report' },
 ]
 
-function Sidebar() {
+function Sidebar({ isCollapsed }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -21,12 +21,10 @@ function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
 
       <div className="sb-user">
-        <div className="sb-avatar">
-          <FaUser />
-        </div>
+        <div className="sb-avatar"><FaUser /></div>
         <div className="sb-user-info">
           <p className="sb-user-name">{user?.username || 'Admin'}</p>
           <p className="sb-user-role">{user?.role || 'Administrator'}</p>
@@ -43,7 +41,8 @@ function Sidebar() {
             }
           >
             <span className="sb-icon">{item.icon}</span>
-            <span>{item.label}</span>
+            <span className="sb-label">{item.label}</span>
+            <span className="sb-tooltip">{item.label}</span>
           </NavLink>
         ))}
       </nav>
