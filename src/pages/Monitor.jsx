@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { FaVideo } from 'react-icons/fa'
 import Layout from '../components/Layout'
-// Import mock data ที่เราแยกไฟล์ไว้
-import { mockLatestCapture, mockRecentHistory } from '../data/mockData' 
 import '../styles/Monitor.css'
+import { mockLatestCapture, mockRecentHistory, mockCameras } from '../data/mockData'
 
 function Monitor() {
   const [selectedCamera, setSelectedCamera] = useState('cam1')
@@ -20,15 +19,18 @@ function Monitor() {
         <div className="camera-bar content-card">
           <FaVideo className="camera-icon" />
           <label htmlFor="cameraSelect">Select Camera:</label>
-          <select 
-            id="cameraSelect" 
-            className="camera-select"
-            value={selectedCamera}
-            onChange={(e) => setSelectedCamera(e.target.value)}
-          >
-            <option value="cam1">Main Entrance (Inbound)</option>
-            <option value="cam2">Exit Gate (Outbound)</option>
-          </select>
+            <select
+              id="cameraSelect"
+              className="camera-select"
+              value={selectedCamera}
+              onChange={(e) => setSelectedCamera(e.target.value)}
+            >
+              {mockCameras.map((cam) => (
+                <option key={cam.id} value={cam.id}>
+                  {cam.name}
+                </option>
+              ))}
+            </select>
         </div>
 
         <div className="monitor-content">

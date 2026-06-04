@@ -12,3 +12,9 @@ export const mockRecentHistory = [
   { id: 4, time: '13:33:27', plate: 'ฮฮ 1111', province: 'สมุทรสาคร' },
   { id: 5, time: '13:33:23', plate: '2ขย 2222', province: 'กรุงเทพมหานคร' }
 ];
+
+export const mockCameras = [
+  { id: 'cam1', name: 'Main Entrance (Inbound)' },
+  { id: 'cam2', name: 'Exit Gate (Outbound)' },
+  { id: 'cam3', name: 'Parking Lot A1' },
+]
