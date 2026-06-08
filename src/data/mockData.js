@@ -48,3 +48,32 @@ export const mockDashboardHistory = [
   { id: 4, time: '14:42:11', plate: 'ฮฮ 1111', province: 'สมุทรสาคร' },
   { id: 5, time: '14:30:00', plate: '2ขข 2222', province: 'กรุงเทพมหานคร' },
 ]
+
+export const mockHistoryData = Array.from({ length: 40 }, (_, i) => {
+  const cameras = ['cam1', 'cam2', 'cam3']
+  const cameraNames = {
+    cam1: 'Main Entrance (Inbound)',
+    cam2: 'Rear Gate (Outbound)',
+    cam3: 'Parking Lot A'
+  }
+  const provinces = [
+    'กรุงเทพมหานคร', 'นครปฐม', 'ราชบุรี',
+    'เชียงใหม่', 'ชลบุรี', 'สมุทรสาคร'
+  ]
+  const randomCam = cameras[Math.floor(Math.random() * cameras.length)]
+  const randomProvince = provinces[Math.floor(Math.random() * provinces.length)]
+  const hour = String(Math.floor(Math.random() * 12) + 7).padStart(2, '0')
+  const min = String(Math.floor(Math.random() * 60)).padStart(2, '0')
+  const sec = String(Math.floor(Math.random() * 60)).padStart(2, '0')
+
+  return {
+    id: i + 1,
+    time: `${hour}:${min}:${sec}`,
+    plate: `${Math.floor(Math.random() * 9 + 1)}กข ${Math.floor(1000 + Math.random() * 8999)}`,
+    province: randomProvince,
+    cameraId: randomCam,
+    cameraName: cameraNames[randomCam],
+    plateImg: null,
+    fullImg: null
+  }
+})
