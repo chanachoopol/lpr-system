@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars } from 'react-icons/fa'
-import useAuthStore from '../store/authStore'
+import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars, FaSearch } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
+import useAuthStore from '../store/authStore'
 
 function Navbar({ title, onToggle }) {
   const { user, logout } = useAuthStore()
@@ -9,6 +9,7 @@ function Navbar({ title, onToggle }) {
   const [time, setTime] = useState('')
   const [darkMode, setDarkMode] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef(null)
 
   useEffect(() => {
@@ -36,6 +37,14 @@ function Navbar({ title, onToggle }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  function handleSearch(e) {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      navigate(`/history?search=${encodeURIComponent(searchQuery.trim())}`)
+      setSearchQuery('')
+    }
+  }
+
   function toggleDarkMode() {
     setDarkMode(!darkMode)
     document.body.classList.toggle('dark-mode')
@@ -54,6 +63,18 @@ function Navbar({ title, onToggle }) {
       </button>
 
       <h1 className="nb-title">{title}</h1>
+
+      {/* Search Bar */}
+      <form className="nb-search" onSubmit={handleSearch}>
+        <FaSearch className="nb-search-icon" />
+        <input
+          type="text"
+          className="nb-search-input"
+          placeholder="Search license plate..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </form>
 
       <div className="nb-right">
         <div className="nb-time">{time}</div>
