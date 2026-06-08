@@ -25,7 +25,7 @@ function Monitor() {
               value={selectedCamera}
               onChange={(e) => setSelectedCamera(e.target.value)}
             >
-              {mockCameras.map((cam) => (
+              {mockCameraLocations.map((cam) => (
                 <option key={cam.id} value={cam.id}>
                   {cam.name}
                 </option>
