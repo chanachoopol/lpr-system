@@ -77,3 +77,16 @@ export const mockHistoryData = Array.from({ length: 40 }, (_, i) => {
     fullImg: null
   }
 })
+
+export const mockBlacklistData = [
+  { id: 1, plate: 'ทน 5566', province: 'กรุงเทพฯ', reason: 'Suspicious Vehicle', date: '21/05/2026' },
+  { id: 2, plate: 'พพ 1122', province: 'นครปฐม', reason: 'Reported Stolen', date: '21/05/2026' },
+  { id: 3, plate: 'กข 9900', province: 'ราชบุรี', reason: 'Suspicious Vehicle', date: '19/05/2026' },
+  { id: 4, plate: 'ฮฮ 0077', province: 'สมุทรสาคร', reason: 'Blacklisted', date: '18/05/2026' },
+  { id: 5, plate: 'บต 3344', province: 'ชลบุรี', reason: 'Reported Stolen', date: '17/05/2026' },
+]
+
+export const mockBlacklistFoundToday = [
+  { id: 1, plate: 'ทน 5566', province: 'กรุงเทพฯ', time: '10:15' },
+  { id: 2, plate: 'พพ 1122', province: 'นครปฐม', time: '14:30' },
+]
