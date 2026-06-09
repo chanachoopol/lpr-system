@@ -1,15 +1,28 @@
 import { useState } from 'react'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { FaCar, FaClock, FaTriangleExclamation, FaFilePdf } from 'react-icons/fa6'
+import { FaCalendarAlt } from 'react-icons/fa'
 import Layout from '../components/Layout'
 import { mockReportData } from '../data/mockData'
 import '../styles/Report.css'
 
 function Report() {
   const [data] = useState(mockReportData)
+  const [selectedDate, setSelectedDate] = useState(new Date())
+
+  // แปลงวันที่เป็นภาษาไทย
+  function formatDateThai(date) {
+    return date.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
 
   function handlePrint() {
     window.print()
@@ -23,13 +36,20 @@ function Report() {
         <div className="content-card report-header">
           <div className="report-header-left">
             <h2 className="report-title">Daily Summary Report</h2>
-            <p className="report-date">
-              {new Date().toLocaleDateString('th-TH', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
-            </p>
+            <div className="report-date-picker">
+              <FaCalendarAlt className="report-cal-icon" />
+              <DatePicker
+                selected={selectedDate}
+                onChange={(date) => setSelectedDate(date)}
+                dateFormat="dd/MM/yyyy"
+                maxDate={new Date()}
+                className="datepicker-input"
+                placeholderText="เลือกวันที่"
+              />
+              <span className="report-date-display">
+                {formatDateThai(selectedDate)}
+              </span>
+            </div>
           </div>
           <button className="btn-pdf" onClick={handlePrint}>
             <FaFilePdf /> Save as PDF
@@ -97,21 +117,9 @@ function Report() {
                     boxShadow: '0 8px 24px rgba(27,42,71,0.12)'
                   }}
                 />
-                <Legend
-                  wrapperStyle={{ fontFamily: 'DM Sans', fontSize: 13 }}
-                />
-                <Bar
-                  dataKey="in"
-                  name="Vehicles In"
-                  fill="rgb(27, 42, 71)"
-                  radius={[6, 6, 0, 0]}
-                />
-                <Bar
-                  dataKey="out"
-                  name="Vehicles Out"
-                  fill="rgb(147, 197, 253)"
-                  radius={[6, 6, 0, 0]}
-                />
+                <Legend wrapperStyle={{ fontFamily: 'DM Sans', fontSize: 13 }} />
+                <Bar dataKey="in" name="Vehicles In" fill="rgb(27, 42, 71)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="out" name="Vehicles Out" fill="rgb(147, 197, 253)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -140,9 +148,7 @@ function Report() {
                     <span className="plate-text">{item.plate}</span>
                     <span className="report-province"> {item.province}</span>
                   </td>
-                  <td>
-                    <strong>{item.count}</strong> times
-                  </td>
+                  <td><strong>{item.count}</strong> times</td>
                 </tr>
               ))}
             </tbody>

@@ -5,6 +5,9 @@ import { FaXmark } from 'react-icons/fa6'
 import Layout from '../components/Layout'
 import { mockHistoryData, mockCameraLocations } from '../data/mockData'
 import '../styles/History.css'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import { FaCalendarAlt } from 'react-icons/fa'
 
 const ROWS_PER_PAGE = 10
 
@@ -15,6 +18,7 @@ function History() {
   const [filteredData, setFilteredData] = useState(mockHistoryData)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedItem, setSelectedItem] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(new Date())
 
   // รับค่า search จาก URL (มาจาก Navbar search)
   useEffect(() => {
@@ -26,30 +30,38 @@ function History() {
   }, [searchParams])
 
   // ฟังก์ชัน filter ข้อมูล
-  function applyFilters(search = searchInput, camera = selectedCamera) {
-    const keyword = search.toLowerCase().trim()
-    const result = mockHistoryData.filter((item) => {
-      const matchSearch =
-        keyword === '' ||
-        item.plate.toLowerCase().includes(keyword) ||
-        item.province.includes(keyword)
-      const matchCamera = camera === 'all' || item.cameraId === camera
-      return matchSearch && matchCamera
-    })
-    setFilteredData(result)
-    setCurrentPage(1)
-  }
+  function applyFilters(
+  search = searchInput,
+  camera = selectedCamera,
+  date = selectedDate
+) {
+  const keyword = search.toLowerCase().trim()
+  const result = mockHistoryData.filter((item) => {
+    const matchSearch =
+      keyword === '' ||
+      item.plate.toLowerCase().includes(keyword) ||
+      item.province.includes(keyword)
+    const matchCamera = camera === 'all' || item.cameraId === camera
+    const matchDate =
+      date === null ||
+      item.date === date.toLocaleDateString('th-TH')
+    return matchSearch && matchCamera && matchDate
+  })
+  setFilteredData(result)
+  setCurrentPage(1)
+}
 
   function handleFilter() {
     applyFilters()
   }
 
   function handleReset() {
-    setSearchInput('')
-    setSelectedCamera('all')
-    setFilteredData(mockHistoryData)
-    setCurrentPage(1)
-  }
+  setSearchInput('')
+  setSelectedCamera('all')
+  setSelectedDate(new Date())
+  setFilteredData(mockHistoryData)
+  setCurrentPage(1)
+}
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / ROWS_PER_PAGE)
@@ -95,6 +107,20 @@ function History() {
             <button className="btn-filter" onClick={handleFilter}>
               <FaSearch /> Filter
             </button>
+            <div className="filter-group">
+              <label>Date</label>
+              <div className="filter-input-wrap">
+                <FaCalendarAlt className="filter-icon" />
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={(date) => setSelectedDate(date)}
+                  dateFormat="dd/MM/yyyy"
+                  maxDate={new Date()}
+                  className="datepicker-history"
+                  placeholderText="Select date"
+                />
+              </div>
+            </div>
             <button className="btn-reset" onClick={handleReset}>
                 <FaRedo /> Reset
             </button>
