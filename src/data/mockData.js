@@ -90,3 +90,30 @@ export const mockBlacklistFoundToday = [
   { id: 1, plate: 'ทน 5566', province: 'กรุงเทพฯ', time: '10:15' },
   { id: 2, plate: 'พพ 1122', province: 'นครปฐม', time: '14:30' },
 ]
+
+export const mockReportData = {
+  totalCars: 1240,
+  peakTime: '16:00 - 17:00',
+  blacklistCount: 3,
+  hourlyData: [
+    { hour: '07:00', in: 45, out: 10 },
+    { hour: '08:00', in: 120, out: 40 },
+    { hour: '09:00', in: 200, out: 80 },
+    { hour: '10:00', in: 250, out: 110 },
+    { hour: '11:00', in: 180, out: 150 },
+    { hour: '12:00', in: 160, out: 290 },
+    { hour: '13:00', in: 140, out: 130 },
+    { hour: '14:00', in: 210, out: 130 },
+    { hour: '15:00', in: 280, out: 180 },
+    { hour: '16:00', in: 420, out: 190 },
+    { hour: '17:00', in: 150, out: 390 },
+    { hour: '18:00', in: 60, out: 200 },
+  ],
+  topVisitors: [
+    { plate: 'กค 1234', province: 'นครปฐม', count: 24 },
+    { plate: '1ขร 9999', province: 'กรุงเทพมหานคร', count: 18 },
+    { plate: 'ฬฬ 9876', province: 'เชียงใหม่', count: 15 },
+    { plate: 'ฆฆ 555', province: 'ราชบุรี', count: 12 },
+    { plate: 'นบ 4321', province: 'ชลบุรี', count: 9 },
+  ]
+}

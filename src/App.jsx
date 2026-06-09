@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Monitor from './pages/Monitor'
 import History from './pages/History'
 import Blacklist from './pages/Blacklist'
+import Report from './pages/Report'
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/monitor" element={<Monitor />} />
         <Route path="/history" element={<History />} />
         <Route path="/blacklist" element={<Blacklist />} />
+        <Route path="/report" element={<Report />} />
       </Routes>
     </BrowserRouter>
   )
