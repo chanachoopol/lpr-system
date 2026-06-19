@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FaTriangleExclamation, FaTrashCan, FaXmark } from 'react-icons/fa6'
 import { FaCar, FaSearch } from 'react-icons/fa'
 import toast, { Toaster } from 'react-hot-toast'
@@ -7,23 +7,27 @@ import useAuthStore from '../store/authStore'
 import { mockBlacklistData, mockBlacklistFoundToday } from '../data/mockData'
 import '../styles/Blacklist.css'
 
+
 function Blacklist() {
   const { user } = useAuthStore()
   const [blacklist, setBlacklist] = useState(mockBlacklistData)
   const [searchInput, setSearchInput] = useState('')
   const [filteredData, setFilteredData] = useState(mockBlacklistData)
   const [showFoundModal, setShowFoundModal] = useState(false)
+ 
+
+
 
   // ฟังก์ชัน search
   function handleSearch(e) {
-    const keyword = e.target.value
-    setSearchInput(keyword)
-    const result = blacklist.filter(item =>
-      item.plate.toLowerCase().includes(keyword.toLowerCase()) ||
-      item.province.includes(keyword)
-    )
-    setFilteredData(result)
-  }
+  const keyword = e.target.value
+  setSearchInput(keyword)
+  const result = blacklist.filter(item =>
+    item.plate.toLowerCase().includes(keyword.toLowerCase()) ||
+    item.province.includes(keyword)
+  )
+  setFilteredData(result)
+}
 
   // ฟังก์ชันลบรายการ
   function handleDelete(id, plate) {

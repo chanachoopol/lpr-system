@@ -11,57 +11,61 @@ import { FaCalendarAlt } from 'react-icons/fa'
 
 const ROWS_PER_PAGE = 10
 
+// เรียงข้อมูลจากล่าสุดไปเก่าสุดไว้ตั้งแต่แรก
+const sortedHistoryData = [...mockHistoryData].sort((a, b) => {
+  // แปลง date + time เป็น Date object เพื่อเทียบ
+  const dateA = new Date(`${a.date.split('/').reverse().join('-')} ${a.time}`)
+  const dateB = new Date(`${b.date.split('/').reverse().join('-')} ${b.time}`)
+  return dateB - dateA
+})
+
 function History() {
   const [searchParams] = useSearchParams()
   const [searchInput, setSearchInput] = useState('')
   const [selectedCamera, setSelectedCamera] = useState('all')
-  const [filteredData, setFilteredData] = useState(mockHistoryData)
+  const [selectedDate, setSelectedDate] = useState(null) // null = ไม่กรองวันที่
+  const [filteredData, setFilteredData] = useState(sortedHistoryData)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedItem, setSelectedItem] = useState(null)
-  const [selectedDate, setSelectedDate] = useState(new Date())
+
+  // ฟังก์ชัน filter แบบ real-time
+  // ทำงานทุกครั้งที่ search, camera, หรือ date เปลี่ยน
+  useEffect(() => {
+    const keyword = searchInput.toLowerCase().trim()
+
+    const result = sortedHistoryData.filter((item) => {
+      const matchSearch =
+        keyword === '' ||
+        item.plate.toLowerCase().includes(keyword) ||
+        item.province.includes(keyword)
+
+      const matchCamera = selectedCamera === 'all' || item.cameraId === selectedCamera
+
+      // ถ้าไม่ได้เลือกวันที่ → ไม่กรองวันที่เลย (แสดงทุกวัน)
+      const matchDate =
+        selectedDate === null ||
+        item.date === selectedDate.toLocaleDateString('th-TH')
+
+      return matchSearch && matchCamera && matchDate
+    })
+
+    setFilteredData(result)
+    setCurrentPage(1)
+  }, [searchInput, selectedCamera, selectedDate])
 
   // รับค่า search จาก URL (มาจาก Navbar search)
   useEffect(() => {
     const searchFromURL = searchParams.get('search')
     if (searchFromURL) {
       setSearchInput(searchFromURL)
-      applyFilters(searchFromURL, selectedCamera)
     }
   }, [searchParams])
 
-  // ฟังก์ชัน filter ข้อมูล
-  function applyFilters(
-  search = searchInput,
-  camera = selectedCamera,
-  date = selectedDate
-) {
-  const keyword = search.toLowerCase().trim()
-  const result = mockHistoryData.filter((item) => {
-    const matchSearch =
-      keyword === '' ||
-      item.plate.toLowerCase().includes(keyword) ||
-      item.province.includes(keyword)
-    const matchCamera = camera === 'all' || item.cameraId === camera
-    const matchDate =
-      date === null ||
-      item.date === date.toLocaleDateString('th-TH')
-    return matchSearch && matchCamera && matchDate
-  })
-  setFilteredData(result)
-  setCurrentPage(1)
-}
-
-  function handleFilter() {
-    applyFilters()
-  }
-
   function handleReset() {
-  setSearchInput('')
-  setSelectedCamera('all')
-  setSelectedDate(new Date())
-  setFilteredData(mockHistoryData)
-  setCurrentPage(1)
-}
+    setSearchInput('')
+    setSelectedCamera('all')
+    setSelectedDate(null)
+  }
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / ROWS_PER_PAGE)
@@ -83,7 +87,6 @@ function History() {
                 placeholder="Type to search..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
               />
             </div>
           </div>
@@ -97,32 +100,31 @@ function History() {
               <option value="all">All Cameras</option>
               {mockCameraLocations.map((cam) => (
                 <option key={cam.id} value={cam.id}>
-                    {cam.name}
+                  {cam.name}
                 </option>
-                ))}
+              ))}
             </select>
           </div>
 
-          <div className="filter-buttons">
-            <button className="btn-filter" onClick={handleFilter}>
-              <FaSearch /> Filter
-            </button>
-            <div className="filter-group">
-              <label>Date</label>
-              <div className="filter-input-wrap">
-                <FaCalendarAlt className="filter-icon" />
-                <DatePicker
-                  selected={selectedDate}
-                  onChange={(date) => setSelectedDate(date)}
-                  dateFormat="dd/MM/yyyy"
-                  maxDate={new Date()}
-                  className="datepicker-history"
-                  placeholderText="Select date"
-                />
-              </div>
+          <div className="filter-group">
+            <label>Date</label>
+            <div className="filter-input-wrap">
+              <FaCalendarAlt className="filter-icon" />
+              <DatePicker
+                selected={selectedDate}
+                onChange={(date) => setSelectedDate(date)}
+                dateFormat="dd/MM/yyyy"
+                maxDate={new Date()}
+                className="datepicker-history"
+                placeholderText="All dates"
+                isClearable
+              />
             </div>
+          </div>
+
+          <div className="filter-buttons">
             <button className="btn-reset" onClick={handleReset}>
-                <FaRedo /> Reset
+              <FaRedo /> Reset
             </button>
           </div>
         </div>
@@ -141,6 +143,7 @@ function History() {
               <thead>
                 <tr>
                   <th>#</th>
+                  <th>Date</th>
                   <th>Time</th>
                   <th>License Plate</th>
                   <th>Province</th>
@@ -153,15 +156,13 @@ function History() {
                   currentData.map((item, index) => (
                     <tr key={item.id}>
                       <td>{startIndex + index + 1}</td>
+                      <td>{item.date}</td>
                       <td>{item.time}</td>
                       <td className="plate-text">{item.plate}</td>
                       <td>{item.province}</td>
                       <td>{item.cameraName}</td>
                       <td>
-                        <button
-                          className="btn-view"
-                          onClick={() => setSelectedItem(item)}
-                        >
+                        <button className="btn-view" onClick={() => setSelectedItem(item)}>
                           <FaEye /> View
                         </button>
                       </td>
@@ -169,7 +170,7 @@ function History() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="no-data">
+                    <td colSpan="7" className="no-data">
                       No records found
                     </td>
                   </tr>

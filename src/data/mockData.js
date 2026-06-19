@@ -18,19 +18,24 @@ export const mockCameraLocations = [
     id: 'cam1', 
     name: 'Main Entrance (Inbound)', 
     lat: 13.844849, 
-    lon: 100.632904 
+    lon: 100.632904,
+    
+    streamUrl: 'https://streaming.planetcloud.cloud/streaming/cra/hls/LPR-Test-01/index.m3u8'
   },
   { 
     id: 'cam2', 
     name: 'Rear Gate (Outbound)', 
     lat: 13.844200, 
-    lon: 100.633100 
+    lon: 100.633100,
+    
+    streamUrl: 'https://streaming.planetcloud.cloud/streaming/cra/hls/LPR-Test-01/index.m3u8'
   },
   { 
     id: 'cam3', 
     name: 'Parking Lot A2', 
     lat: 13.845300, 
-    lon: 100.632500 
+    lon: 100.632500,
+    streamUrl: 'https://streaming.planetcloud.cloud/streaming/cra/hls/LPR-Test-01/index.m3u8'
   },
 ]
 
@@ -66,9 +71,15 @@ export const mockHistoryData = Array.from({ length: 40 }, (_, i) => {
   const min = String(Math.floor(Math.random() * 60)).padStart(2, '0')
   const sec = String(Math.floor(Math.random() * 60)).padStart(2, '0')
 
+  // สุ่มวันที่ย้อนหลังไม่เกิน 7 วัน
+  const randomDaysAgo = Math.floor(Math.random() * 7)
+  const itemDate = new Date()
+  itemDate.setDate(itemDate.getDate() - randomDaysAgo)
+
   return {
     id: i + 1,
     time: `${hour}:${min}:${sec}`,
+    date: itemDate.toLocaleDateString('th-TH'),
     plate: `${Math.floor(Math.random() * 9 + 1)}กข ${Math.floor(1000 + Math.random() * 8999)}`,
     province: randomProvince,
     cameraId: randomCam,
@@ -117,3 +128,34 @@ export const mockReportData = {
     { plate: 'นบ 4321', province: 'ชลบุรี', count: 9 },
   ]
 }
+
+export const mockNotifications = [
+  {
+    id: 1,
+    type: 'blacklist',
+    title: 'Blacklist Detected',
+    plate: 'ทน 5566',
+    location: 'Main Entrance (Inbound)',
+    time: '10:15',
+    read: false
+  },
+  {
+    id: 2,
+    type: 'blacklist',
+    title: 'Blacklist Detected',
+    plate: 'พพ 1122',
+    location: 'Rear Gate (Outbound)',
+    time: '14:30',
+    read: false
+  },
+  {
+    id: 3,
+    type: 'camera',
+    title: 'Camera Offline',
+    plate: null,
+    cameraId: 'cam3',
+    location: 'Parking Lot A',
+    time: '09:00',
+    read: false
+  },
+]

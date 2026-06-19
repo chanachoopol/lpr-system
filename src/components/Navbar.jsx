@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars, FaSearch } from 'react-icons/fa'
+import { FaTriangleExclamation, FaVideo, FaArrowRight } from 'react-icons/fa6'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
+import { mockNotifications } from '../data/mockData'
 
 function Navbar({ title, onToggle }) {
   const { user, logout } = useAuthStore()
@@ -9,8 +11,13 @@ function Navbar({ title, onToggle }) {
   const [time, setTime] = useState('')
   const [darkMode, setDarkMode] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notifications, setNotifications] = useState(mockNotifications)
   const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef(null)
+  const notifRef = useRef(null)
+
+  const unreadCount = notifications.filter(n => !n.read).length
 
   useEffect(() => {
     function updateClock() {
@@ -31,6 +38,9 @@ function Navbar({ title, onToggle }) {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setShowDropdown(false)
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setShowNotifications(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -56,6 +66,23 @@ function Navbar({ title, onToggle }) {
     navigate('/')
   }
 
+  function markAllRead() {
+    setNotifications(notifications.map(n => ({ ...n, read: true })))
+  }
+
+  function handleNotifClick(notif) {
+  setNotifications(notifications.map(n =>
+    n.id === notif.id ? { ...n, read: true } : n
+  ))
+  setShowNotifications(false)
+
+  if (notif.type === 'blacklist') {
+    navigate('/blacklist')
+  } else if (notif.type === 'camera') {
+    navigate('/monitor')
+  }
+}
+
   return (
     <header className="navbar">
       <button className="nb-toggle" onClick={onToggle} aria-label="toggle sidebar">
@@ -79,11 +106,70 @@ function Navbar({ title, onToggle }) {
       <div className="nb-right">
         <div className="nb-time">{time}</div>
 
-        <div className="nb-bell">
-          <FaBell />
-          <span className="nb-badge">2</span>
+        {/* Notification Bell */}
+        <div className="nb-bell-wrap" ref={notifRef}>
+          <button
+            className="nb-bell"
+            onClick={() => setShowNotifications(!showNotifications)}
+          >
+            <FaBell />
+            {unreadCount > 0 && (
+              <span className="nb-badge">{unreadCount}</span>
+            )}
+          </button>
+
+          {/* Notification Panel */}
+          {showNotifications && (
+            <div className="notif-panel">
+              <div className="notif-header">
+                <h4>Notifications</h4>
+                {unreadCount > 0 && (
+                  <button className="notif-mark-read" onClick={markAllRead}>
+                    Mark all read
+                  </button>
+                )}
+              </div>
+
+              <div className="notif-list">
+                {notifications.length > 0 ? (
+                  notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className={`notif-item ${!notif.read ? 'unread' : ''}`}
+                      onClick={() => handleNotifClick(notif)}
+                    >
+                      <div className={`notif-icon ${notif.type}`}>
+                        {notif.type === 'blacklist'
+                          ? <FaTriangleExclamation />
+                          : <FaVideo />
+                        }
+                      </div>
+                      <div className="notif-content">
+                        <p className="notif-title">{notif.title}</p>
+                        {notif.plate && (
+                          <p className="notif-plate">{notif.plate}</p>
+                        )}
+                        <p className="notif-location">
+                          {notif.location} • {notif.time}
+                        </p>
+                      </div>
+                      {!notif.read && <span className="notif-dot"></span>}
+                    </div>
+                  ))
+                ) : (
+                  <p className="notif-empty">No notifications</p>
+                )}
+              </div>
+
+              <div className="notif-footer" onClick={() => { navigate('/blacklist'); setShowNotifications(false) }}>
+                <span>View all in Blacklist</span>
+                <FaArrowRight />
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* Profile Dropdown */}
         <div
           className="nb-profile"
           ref={dropdownRef}
