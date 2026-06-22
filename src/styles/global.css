@@ -27,3 +27,90 @@ body {
   color: rgb(27, 42, 71);
   margin-bottom: 24px;
 }
+/* Spinner */
+.spinner-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(27, 42, 71, 0.1);
+  border-top: 3px solid rgb(27, 42, 71);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner-text {
+  font-size: 14px;
+  color: rgb(142, 154, 171);
+  margin: 0;
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 12px;
+}
+
+.empty-icon {
+  font-size: 48px;
+  color: rgb(142, 154, 171);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgb(27, 42, 71);
+  margin: 0;
+}
+
+.empty-desc {
+  font-size: 14px;
+  color: rgb(142, 154, 171);
+  margin: 0;
+  text-align: center;
+}
+
+/* Video Skeleton */
+.video-skeleton {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 16px;
+  background: linear-gradient(
+    90deg,
+    rgba(27, 42, 71, 0.06) 25%,
+    rgba(27, 42, 71, 0.12) 50%,
+    rgba(27, 42, 71, 0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton 1.5s infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(142, 154, 171);
+  font-size: 14px;
+  gap: 8px;
+}
+
+@keyframes skeleton {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

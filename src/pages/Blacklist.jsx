@@ -6,6 +6,9 @@ import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
 import { mockBlacklistData, mockBlacklistFoundToday } from '../data/mockData'
 import '../styles/Blacklist.css'
+import Spinner from '../components/Spinner'
+import EmptyState from '../components/EmptyState'
+
 
 
 function Blacklist() {
@@ -15,7 +18,11 @@ function Blacklist() {
   const [filteredData, setFilteredData] = useState(mockBlacklistData)
   const [showFoundModal, setShowFoundModal] = useState(false)
  
+  const [isLoading, setIsLoading] = useState(true)
 
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 800)
+  }, [])
 
 
   // ฟังก์ชัน search
@@ -131,7 +138,13 @@ function Blacklist() {
                 </tr>
               </thead>
               <tbody>
-                {filteredData.length > 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={user?.role === 'admin' ? 5 : 4}>
+                      <Spinner text="Loading blacklist..." />
+                    </td>
+                  </tr>
+                ) : filteredData.length > 0 ? (
                   filteredData.map((item) => (
                     <tr key={item.id}>
                       <td>
@@ -156,8 +169,12 @@ function Blacklist() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={user?.role === 'admin' ? 5 : 4} className="no-data">
-                      No records found
+                    <td colSpan={user?.role === 'admin' ? 5 : 4}>
+                      <EmptyState
+                        icon={<FaTriangleExclamation />}
+                        title="No blacklist records"
+                        description="No vehicles found matching your search"
+                      />
                     </td>
                   </tr>
                 )}

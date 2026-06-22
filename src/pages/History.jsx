@@ -8,9 +8,10 @@ import '../styles/History.css'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { FaCalendarAlt } from 'react-icons/fa'
+import Spinner from '../components/Spinner'
+import EmptyState from '../components/EmptyState'
 
 const ROWS_PER_PAGE = 10
-
 // เรียงข้อมูลจากล่าสุดไปเก่าสุดไว้ตั้งแต่แรก
 const sortedHistoryData = [...mockHistoryData].sort((a, b) => {
   // แปลง date + time เป็น Date object เพื่อเทียบ
@@ -23,13 +24,19 @@ function History() {
   const [searchParams] = useSearchParams()
   const [searchInput, setSearchInput] = useState('')
   const [selectedCamera, setSelectedCamera] = useState('all')
-  const [selectedDate, setSelectedDate] = useState(null) // null = ไม่กรองวันที่
+  const [selectedDate, setSelectedDate] = useState(null)
   const [filteredData, setFilteredData] = useState(sortedHistoryData)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedItem, setSelectedItem] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)  // ← ย้ายมาไว้ตรงนี้
+  
 
-  // ฟังก์ชัน filter แบบ real-time
-  // ทำงานทุกครั้งที่ search, camera, หรือ date เปลี่ยน
+  // จำลอง loading ตอนเปิดหน้า ← ย้ายมาไว้ตรงนี้ด้วย
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 800)
+  }, [])
+
+  // ... useEffect อื่น ๆ ต่อไป
   useEffect(() => {
     const keyword = searchInput.toLowerCase().trim()
 
@@ -152,30 +159,40 @@ function History() {
                 </tr>
               </thead>
               <tbody>
-                {currentData.length > 0 ? (
-                  currentData.map((item, index) => (
-                    <tr key={item.id}>
-                      <td>{startIndex + index + 1}</td>
-                      <td>{item.date}</td>
-                      <td>{item.time}</td>
-                      <td className="plate-text">{item.plate}</td>
-                      <td>{item.province}</td>
-                      <td>{item.cameraName}</td>
-                      <td>
-                        <button className="btn-view" onClick={() => setSelectedItem(item)}>
-                          <FaEye /> View
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="7" className="no-data">
-                      No records found
+              {isLoading ? (
+                <tr>
+                  <td colSpan="7">
+                    <Spinner text="Loading history..." />
+                  </td>
+                </tr>
+              ) : currentData.length > 0 ? (
+                currentData.map((item, index) => (
+                  <tr key={item.id}>
+                    <td>{startIndex + index + 1}</td>
+                    <td>{item.date}</td>
+                    <td>{item.time}</td>
+                    <td className="plate-text">{item.plate}</td>
+                    <td>{item.province}</td>
+                    <td>{item.cameraName}</td>
+                    <td>
+                      <button className="btn-view" onClick={() => setSelectedItem(item)}>
+                        <FaEye /> View
+                      </button>
                     </td>
                   </tr>
-                )}
-              </tbody>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="7">
+                    <EmptyState
+                      icon={<FaSearch />}
+                      title="No records found"
+                      description="Try changing the filter or search keyword"
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
             </table>
           </div>
 
