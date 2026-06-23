@@ -8,23 +8,22 @@
 
 body {
   font-family: 'DM Sans', sans-serif;
-  background: linear-gradient(135deg, rgb(240, 244, 248) 0%, rgb(226, 232, 240) 100%);
-  color: rgb(27, 42, 71);
+  background: var(--bg-body);
+  color: var(--text-main);    /* ดึงตัวแปรมาใช้ */
 }
 
-/* Shared Card — ใช้ได้ทุกหน้า */
 .content-card {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--card-bg); /* ดึงตัวแปรมาใช้ */
   border-radius: 24px;
   padding: 28px;
-  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color); /* ดึงตัวแปรมาใช้ */
 }
 
 .card-title {
   font-family: 'Playfair Display', serif;
   font-size: 20px;
-  color: rgb(27, 42, 71);
+  color: var(--text-main);
   margin-bottom: 24px;
 }
 /* Spinner */

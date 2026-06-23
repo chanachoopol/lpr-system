@@ -4,18 +4,19 @@ import { FaTriangleExclamation, FaVideo, FaArrowRight } from 'react-icons/fa6'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import { mockNotifications } from '../data/mockData'
+import { useThemeStore } from '../store/themeStore'
 
 function Navbar({ title, onToggle }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [time, setTime] = useState('')
-  const [darkMode, setDarkMode] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState(mockNotifications)
   const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef(null)
   const notifRef = useRef(null)
+  const { theme, toggleTheme } = useThemeStore()
 
   const unreadCount = notifications.filter(n => !n.read).length
 
@@ -55,10 +56,10 @@ function Navbar({ title, onToggle }) {
     }
   }
 
-  function toggleDarkMode() {
-    setDarkMode(!darkMode)
-    document.body.classList.toggle('dark-mode')
-    setShowDropdown(false)
+ function handleToggleMode() {
+    toggleTheme() // สั่งเปลี่ยนค่าแสงในสมองกล
+    setShowDropdown(false) // ปิดเมนู Dropdown
+    // (เราไม่ต้องสั่งแก้ document.body ตรงนี้แล้ว เพราะ App.jsx คอยจัดการให้แบบอัตโนมัติแล้วครับ!)
   }
 
   function handleLogout() {
@@ -180,9 +181,9 @@ function Navbar({ title, onToggle }) {
           <FaChevronDown className="nb-chevron" />
 
           <div className={`nb-dropdown ${showDropdown ? 'show' : ''}`}>
-            <button className="nb-dropdown-item" onClick={toggleDarkMode}>
-              {darkMode ? <FaSun /> : <FaMoon />}
-              <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            <button className="nb-dropdown-item" onClick={handleToggleMode}>
+              {theme === 'dark' ? <FaSun /> : <FaMoon />}
+              <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
             <hr className="nb-divider" />
             <button className="nb-dropdown-item danger" onClick={handleLogout}>

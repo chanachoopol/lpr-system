@@ -1,53 +1,53 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* ☀️ Light Mode (สีเดิมที่น้องเมษาออกแบบไว้ ห้ามเปลี่ยน!) */
+  --bg-body: linear-gradient(135deg, rgb(240, 244, 248) 0%, rgb(226, 232, 240) 100%);
+  --text-main: rgb(27, 42, 71);
+  --card-bg: rgba(255, 255, 255, 0.8);
+  --border-color: rgba(255, 255, 255, 0.6);
+  --sidebar-bg: rgb(27, 42, 71);
+  --navbar-bg: rgba(255, 255, 255, 0.6);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  /* เพิ่มตัวแปรสำหรับ UI อื่นๆ ให้ Light Mode ยังคงทำงานได้เป๊ะเหมือนเดิม */
+  --sidebar-active-bg: rgb(255, 255, 255);
+  --sidebar-active-color: rgb(27, 42, 71);
+  --bg-input: rgb(255, 255, 255);
+  --text-secondary: rgb(142, 154, 171);
+  --navbar-border: rgba(255, 255, 255, 0.9);
+  --btn-view-bg: rgba(27, 42, 71, 0.06);
+  --btn-view-color: rgb(27, 42, 71);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+.dark {
+  /* 🌙 Dark Mode (สไตล์ ZBank: แกะสีตาม 4 ไอเดียของน้องเมษา) */
+  
+  /* ข้อ 2: พื้นหลัง Main Content (Layer 1) = สีม่วงเข้ม */
+  --bg-body: #1f1d2b; 
+  /* ข้อ 1: พื้นหลังปุ่ม Active = สีเดียวกับ Main Content (Layer 1) */
+  --sidebar-active-bg: #1f1d2b; 
+  /* ข้อ 1: สีตัวหนังสือยังสว่าง แต่ปุ่ม Active เปลี่ยนเป็นสีชมพูนีออน */
+  --text-main: #ffffff; 
+  --sidebar-active-color: #ffffff; 
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  /* ข้อ 1 & 4: Sidebar และ Cards (Layer 2) = สีเดียวกัน (สว่างกว่า Layer 1 นิดนึง) */
+  --sidebar-bg: #252836; 
+  --card-bg: #252836; 
+  
+  /* ข้อ 3: Search Bar (Layer 3) = สีตัดกับพื้นหลัง (ใช้โทนน้ำเงินอมเทา) */
+  --bg-input: #2d303e; 
+
+  /* สีอื่นๆ สำหรับ Dark Mode ให้เนียนตา */
+  --border-color: rgba(255, 255, 255, 0.05); /* ลดความชัดของเส้นขอบลง */
+  --navbar-bg: #1f1d2b; /* ให้ Navbar กลืนไปกับพื้นหลัง Main */
+  --text-secondary: #94a3b8;
+  --navbar-border: transparent; /* 👈 ข้อ 2: สั่งให้เส้นขอบ Navbar หายไปเลย */
+  --btn-view-bg: rgba(255, 255, 255, 0.1); /* 👈 ข้อ 3: สีพื้นหลังปุ่ม View */
+  --btn-view-color: #ffffff; /* 👈 ข้อ 3: สีข้อความปุ่ม View */
+}
+
+
+
+.dark #social .button-icon {
+  filter: invert(1) brightness(2);
 }
 
 body {

@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+import { useThemeStore } from './store/themeStore' // เช็ก path ให้ตรงกับโฟลเดอร์ที่น้องเมษาสร้างไว้นะครับ
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -7,6 +9,16 @@ import Blacklist from './pages/Blacklist'
 import Report from './pages/Report'
 
 function App() {
+  const theme = useThemeStore((state) => state.theme)
+
+  // ให้ React คอยแปะหรือดึง Class 'dark' ออก ตามค่าของ theme
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }, [theme])
   return (
     <BrowserRouter>
       <Routes>
