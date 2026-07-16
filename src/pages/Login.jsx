@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import cctvImg from '../assets/cctv.png'
+import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
 
 function Login() {
@@ -18,16 +19,22 @@ function Login() {
 
   return (
     <div className="bg">
+      <div className="cloud-track">
+        <img src={bg1} className="cloud-img" alt="" />
+        <img src={bg1} className="cloud-img" alt="" />
+        <img src={bg1} className="cloud-img" alt="" />
+        <img src={bg1} className="cloud-img" alt="" />
+      </div>
+
       <div className="glow-1"></div>
       <div className="glow-2"></div>
-
+      <div className="grain-overlay"></div>
       <div className="card">
-
         {/* ฝั่งซ้าย */}
         <div className="card-left">
           <img src={cctvImg} alt="CCTV" className="cctv-img" />
           <div className="left-bottom">
-            <p>Smart Security</p>
+            <p> Security</p>
             <span>AI-Powered LPR</span>
           </div>
         </div>
@@ -38,7 +45,6 @@ function Login() {
           <p className="r-sub">Sign in to access the system</p>
 
           <form onSubmit={handleSubmit}>
-
             <div className="f-group">
               <label className="f-label">Username</label>
               <div className="f-row">
@@ -82,14 +88,12 @@ function Login() {
             </div>
 
             <button type="submit" className="btn">Access Control</button>
-
           </form>
 
           <p className="forgot">
             Forgot password? <span>Contact admin</span>
           </p>
         </div>
-
       </div>
     </div>
   )

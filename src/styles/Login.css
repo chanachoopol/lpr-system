@@ -8,14 +8,14 @@
 }
 
 body {
-  font-family: 'DM Sans', sans-serif; /* ตั้งค่าฟอนต์หลักให้ทั้งหน้า */
+  font-family: 'DM Sans', sans-serif;
 }
 
-/* ปรับพื้นหลังเป็นโทนเย็นสว่าง (Cool Ice Blue) */
+/* พื้นหลังหลัก - สีนี้จะเป็น fallback เผื่อรูปโหลดไม่ทัน */
 .bg {
   width: 100vw;
   height: 100vh;
-  background: #eef2f6; 
+  background: #eef2f6;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -25,30 +25,61 @@ body {
   overflow: hidden;
 }
 
+/* ===== เมฆเลื่อน ===== */
+.cloud-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 400%; /* bg1 + bg2 + bg1 + bg2 = 4 รูป */
+  display: flex;
+  animation: slideClouds 120s linear infinite;
+  z-index: 0;
+}
+
+.cloud-img {
+  width: 25%; /* 100% หาร 4 รูป */
+  height: 100%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: block;
+}
+
+@keyframes slideClouds {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-track {
+    animation: none;
+  }
+}
+
 /* วงกลมฟุ้ง 1: โทนสีกรมท่า (Navy) ล้อกับ Sidebar หน้าหลัก */
 .glow-1 {
   position: absolute;
   width: 800px;
   height: 800px;
   border-radius: 50%;
-  background: rgba(96, 165, 250, 0.35); /* สีกรมท่าโปร่งแสง */
+  background: rgba(96, 165, 250, 0.35);
   top: -250px;
   left: -200px;
-  filter: blur(95px); /*สั่งให้เบลอฟุ้งจนเป็นออร่า */
-  z-index: 0;
+  filter: blur(95px);
+  z-index: 1; /* อยู่เหนือเมฆ */
 }
 
-/* วงกลมฟุ้ง 2: โทนสีฟ้าสดใส ช่วยให้ไม่จืดชืด และดูเป็นเทคโนโลยีมากขึ้น */
+/* วงกลมฟุ้ง 2 */
 .glow-2 {
   position: absolute;
   width: 650px;
   height: 650px;
   border-radius: 50%;
-  background: rgba(96, 165, 250, 0.35); /* สีฟ้าโปร่งแสง */
+  background: rgba(96, 165, 250, 0.35);
   bottom: -200px;
   right: -100px;
-  filter: blur(90px); /* สั่งให้เบลอฟุ้ง */
-  z-index: 0;
+  filter: blur(90px);
+  z-index: 1; /* อยู่เหนือเมฆ */
 }
 
 /* การ์ดสไตล์กระจกฝ้า */
@@ -63,7 +94,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.9);
   overflow: hidden;
   position: relative;
-  z-index: 1;
+  z-index: 2; /* อยู่บนสุด */
   box-shadow: 0 15px 35px rgba(27, 42, 71, 0.06);
 }
 
@@ -91,13 +122,12 @@ body {
 }
 
 .left-bottom p {
-  /* ลบ Playfair ออก ใช้ DM Sans ที่สืบทอดมาจาก body แทน */
   font-size: 24px;
-  font-weight: 700; /* ปรับให้หนาขึ้นเพื่อชดเชยความเป็นหัวข้อ */
+  font-weight: 700;
   color: #1b2a47;
   margin-bottom: 2px;
   margin-top: 25px;
-  letter-spacing: -0.5px; /* บีบช่องไฟนิดนึงให้ดูโมเดิร์น */
+  letter-spacing: -0.5px;
 }
 
 .left-bottom span {
@@ -120,7 +150,6 @@ body {
 }
 
 .r-title {
-  /* ลบ Playfair ออกเช่นกัน */
   font-size: 30px;
   font-weight: 700;
   color: #1b2a47;
@@ -262,13 +291,13 @@ form {
 
 .btn:hover {
   background: #24375d;
-  transform: translateY(-2px); 
-  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.2); 
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.2);
 }
 
 .btn:active {
-  transform: translateY(1px); 
-  box-shadow: 0 2px 8px rgba(27, 42, 71, 0.15); 
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(27, 42, 71, 0.15);
 }
 
 .forgot {
@@ -289,6 +318,18 @@ form {
 .forgot span:hover {
   text-decoration: underline;
   color: #24375d;
+}
+.grain-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1; /* อยู่เหนือเมฆและ glow แต่ใต้ card */
+  opacity: 0.2; /* ปรับความเข้มของ grain ตรงนี้ 0.03-0.08 พอ */
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
 }
 
 /* Tablet */

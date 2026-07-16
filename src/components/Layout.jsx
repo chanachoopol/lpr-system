@@ -5,7 +5,7 @@ import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 
 function Layout({ children, title }) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
 
   return (
     <div className="layout">
