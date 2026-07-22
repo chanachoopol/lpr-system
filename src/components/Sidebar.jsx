@@ -1,14 +1,17 @@
 import { NavLink } from 'react-router-dom'
-import { FaHome, FaDesktop, FaHistory, FaExclamationTriangle, FaChartBar, FaUser, FaSignOutAlt } from 'react-icons/fa'
+import { FaHome, FaDesktop, FaHistory, FaExclamationTriangle, FaChartBar, FaUser, FaSignOutAlt, FaUsers } from 'react-icons/fa'
 import useAuthStore from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
 
+// แต่ละเมนูมี roles กำกับว่า role ไหนเห็นได้บ้าง
+// เมนูเดิมเปิดให้ทุก role เห็นเหมือนเดิม ไม่กระทบของเดิม
 const menuItems = [
-  { path: '/dashboard', icon: <FaHome />, label: 'Dashboard' },
-  { path: '/monitor', icon: <FaDesktop />, label: 'Monitor' },
-  { path: '/history', icon: <FaHistory />, label: 'History' },
-  { path: '/blacklist', icon: <FaExclamationTriangle />, label: 'Blacklist' },
-  { path: '/report', icon: <FaChartBar />, label: 'Report' },
+  { path: '/dashboard', icon: <FaHome />, label: 'Dashboard', roles: ['user', 'admin', 'superadmin'] },
+  { path: '/monitor', icon: <FaDesktop />, label: 'Monitor', roles: ['user', 'admin', 'superadmin'] },
+  { path: '/history', icon: <FaHistory />, label: 'History', roles: ['user', 'admin', 'superadmin'] },
+  { path: '/blacklist', icon: <FaExclamationTriangle />, label: 'Blacklist', roles: ['user', 'admin', 'superadmin'] },
+  { path: '/report', icon: <FaChartBar />, label: 'Report', roles: ['user', 'admin', 'superadmin'] },
+  { path: '/users', icon: <FaUsers />, label: 'User Management', roles: ['admin', 'superadmin'] },
 ]
 
 function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
@@ -26,6 +29,9 @@ function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
     }
   }
 
+  // กรองเมนูให้เหลือเฉพาะที่ role ปัจจุบันเห็นได้
+  const visibleMenuItems = menuItems.filter((item) => item.roles.includes(user?.role))
+
   return (
     <aside className={`sidebar 
       ${isCollapsed ? 'collapsed' : ''} 
@@ -40,7 +46,7 @@ function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
       </div>
 
       <nav className="sb-menu">
-        {menuItems.map((item) => (
+        {visibleMenuItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}

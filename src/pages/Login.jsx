@@ -45,7 +45,7 @@ function Login() {
         icon: 'error',
         title: 'เข้าสู่ระบบล้มเหลว',
         text: 'Username หรือ Password ไม่ถูกต้อง',
-        confirmButtonColor: '#3b82f6',
+        confirmButtonColor: 'var(--sidebar-bg)',
       })
       setIsSubmitting(false)
     }

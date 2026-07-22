@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FaTriangleExclamation, FaTrashCan, FaXmark } from 'react-icons/fa6'
+import { FaTriangleExclamation, FaTrashCan, FaXmark, FaPlus } from 'react-icons/fa6'
 import { FaCar, FaSearch } from 'react-icons/fa'
 import toast, { Toaster } from 'react-hot-toast'
 import Layout from '../components/Layout'
@@ -9,15 +9,22 @@ import '../styles/Blacklist.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 
+// Role ที่จัดการ (เพิ่ม/ลบ) รายการ blacklist ได้ — เปิดให้ทุก role
+// เพราะกลุ่มเป้าหมายของ role "user" คือเจ้าหน้าที่รักษาความปลอดภัยที่ต้องจัดการเองหน้างาน
+const BLACKLIST_MANAGE_ROLES = ['user', 'admin', 'superadmin']
 
+const EMPTY_FORM = { plate: '', province: '', reason: '' }
 
 function Blacklist() {
   const { user } = useAuthStore()
+  const canManageBlacklist = BLACKLIST_MANAGE_ROLES.includes(user?.role)
   const [blacklist, setBlacklist] = useState(mockBlacklistData)
   const [searchInput, setSearchInput] = useState('')
   const [filteredData, setFilteredData] = useState(mockBlacklistData)
   const [showFoundModal, setShowFoundModal] = useState(false)
- 
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [formData, setFormData] = useState(EMPTY_FORM)
+
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -63,6 +70,35 @@ function Blacklist() {
         </div>
       </div>
     ), { duration: 5000 })
+  }
+
+  function handleFormChange(e) {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  function handleAddSubmit(e) {
+    e.preventDefault()
+
+    if (!formData.plate.trim() || !formData.province.trim() || !formData.reason.trim()) {
+      toast.error('กรุณากรอกข้อมูลให้ครบทุกช่อง')
+      return
+    }
+
+    const newEntry = {
+      id: Date.now(),
+      plate: formData.plate.trim(),
+      province: formData.province.trim(),
+      reason: formData.reason.trim(),
+      date: new Date().toLocaleDateString('th-TH')
+    }
+
+    const updated = [newEntry, ...blacklist]
+    setBlacklist(updated)
+    setFilteredData(updated)
+    setFormData(EMPTY_FORM)
+    setShowAddModal(false)
+    toast.success(`${newEntry.plate} added to blacklist`)
   }
 
   return (
@@ -113,16 +149,24 @@ function Blacklist() {
               </div>
             </div>
 
-            {/* Search Bar */}
-            <div className="bl-search-wrap">
-              <FaSearch className="bl-search-icon" />
-              <input
-                type="text"
-                placeholder="Search plate / province..."
-                value={searchInput}
-                onChange={handleSearch}
-                className="bl-search-input"
-              />
+            <div className="bl-table-header-actions">
+              {/* Search Bar */}
+              <div className="bl-search-wrap">
+                <FaSearch className="bl-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search plate / province..."
+                  value={searchInput}
+                  onChange={handleSearch}
+                  className="bl-search-input"
+                />
+              </div>
+
+              {canManageBlacklist && (
+                <button className="btn-add-blacklist" onClick={() => setShowAddModal(true)}>
+                  <FaPlus /> Add to Blacklist
+                </button>
+              )}
             </div>
           </div>
 
@@ -134,13 +178,13 @@ function Blacklist() {
                   <th>Province</th>
                   <th>Reason</th>
                   <th>Date Added</th>
-                  {user?.role === 'admin' && <th>Action</th>}
+                  {canManageBlacklist && <th>Action</th>}
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={user?.role === 'admin' ? 5 : 4}>
+                    <td colSpan={canManageBlacklist ? 5 : 4}>
                       <Spinner text="Loading blacklist..." />
                     </td>
                   </tr>
@@ -155,7 +199,7 @@ function Blacklist() {
                         <span className="bl-reason-badge">{item.reason}</span>
                       </td>
                       <td>{item.date}</td>
-                      {user?.role === 'admin' && (
+                      {canManageBlacklist && (
                         <td>
                           <button
                             className="btn-delete"
@@ -169,7 +213,7 @@ function Blacklist() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={user?.role === 'admin' ? 5 : 4}>
+                    <td colSpan={canManageBlacklist ? 5 : 4}>
                       <EmptyState
                         icon={<FaTriangleExclamation />}
                         title="No blacklist records"
@@ -212,6 +256,67 @@ function Blacklist() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Add to Blacklist */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Add to Blacklist</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowAddModal(false)}
+              >
+                <FaXmark />
+              </button>
+            </div>
+            <form className="bl-add-form" onSubmit={handleAddSubmit}>
+              <div className="bl-add-field">
+                <label>License Plate</label>
+                <input
+                  type="text"
+                  name="plate"
+                  placeholder="เช่น กค 1234"
+                  value={formData.plate}
+                  onChange={handleFormChange}
+                />
+              </div>
+              <div className="bl-add-field">
+                <label>Province</label>
+                <input
+                  type="text"
+                  name="province"
+                  placeholder="เช่น นครปฐม"
+                  value={formData.province}
+                  onChange={handleFormChange}
+                />
+              </div>
+              <div className="bl-add-field">
+                <label>Reason</label>
+                <input
+                  type="text"
+                  name="reason"
+                  placeholder="เช่น Suspicious Vehicle"
+                  value={formData.reason}
+                  onChange={handleFormChange}
+                />
+              </div>
+              <div className="bl-add-actions">
+                <button
+                  type="button"
+                  className="btn-cancel-add"
+                  onClick={() => setShowAddModal(false)}
+                >
+                  ยกเลิก
+                </button>
+                <button type="submit" className="btn-confirm-add">
+                  บันทึก
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

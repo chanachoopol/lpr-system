@@ -73,6 +73,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .bl-table-title {
@@ -84,6 +86,14 @@
 .bl-title-icon {
   color: rgb(220, 38, 38);
   font-size: 18px;
+}
+
+/* แถวขวาของ header: search + ปุ่ม Add */
+.bl-table-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 /* Table */
@@ -164,6 +174,29 @@
   transform: scale(1.05);
 }
 
+/* ปุ่ม Add to Blacklist */
+.btn-add-blacklist {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgb(27, 42, 71);
+  color: rgb(255, 255, 255);
+  border: none;
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-add-blacklist:hover {
+  background: rgb(17, 30, 55);
+  transform: translateY(-1px);
+}
+
 .no-data {
   text-align: center;
   padding: 40px !important;
@@ -216,6 +249,14 @@
 @media (max-width: 768px) {
   .bl-kpi-row {
     grid-template-columns: 1fr;
+  }
+
+  .bl-table-header-actions {
+    width: 100%;
+  }
+
+  .bl-search-wrap {
+    flex: 1;
   }
 }
 /* Clickable KPI Card */
@@ -277,7 +318,7 @@
   box-shadow: 0 2px 8px rgba(27, 42, 71, 0.08);
 }
 
-/* Modal Found Today */
+/* Modal Found Today / Add to Blacklist (shared overlay) */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -373,4 +414,85 @@
   font-size: 14px;
   font-weight: 600;
   color: rgb(27, 42, 71);
+}
+
+/* Add to Blacklist Form */
+.bl-add-form {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bl-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bl-add-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bl-add-field input {
+  padding: 11px 14px;
+  border: 1px solid rgba(27, 42, 71, 0.1);
+  border-radius: 12px;
+  background: var(--bg-input);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.bl-add-field input:focus {
+  border-color: rgba(27, 42, 71, 0.3);
+  box-shadow: 0 2px 8px rgba(27, 42, 71, 0.08);
+}
+
+.bl-add-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.btn-cancel-add {
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  background: rgb(255, 255, 255);
+  color: rgb(27, 42, 71);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel-add:hover {
+  background: rgb(241, 245, 249);
+}
+
+.btn-confirm-add {
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: none;
+  background: rgb(27, 42, 71);
+  color: rgb(255, 255, 255);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-confirm-add:hover {
+  background: rgb(17, 30, 55);
+  transform: translateY(-1px);
 }

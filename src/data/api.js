@@ -1,4 +1,5 @@
 import axios from 'axios'
+import Cookies from 'js-cookie'
 
 // ตั้งค่า Base URL ไว้ที่เดียว
 // พอ Backend พร้อม แก้แค่บรรทัดนี้พอ
@@ -16,31 +17,43 @@ export const api = axios.create({
 // แนบ token ทุก request อัตโนมัติ
 // ไม่ต้องใส่ token เองทุกครั้ง
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
+  const token = Cookies.get('access_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
+// Mock accounts ไว้ก่อน Backend พร้อม
+// เพิ่มครบ 3 role เพื่อเทส role-based UI (user / admin / superadmin)
+const mockAccounts = [
+  { id: 1, username: 'admin', password: '1234', role: 'admin' },
+  { id: 2, username: 'superadmin', password: '1234', role: 'superadmin' },
+  { id: 3, username: 'user', password: '1234', role: 'user' }
+]
+
 // ฟังก์ชัน Login
 // Mock ไว้ก่อน พอ Backend พร้อมค่อยเปิด axios จริง
 export async function loginAPI(username, password) {
 
   // --- Mock ไว้ก่อน ลบทิ้งตอน Backend พร้อม ---
-  if (username === 'admin' && password === '1234') {
+  const matched = mockAccounts.find(
+    (account) => account.username === username && account.password === password
+  )
+
+  if (matched) {
     return {
       success: true,
-      access_token: 'mock-token-12345',
+      access_token: `mock-token-${matched.id}`,
       user: {
-        id: 1,
-        username: 'admin',
-        role: 'admin'
+        id: matched.id,
+        username: matched.username,
+        role: matched.role
       }
     }
-  } else {
-    return { success: false }
   }
+
+  return { success: false }
 
   // --- เปิดใช้ตอน Backend พร้อม ---
   // const response = await api.post('/api/auth/login', {
