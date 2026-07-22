@@ -404,17 +404,6 @@
   margin: 6px 0;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .layout {
-    padding: 12px;
-    gap: 12px;
-  }
-
-  .sidebar {
-    display: none;
-  }
-}
 /* Search Bar */
 .nb-search {
   display: flex;
@@ -623,4 +612,180 @@
 
 .notif-footer:hover {
   background: var(--bg-input);
+}
+/* Overlay Mobile */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 89;
+  backdrop-filter: blur(2px);
+}
+
+/* Tablet (768px - 1024px) */
+@media (max-width: 1024px) {
+  .layout {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .sidebar {
+    width: 72px;
+    padding: 24px 12px;
+  }
+
+  .sidebar .sb-user-info {
+    display: none;
+  }
+
+  .sidebar .sb-user {
+    justify-content: center;
+    padding: 12px;
+    gap: 0;
+  }
+
+  .sidebar .sb-item {
+    padding: 14px;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .sidebar .sb-label {
+    display: none;
+  }
+
+  .sidebar .sb-item:hover {
+    transform: none;
+  }
+
+  .sidebar .sb-logout {
+    padding: 14px;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .sidebar .sb-logout span {
+    display: none;
+  }
+
+  /* Tablet → กดปุ่มแล้วเปิดเต็ม */
+  .sidebar:not(.collapsed) {
+    width: 260px;
+    padding: 32px 20px;
+  }
+
+  .sidebar:not(.collapsed) .sb-user-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar:not(.collapsed) .sb-user {
+    justify-content: flex-start;
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .sidebar:not(.collapsed) .sb-item {
+    padding: 14px 20px;
+    justify-content: flex-start;
+    gap: 16px;
+  }
+
+  .sidebar:not(.collapsed) .sb-label {
+    display: block;
+  }
+
+  .sidebar:not(.collapsed) .sb-logout {
+    padding: 14px 20px;
+    justify-content: flex-start;
+    gap: 16px;
+  }
+
+  .sidebar:not(.collapsed) .sb-logout span {
+    display: block;
+  }
+
+  .nb-time {
+    display: none;
+  }
+}
+
+/* Mobile (< 768px) */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+    padding: 0;
+    gap: 0;
+  }
+
+  /* ซ่อน Sidebar ตอนปกติ */
+  .sidebar {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px !important;
+    padding: 32px 20px !important;
+    z-index: 90;
+    border-radius: 0 24px 24px 0 !important;
+  }
+
+  /* เปิด Sidebar ตอนกดปุ่ม */
+  .sidebar.mobile-open {
+    display: flex !important;
+  }
+
+  /* แสดงข้อความใน Mobile Sidebar */
+  .sidebar .sb-user-info { display: flex !important; flex-direction: column; }
+  .sidebar .sb-user { justify-content: flex-start !important; padding: 16px !important; gap: 16px !important; }
+  .sidebar .sb-item { padding: 14px 20px !important; justify-content: flex-start !important; gap: 16px !important; }
+  .sidebar .sb-label { display: block !important; }
+  .sidebar .sb-logout { padding: 14px 20px !important; justify-content: flex-start !important; gap: 16px !important; }
+  .sidebar .sb-logout span { display: block !important; }
+
+  .layout-main {
+    gap: 12px;
+  }
+
+  .navbar {
+    border-radius: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    padding: 0 16px;
+    z-index: 10;
+  }
+
+  .layout-content {
+    padding: 12px;
+    margin-top: 60px;
+  }
+
+  .nb-title {
+    font-size: 16px;
+  }
+
+  .nb-search {
+    display: none;
+  }
+
+  .nb-time {
+    display: none;
+  }
+
+  .nb-right {
+    gap: 12px;
+  }
+
+  .nb-name {
+    display: none;
+  }
+
+  .nb-profile {
+    padding: 6px;
+    border-radius: 50%;
+  }
 }

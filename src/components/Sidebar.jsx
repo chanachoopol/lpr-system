@@ -11,7 +11,7 @@ const menuItems = [
   { path: '/report', icon: <FaChartBar />, label: 'Report' },
 ]
 
-function Sidebar({ isCollapsed }) {
+function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -20,9 +20,17 @@ function Sidebar({ isCollapsed }) {
     navigate('/')
   }
 
-  return (
-    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+  function handleMenuClick() {
+    if (window.innerWidth <= 768) {
+      onClose()
+    }
+  }
 
+  return (
+    <aside className={`sidebar 
+      ${isCollapsed ? 'collapsed' : ''} 
+      ${isMobileOpen ? 'mobile-open' : ''}
+    `}>
       <div className="sb-user">
         <div className="sb-avatar"><FaUser /></div>
         <div className="sb-user-info">
@@ -39,6 +47,7 @@ function Sidebar({ isCollapsed }) {
             className={({ isActive }) =>
               isActive ? 'sb-item active' : 'sb-item'
             }
+            onClick={handleMenuClick}
           >
             <span className="sb-icon">{item.icon}</span>
             <span className="sb-label">{item.label}</span>
@@ -53,7 +62,6 @@ function Sidebar({ isCollapsed }) {
           <span>Log out</span>
         </button>
       </div>
-
     </aside>
   )
 }

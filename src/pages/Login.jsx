@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
-import cctvImg from '../assets/cctv.png'
+import cctvImg from '../assets/cctvreal.png'
 import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
 
