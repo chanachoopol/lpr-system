@@ -1,12 +1,31 @@
 import { useEffect } from 'react'
 import { useThemeStore } from './store/themeStore' // เช็ก path ให้ตรงกับโฟลเดอร์ที่น้องเมษาสร้างไว้นะครับ
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { AnimatePresence } from 'framer-motion'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Monitor from './pages/Monitor'
 import History from './pages/History'
 import Blacklist from './pages/Blacklist'
 import Report from './pages/Report'
+
+// แยกออกมาเป็น component ย่อย เพราะ useLocation() ต้องอยู่ใต้ BrowserRouter เท่านั้น
+function AnimatedRoutes() {
+  const location = useLocation()
+
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={<Login />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/monitor" element={<Monitor />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/blacklist" element={<Blacklist />} />
+        <Route path="/report" element={<Report />} />
+      </Routes>
+    </AnimatePresence>
+  )
+}
 
 function App() {
   const theme = useThemeStore((state) => state.theme)
@@ -19,16 +38,10 @@ function App() {
       document.documentElement.classList.remove('dark')
     }
   }, [theme])
+
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/monitor" element={<Monitor />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/blacklist" element={<Blacklist />} />
-        <Route path="/report" element={<Report />} />
-      </Routes>
+      <AnimatedRoutes />
     </BrowserRouter>
   )
 }

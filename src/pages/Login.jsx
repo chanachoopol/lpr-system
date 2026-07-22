@@ -1,24 +1,60 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
+import Swal from 'sweetalert2' // เปลี่ยนจาก react-hot-toast เป็น sweetalert2
+import { motion } from 'framer-motion'
 import cctvImg from '../assets/cctvreal.png'
 import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
+import { loginAPI } from '../data/api'
+import useAuthStore from '../store/authStore'
+import { pageVariants, pageTransition } from '../animations/pageTransition'
 
 function Login() {
   const navigate = useNavigate()
+  const { login } = useAuthStore()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    navigate('/dashboard')
+    setIsSubmitting(true)
+
+    const result = await loginAPI(username, password)
+
+    if (result.success) {
+      login(result.user, result.access_token, remember)
+      
+      // เพิ่มแจ้งเตือน SweetAlert เมื่อ Login สำเร็จ
+      await Swal.fire({
+        icon: 'success',
+        title: 'เข้าสู่ระบบสำเร็จ!',
+        text: 'กำลังพากลับไปยังหน้าแดชบอร์ด...',
+        showConfirmButton: false, // ซ่อนปุ่ม OK
+        timer: 1500, // แสดง 1.5 วินาที
+        timerProgressBar: true // มีหลอดโหลดเวลาด้านล่าง
+      })
+      
+      navigate('/dashboard')
+    } else {
+      // แจ้งเตือนเมื่อ Login ไม่สำเร็จ
+      Swal.fire({
+        icon: 'error',
+        title: 'เข้าสู่ระบบล้มเหลว',
+        text: 'Username หรือ Password ไม่ถูกต้อง',
+        confirmButtonColor: '#3b82f6',
+      })
+      setIsSubmitting(false)
+    }
   }
 
   return (
     <div className="bg">
+      {/* ลบ <Toaster position="top-center" /> ออก */}
+
       <div className="cloud-track">
         <img src={bg1} className="cloud-img" alt="" />
         <img src={bg1} className="cloud-img" alt="" />
@@ -29,7 +65,15 @@ function Login() {
       <div className="glow-1"></div>
       <div className="glow-2"></div>
       <div className="grain-overlay"></div>
-      <div className="card">
+
+      <motion.div
+        className="card"
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        variants={pageVariants}
+        transition={pageTransition}
+      >
         {/* ฝั่งซ้าย */}
         <div className="card-left">
           <img src={cctvImg} alt="CCTV" className="cctv-img" />
@@ -87,14 +131,16 @@ function Login() {
               <label htmlFor="remember">Remember me</label>
             </div>
 
-            <button type="submit" className="btn">Access Control</button>
+            <button type="submit" className="btn" disabled={isSubmitting}>
+              {isSubmitting ? 'Signing in...' : 'Access Control'}
+            </button>
           </form>
 
           <p className="forgot">
             Forgot password? <span>Contact admin</span>
           </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }

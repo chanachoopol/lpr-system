@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import '../styles/global.css'
 import '../styles/Layout.css'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
+import { pageVariants, pageTransition } from '../animations/pageTransition'
 
 function Layout({ children, title }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -55,7 +57,15 @@ function Layout({ children, title }) {
           onToggle={handleToggle}
         />
         <main className="layout-content">
-          {children}
+          <motion.div
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            variants={pageVariants}
+            transition={pageTransition}
+          >
+            {children}
+          </motion.div>
         </main>
       </div>
     </div>
