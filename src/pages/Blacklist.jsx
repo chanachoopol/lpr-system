@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { FaTriangleExclamation, FaTrashCan, FaXmark, FaPlus } from 'react-icons/fa6'
 import { FaCar, FaSearch } from 'react-icons/fa'
-import toast, { Toaster } from 'react-hot-toast'
+import Swal from 'sweetalert2' // นำเข้า SweetAlert2
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
 import { mockBlacklistData, mockBlacklistFoundToday } from '../data/mockData'
@@ -31,45 +31,45 @@ function Blacklist() {
     setTimeout(() => setIsLoading(false), 800)
   }, [])
 
-
   // ฟังก์ชัน search
   function handleSearch(e) {
-  const keyword = e.target.value
-  setSearchInput(keyword)
-  const result = blacklist.filter(item =>
-    item.plate.toLowerCase().includes(keyword.toLowerCase()) ||
-    item.province.includes(keyword)
-  )
-  setFilteredData(result)
-}
+    const keyword = e.target.value
+    setSearchInput(keyword)
+    const result = blacklist.filter(item =>
+      item.plate.toLowerCase().includes(keyword.toLowerCase()) ||
+      item.province.includes(keyword)
+    )
+    setFilteredData(result)
+  }
 
   // ฟังก์ชันลบรายการ
   function handleDelete(id, plate) {
-    toast((t) => (
-      <div className="toast-confirm">
-        <p>Delete <strong>{plate}</strong> from blacklist?</p>
-        <div className="toast-buttons">
-          <button
-            className="toast-btn confirm"
-            onClick={() => {
-              const updated = blacklist.filter(item => item.id !== id)
-              setBlacklist(updated)
-              setFilteredData(updated)
-              toast.dismiss(t.id)
-              toast.success(`${plate} removed from blacklist`)
-            }}
-          >
-            Confirm
-          </button>
-          <button
-            className="toast-btn cancel"
-            onClick={() => toast.dismiss(t.id)}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    ), { duration: 5000 })
+    // ใช้ SweetAlert2 สำหรับ Confirm Delete แบบคลีนๆ
+    Swal.fire({
+      title: `Delete ${plate} from blacklist?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444', // สีแดงให้สื่อถึงการลบ
+      cancelButtonColor: '#9ca3af', // สีเทาสำหรับปุ่มยกเลิก
+      confirmButtonText: 'Confirm',
+      cancelButtonText: 'Cancel'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        // Logic การลบเมื่อกดยืนยัน
+        const updated = blacklist.filter(item => item.id !== id)
+        setBlacklist(updated)
+        setFilteredData(updated)
+        
+        // แจ้งเตือนเมื่อลบสำเร็จ
+        Swal.fire({
+          icon: 'success',
+          title: 'Deleted!',
+          text: `${plate} removed from blacklist`,
+          showConfirmButton: false,
+          timer: 1500
+        })
+      }
+    })
   }
 
   function handleFormChange(e) {
@@ -81,7 +81,13 @@ function Blacklist() {
     e.preventDefault()
 
     if (!formData.plate.trim() || !formData.province.trim() || !formData.reason.trim()) {
-      toast.error('กรุณากรอกข้อมูลให้ครบทุกช่อง')
+      // แจ้งเตือนเมื่อกรอกข้อมูลไม่ครบ
+      Swal.fire({
+        icon: 'error',
+        title: 'Validation Error',
+        text: 'Please fill in all fields.',
+        confirmButtonColor: '#3b82f6'
+      })
       return
     }
 
@@ -98,12 +104,20 @@ function Blacklist() {
     setFilteredData(updated)
     setFormData(EMPTY_FORM)
     setShowAddModal(false)
-    toast.success(`${newEntry.plate} added to blacklist`)
+    
+    // แจ้งเตือนเมื่อเพิ่มข้อมูลสำเร็จ
+    Swal.fire({
+      icon: 'success',
+      title: 'Success',
+      text: `${newEntry.plate} added to blacklist`,
+      showConfirmButton: false,
+      timer: 1500
+    })
   }
 
   return (
     <Layout title="Blacklist">
-      <Toaster position="top-right" />
+      {/* ลบ <Toaster /> ของ react-hot-toast ออกไปแล้ว */}
       <div className="blacklist-wrapper">
 
         {/* KPI Cards */}
