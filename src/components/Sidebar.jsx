@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { FaHome, FaDesktop, FaHistory, FaExclamationTriangle, FaChartBar, FaUser, FaSignOutAlt, FaUsers } from 'react-icons/fa'
+import { FaHome, FaDesktop, FaHistory, FaExclamationTriangle, FaChartBar, FaUser, FaSignOutAlt, FaUsers, FaVideo } from 'react-icons/fa'
 import useAuthStore from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
 
@@ -12,6 +12,7 @@ const menuItems = [
   { path: '/blacklist', icon: <FaExclamationTriangle />, label: 'Blacklist', roles: ['user', 'admin', 'superadmin'] },
   { path: '/report', icon: <FaChartBar />, label: 'Report', roles: ['user', 'admin', 'superadmin'] },
   { path: '/users', icon: <FaUsers />, label: 'User Management', roles: ['admin', 'superadmin'] },
+  { path: '/cameras', icon: <FaVideo />, label: 'Camera Management', roles: ['admin', 'superadmin'] },
 ]
 
 function Sidebar({ isCollapsed, isMobileOpen, onClose }) {

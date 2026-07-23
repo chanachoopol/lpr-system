@@ -8,6 +8,8 @@ import Monitor from './pages/Monitor'
 import History from './pages/History'
 import Blacklist from './pages/Blacklist'
 import Report from './pages/Report'
+import UserManagement from './pages/UserManagement'
+import CameraManagement from './pages/CameraManagement'
 
 // แยกออกมาเป็น component ย่อย เพราะ useLocation() ต้องอยู่ใต้ BrowserRouter เท่านั้น
 function AnimatedRoutes() {
@@ -22,6 +24,8 @@ function AnimatedRoutes() {
         <Route path="/history" element={<History />} />
         <Route path="/blacklist" element={<Blacklist />} />
         <Route path="/report" element={<Report />} />
+        <Route path="/users" element={<UserManagement />} />
+        <Route path="/cameras" element={<CameraManagement />} />
       </Routes>
     </AnimatePresence>
   )

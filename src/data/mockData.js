@@ -19,7 +19,7 @@ export const mockCameraLocations = [
     name: 'Main Entrance (Inbound)', 
     lat: 13.844849, 
     lon: 100.632904,
-    
+    status: 'online',
     streamUrl: 'https://streaming.planetcloud.cloud/streaming/cra/hls/LPR-Test-01/index.m3u8'
   },
   { 
@@ -27,7 +27,7 @@ export const mockCameraLocations = [
     name: 'Rear Gate (Outbound)', 
     lat: 13.844200, 
     lon: 100.633100,
-    
+    status: 'online',
     streamUrl: 'https://streaming.planetcloud.cloud/streaming/cra/hls/LPR-Test-01/index.m3u8'
   },
   { 
@@ -35,6 +35,7 @@ export const mockCameraLocations = [
     name: 'Parking Lot A2', 
     lat: 13.845300, 
     lon: 100.632500,
+    status: 'offline',
     streamUrl: 'https://streaming.planetcloud.cloud/streaming/cra/hls/LPR-Test-01/index.m3u8'
   },
 ]
@@ -158,4 +159,15 @@ export const mockNotifications = [
     time: '09:00',
     read: false
   },
+]
+
+// Mock ผู้ใช้สำหรับหน้า User Management
+// status: 'active' | 'inactive' — สถานะบัญชี ไม่ใช่ activity ล่าสุด (แยกจาก lastLogin)
+export const mockUserData = [
+  { id: 1, username: 'boomc4', fullName: 'บุญมา ชูเกียรติ', role: 'user', status: 'active', lastLogin: '20/07/2026 09:46', createdAt: '2026-03-02' },
+  { id: 2, username: 'somsak_p', fullName: 'สมศักดิ์ พงษ์ไพร', role: 'user', status: 'active', lastLogin: '20/07/2026 08:12', createdAt: '2026-05-14' },
+  { id: 3, username: 'nattaya_ad', fullName: 'ณัฐยา อดิเรก', role: 'admin', status: 'active', lastLogin: '19/07/2026 17:03', createdAt: '2026-01-20' },
+  { id: 4, username: 'kittipong_w', fullName: 'กิตติพงศ์ วงศ์สุริยะ', role: 'user', status: 'inactive', lastLogin: '02/06/2026 11:40', createdAt: '2026-06-01' },
+  { id: 5, username: 'ploy_ratchaburi', fullName: 'พลอย รัตนกุล', role: 'user', status: 'active', lastLogin: '20/07/2026 07:55', createdAt: '2026-07-15' },
+  { id: 6, username: 'superadmin', fullName: 'ผู้ดูแลระบบสูงสุด', role: 'superadmin', status: 'active', lastLogin: '21/07/2026 22:10', createdAt: '2025-11-10' },
 ]
