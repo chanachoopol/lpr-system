@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
 import { FaXmark } from 'react-icons/fa6'
 import Layout from '../components/Layout'
@@ -21,22 +20,19 @@ const sortedHistoryData = [...mockHistoryData].sort((a, b) => {
 })
 
 function History() {
-  const [searchParams] = useSearchParams()
   const [searchInput, setSearchInput] = useState('')
   const [selectedCamera, setSelectedCamera] = useState('all')
   const [selectedDate, setSelectedDate] = useState(null)
   const [filteredData, setFilteredData] = useState(sortedHistoryData)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedItem, setSelectedItem] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)  // ← ย้ายมาไว้ตรงนี้
-  
+  const [isLoading, setIsLoading] = useState(true)
 
-  // จำลอง loading ตอนเปิดหน้า ← ย้ายมาไว้ตรงนี้ด้วย
+  // จำลอง loading ตอนเปิดหน้า
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 800)
   }, [])
 
-  // ... useEffect อื่น ๆ ต่อไป
   useEffect(() => {
     const keyword = searchInput.toLowerCase().trim()
 
@@ -59,14 +55,6 @@ function History() {
     setFilteredData(result)
     setCurrentPage(1)
   }, [searchInput, selectedCamera, selectedDate])
-
-  // รับค่า search จาก URL (มาจาก Navbar search)
-  useEffect(() => {
-    const searchFromURL = searchParams.get('search')
-    if (searchFromURL) {
-      setSearchInput(searchFromURL)
-    }
-  }, [searchParams])
 
   function handleReset() {
     setSearchInput('')

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import Swal from 'sweetalert2' // เปลี่ยนจาก react-hot-toast เป็น sweetalert2
 import { motion } from 'framer-motion'
-import cctvImg from '../assets/cctvreal.png'
+import cctvImg from '../assets/bg4.png'
 import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
 import { loginAPI } from '../data/api'
@@ -77,10 +77,6 @@ function Login() {
         {/* ฝั่งซ้าย */}
         <div className="card-left">
           <img src={cctvImg} alt="CCTV" className="cctv-img" />
-          <div className="left-bottom">
-            <p> Security</p>
-            <span>AI-Powered LPR</span>
-          </div>
         </div>
 
         {/* ฝั่งขวา */}
@@ -137,7 +133,7 @@ function Login() {
           </form>
 
           <p className="forgot">
-            Forgot password? <span>Contact admin</span>
+            Forgot password? <span>Reset password</span>
           </p>
         </div>
       </motion.div>

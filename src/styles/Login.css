@@ -107,14 +107,33 @@ body {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  border-right: 1px solid rgba(255, 255, 255, 0.6);
+  position: relative;
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* เส้นแบ่งฟุ้ง ๆ แทน border-right ทึบเดิม
+   ไล่สีจาง-เข้ม-จาง แนวตั้ง แล้ว blur เบา ๆ ให้ดูนุ่ม ไม่เหมือนเส้นตัดปะ */
+.card-left::after {
+  content: '';
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  right: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(27, 42, 71, 0.18) 50%,
+    transparent 100%
+  );
+  filter: blur(2px);
+}
+
 .cctv-img {
-  width: 240px;
+  width: 340px;
   object-fit: contain;
   filter: drop-shadow(0 15px 25px rgba(27, 42, 71, 0.15));
+  border-radius: 20px;
 }
 
 .left-bottom {

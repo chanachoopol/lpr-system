@@ -404,45 +404,6 @@
   margin: 6px 0;
 }
 
-/* Search Bar */
-.nb-search {
-  display: flex;
-  align-items: center;
-  position: relative;
-  flex: 1;
-  max-width: 300px;
-}
-
-.nb-search-icon {
-  position: absolute;
-  left: 14px;
-  color: rgb(148, 163, 184);
-  font-size: 14px;
-  pointer-events: none;
-}
-
-.nb-search-input {
-  width: 100%;
-  padding: 8px 16px 8px 38px;
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  background: var(--bg-input);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  color: var(--text-main);         /* 👈 เปลี่ยนสีตัวหนังสือตอนพิมพ์ให้สว่าง */
-  caret-color: var(--text-main);
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-.nb-search-input::placeholder {
-  color: var(--text-secondary);
-}
-
-.nb-search-input:focus {
-  border-color: var(--sidebar-active-color); /* ขอบเป็นสีชมพูนีออนตอนกดพิมพ์ */
-  box-shadow: 0 0 8px rgba(252, 113, 143, 0.2); /* เงาสะท้อนบางๆ */
-}
 /* Notification Bell */
 .nb-bell-wrap {
   position: relative;
@@ -766,10 +727,6 @@
 
   .nb-title {
     font-size: 16px;
-  }
-
-  .nb-search {
-    display: none;
   }
 
   .nb-time {

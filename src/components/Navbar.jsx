@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars, FaSearch } from 'react-icons/fa'
+import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars } from 'react-icons/fa'
 import { FaTriangleExclamation, FaVideo, FaArrowRight } from 'react-icons/fa6'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
@@ -13,7 +13,6 @@ function Navbar({ title, onToggle }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState(mockNotifications)
-  const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef(null)
   const notifRef = useRef(null)
   const { theme, toggleTheme } = useThemeStore()
@@ -47,14 +46,6 @@ function Navbar({ title, onToggle }) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  function handleSearch(e) {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      navigate(`/history?search=${encodeURIComponent(searchQuery.trim())}`)
-      setSearchQuery('')
-    }
-  }
 
  function handleToggleMode() {
     toggleTheme() // สั่งเปลี่ยนค่าแสงในสมองกล
@@ -91,18 +82,6 @@ function Navbar({ title, onToggle }) {
       </button>
 
       <h1 className="nb-title">{title}</h1>
-
-      {/* Search Bar */}
-      <form className="nb-search" onSubmit={handleSearch}>
-        <FaSearch className="nb-search-icon" />
-        <input
-          type="text"
-          className="nb-search-input"
-          placeholder="Search license plate..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      </form>
 
       <div className="nb-right">
         <div className="nb-time">{time}</div>
