@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import Swal from 'sweetalert2'
 import { motion } from 'framer-motion'
-import cctvImg from '../assets/bg42.png'
+import cctvImg from '../assets/bg43.png'
 import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
 import { loginAPI } from '../data/api'
@@ -99,7 +99,7 @@ function Login() {
                     className="eye-icon"
                     onClick={() => setShowPassword(!showPassword)}
                     >
-                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    {showPassword ? <FaEye /> : <FaEyeSlash />}
                 </span>
               </div>
             </div>

@@ -80,6 +80,14 @@ function ForgotPassword() {
     sendOtpTo(matchedUser)
   }
 
+  function handleBack() {
+    if (step > 1) {
+      setStep(step - 1)
+    } else {
+      navigate('/')
+    }
+  }
+
   function handleOtpDigitChange(index, value) {
     // รับแค่ตัวเลขตัวเดียวต่อช่อง
     const digit = value.replace(/[^0-9]/g, '').slice(-1)
@@ -174,8 +182,8 @@ function ForgotPassword() {
         transition={pageTransition}
       >
         <div className="card-right fp-panel">
-          <button className="fp-back" onClick={() => navigate('/')}>
-            <FaArrowLeft /> กลับไปหน้าเข้าสู่ระบบ
+          <button className="fp-back" onClick={handleBack}>
+            <FaArrowLeft /> {step > 1 ? 'ย้อนกลับ' : 'กลับไปหน้าเข้าสู่ระบบ'}
           </button>
 
           <h2 className="r-title">Forgot Password</h2>
@@ -211,8 +219,10 @@ function ForgotPassword() {
                     type="tel"
                     className="f-box"
                     placeholder="เบอร์โทรที่ผูกกับบัญชี"
+                    inputMode="numeric"
+                    maxLength={10}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
                   />
                 </div>
               </div>
@@ -269,7 +279,7 @@ function ForgotPassword() {
                     onChange={(e) => setNewPassword(e.target.value)}
                   />
                   <span className="eye-icon" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    {showPassword ? <FaEye /> : <FaEyeSlash />}
                   </span>
                 </div>
               </div>

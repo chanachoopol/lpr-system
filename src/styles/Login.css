@@ -101,7 +101,7 @@ body {
 /* ฝั่งซ้าย */
 .card-left {
   width: 50%;
-  padding: 40px 32px;
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -130,7 +130,8 @@ body {
 }
 
 .cctv-img {
-  width: 340px;
+  width: 420px;
+  max-width: 90%;
   object-fit: contain;
   filter: drop-shadow(0 15px 25px rgba(27, 42, 71, 0.15));
   border-radius: 20px;
@@ -229,6 +230,12 @@ form {
 
 .f-box::placeholder {
   color: #94a3b8;
+}
+
+/* ปิดไอคอนดูรหัสผ่านในตัวของ Edge/IE เพราะซ้อนทับกับ eye-icon ที่ทำเอง */
+.f-box::-ms-reveal,
+.f-box::-ms-clear {
+  display: none;
 }
 
 .eye-icon {
