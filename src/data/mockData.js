@@ -164,10 +164,10 @@ export const mockNotifications = [
 // Mock ผู้ใช้สำหรับหน้า User Management
 // status: 'active' | 'inactive' — สถานะบัญชี ไม่ใช่ activity ล่าสุด (แยกจาก lastLogin)
 export const mockUserData = [
-  { id: 1, username: 'boomc4', fullName: 'บุญมา ชูเกียรติ', role: 'user', status: 'active', lastLogin: '20/07/2026 09:46', createdAt: '2026-03-02' },
-  { id: 2, username: 'somsak_p', fullName: 'สมศักดิ์ พงษ์ไพร', role: 'user', status: 'active', lastLogin: '20/07/2026 08:12', createdAt: '2026-05-14' },
-  { id: 3, username: 'nattaya_ad', fullName: 'ณัฐยา อดิเรก', role: 'admin', status: 'active', lastLogin: '19/07/2026 17:03', createdAt: '2026-01-20' },
-  { id: 4, username: 'kittipong_w', fullName: 'กิตติพงศ์ วงศ์สุริยะ', role: 'user', status: 'inactive', lastLogin: '02/06/2026 11:40', createdAt: '2026-06-01' },
-  { id: 5, username: 'ploy_ratchaburi', fullName: 'พลอย รัตนกุล', role: 'user', status: 'active', lastLogin: '20/07/2026 07:55', createdAt: '2026-07-15' },
-  { id: 6, username: 'superadmin', fullName: 'ผู้ดูแลระบบสูงสุด', role: 'superadmin', status: 'active', lastLogin: '21/07/2026 22:10', createdAt: '2025-11-10' },
+  { id: 1, username: 'boomc4', fullName: 'บุญมา ชูเกียรติ', phone: '0651216629', role: 'user', status: 'active', lastLogin: '20/07/2026 09:46', createdAt: '2026-03-02' },
+  { id: 2, username: 'somsak_p', fullName: 'สมศักดิ์ พงษ์ไพร', phone: '0812345678', role: 'user', status: 'active', lastLogin: '20/07/2026 08:12', createdAt: '2026-05-14' },
+  { id: 3, username: 'nattaya_ad', fullName: 'ณัฐยา อดิเรก', phone: '0898765432', role: 'admin', status: 'active', lastLogin: '19/07/2026 17:03', createdAt: '2026-01-20' },
+  { id: 4, username: 'kittipong_w', fullName: 'กิตติพงศ์ วงศ์สุริยะ', phone: '0865554443', role: 'user', status: 'inactive', lastLogin: '02/06/2026 11:40', createdAt: '2026-06-01' },
+  { id: 5, username: 'ploy_ratchaburi', fullName: 'พลอย รัตนกุล', phone: '0876665554', role: 'user', status: 'active', lastLogin: '20/07/2026 07:55', createdAt: '2026-07-15' },
+  { id: 6, username: 'superadmin', fullName: 'ผู้ดูแลระบบสูงสุด', phone: '0899998888', role: 'superadmin', status: 'active', lastLogin: '21/07/2026 22:10', createdAt: '2025-11-10' },
 ]

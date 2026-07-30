@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
-import Swal from 'sweetalert2' // เปลี่ยนจาก react-hot-toast เป็น sweetalert2
+import Swal from 'sweetalert2'
 import { motion } from 'framer-motion'
-import cctvImg from '../assets/bg4.png'
+import cctvImg from '../assets/bg42.png'
 import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
 import { loginAPI } from '../data/api'
@@ -27,25 +27,14 @@ function Login() {
 
     if (result.success) {
       login(result.user, result.access_token, remember)
-      
-      // เพิ่มแจ้งเตือน SweetAlert เมื่อ Login สำเร็จ
-      await Swal.fire({
-        icon: 'success',
-        title: 'เข้าสู่ระบบสำเร็จ!',
-        text: 'กำลังพากลับไปยังหน้าแดชบอร์ด...',
-        showConfirmButton: false, // ซ่อนปุ่ม OK
-        timer: 1500, // แสดง 1.5 วินาที
-        timerProgressBar: true // มีหลอดโหลดเวลาด้านล่าง
-      })
-      
       navigate('/dashboard')
     } else {
-      // แจ้งเตือนเมื่อ Login ไม่สำเร็จ
-      Swal.fire({
+      await Swal.fire({
         icon: 'error',
-        title: 'เข้าสู่ระบบล้มเหลว',
+        title: 'เข้าสู่ระบบไม่สำเร็จ',
         text: 'Username หรือ Password ไม่ถูกต้อง',
-        confirmButtonColor: 'var(--sidebar-bg)',
+        confirmButtonText: 'ลองอีกครั้ง',
+        confirmButtonColor: 'var(--sidebar-bg)'
       })
       setIsSubmitting(false)
     }
@@ -53,8 +42,6 @@ function Login() {
 
   return (
     <div className="bg">
-      {/* ลบ <Toaster position="top-center" /> ออก */}
-
       <div className="cloud-track">
         <img src={bg1} className="cloud-img" alt="" />
         <img src={bg1} className="cloud-img" alt="" />
@@ -133,7 +120,7 @@ function Login() {
           </form>
 
           <p className="forgot">
-            Forgot password? <span>Reset password</span>
+            Forgot password? <span onClick={() => navigate('/forgot-password')}>Reset password</span>
           </p>
         </div>
       </motion.div>

@@ -3,6 +3,7 @@ import { useThemeStore } from './store/themeStore' // เช็ก path ให�
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import Login from './pages/Login'
+import ForgotPassword from './pages/ForgotPassword'
 import Dashboard from './pages/Dashboard'
 import Monitor from './pages/Monitor'
 import History from './pages/History'
@@ -10,6 +11,7 @@ import Blacklist from './pages/Blacklist'
 import Report from './pages/Report'
 import UserManagement from './pages/UserManagement'
 import CameraManagement from './pages/CameraManagement'
+
 
 // แยกออกมาเป็น component ย่อย เพราะ useLocation() ต้องอยู่ใต้ BrowserRouter เท่านั้น
 function AnimatedRoutes() {
@@ -19,6 +21,7 @@ function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/monitor" element={<Monitor />} />
         <Route path="/history" element={<History />} />

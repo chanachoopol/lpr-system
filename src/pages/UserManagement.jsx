@@ -16,7 +16,7 @@ const CAN_MANAGE_ADMIN_ROLES = ['superadmin']
 // Role ที่เพิ่มบัญชี "admin" ได้ — เฉพาะ superadmin
 const CAN_ADD_ADMIN_ROLES = ['superadmin']
 
-const EMPTY_FORM = { username: '', fullName: '', password: '', status: 'active' }
+const EMPTY_FORM = { username: '', fullName: '', phone: '', password: '', status: 'active' }
 
 function capitalize(text) {
   if (!text) return ''
@@ -78,6 +78,7 @@ function UserManagement() {
     setFormData({
       username: targetUser.username,
       fullName: targetUser.fullName,
+      phone: targetUser.phone,
       password: '',
       status: targetUser.status
     })
@@ -92,11 +93,11 @@ function UserManagement() {
   function handleFormSubmit(e) {
     e.preventDefault()
 
-    if (!formData.username.trim() || !formData.fullName.trim()) {
+    if (!formData.username.trim() || !formData.fullName.trim() || !formData.phone.trim()) {
       Swal.fire({
         icon: 'warning',
         title: 'กรอกข้อมูลไม่ครบ',
-        text: 'กรุณากรอก Username และชื่อ-นามสกุล',
+        text: 'กรุณากรอก Username, ชื่อ-นามสกุล และเบอร์โทร',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
@@ -106,7 +107,7 @@ function UserManagement() {
       setUsers((prev) =>
         prev.map((u) =>
           u.id === editingUser.id
-            ? { ...u, username: formData.username.trim(), fullName: formData.fullName.trim(), status: formData.status }
+            ? { ...u, username: formData.username.trim(), fullName: formData.fullName.trim(), phone: formData.phone.trim(), status: formData.status }
             : u
         )
       )
@@ -120,6 +121,7 @@ function UserManagement() {
         id: Date.now(),
         username: formData.username.trim(),
         fullName: formData.fullName.trim(),
+        phone: formData.phone.trim(),
         role: addRole,
         status: 'active',
         lastLogin: '-',
@@ -261,6 +263,7 @@ function UserManagement() {
               <thead>
                 <tr>
                   <th>Username</th>
+                  <th>Phone</th>
                   <th>Role</th>
                   <th>Status</th>
                   <th>Last Login</th>
@@ -270,7 +273,7 @@ function UserManagement() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={6}>
                       <Spinner text="Loading users..." />
                     </td>
                   </tr>
@@ -288,6 +291,7 @@ function UserManagement() {
                             </div>
                           </div>
                         </td>
+                        <td>{u.phone}</td>
                         <td>
                           <span className={`um-badge um-badge-${u.role}`}>{u.role}</span>
                         </td>
@@ -326,7 +330,7 @@ function UserManagement() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={6}>
                       <EmptyState
                         icon={<FaUsers />}
                         title="No users found"
@@ -369,6 +373,16 @@ function UserManagement() {
                   name="fullName"
                   placeholder="เช่น สมชาย กิจเจริญ"
                   value={formData.fullName}
+                  onChange={handleFormChange}
+                />
+              </div>
+              <div className="um-form-field">
+                <label>เบอร์โทร</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="เช่น 0891234567"
+                  value={formData.phone}
                   onChange={handleFormChange}
                 />
               </div>

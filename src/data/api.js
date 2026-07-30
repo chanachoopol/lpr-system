@@ -3,7 +3,7 @@ import Cookies from 'js-cookie'
 
 // ตั้งค่า Base URL ไว้ที่เดียว
 // พอ Backend พร้อม แก้แค่บรรทัดนี้พอ
-const BASE_URL = 'http://localhost:8000'
+const BASE_URL = 'http://192.168.100.229:8080/api'
 
 // สร้าง axios instance
 // ทุก request จะใช้ตัวนี้ ไม่ต้องตั้งค่าซ้ำทุกครั้ง
