@@ -20,25 +20,32 @@ function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(e) {
-    e.preventDefault()
-    setIsSubmitting(true)
+  e.preventDefault()
+  setIsSubmitting(true)
 
+  try {
     const result = await loginAPI(username, password)
 
-    if (result.success) {
-      login(result.user, result.access_token, remember)
-      navigate('/dashboard')
-    } else {
-      await Swal.fire({
-        icon: 'error',
-        title: 'เข้าสู่ระบบไม่สำเร็จ',
-        text: 'Username หรือ Password ไม่ถูกต้อง',
-        confirmButtonText: 'ลองอีกครั้ง',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      setIsSubmitting(false)
-    }
+    // เก็บข้อมูลลง Zustand + Cookie
+    login(result.user, result.access_token, remember)
+
+    // ไปหน้า Dashboard
+    navigate('/dashboard')
+
+  } catch (error) {
+    console.error(error)
+
+    await Swal.fire({
+      icon: 'error',
+      title: 'เข้าสู่ระบบไม่สำเร็จ',
+      text: 'Username หรือ Password ไม่ถูกต้อง',
+      confirmButtonText: 'ลองอีกครั้ง',
+      confirmButtonColor: 'var(--sidebar-bg)'
+    })
+
+    setIsSubmitting(false)
   }
+}
 
   return (
     <div className="bg">

@@ -355,7 +355,7 @@
   position: absolute;
   top: 120%;
   right: 0;
-  background: var(--card-bg); /* 👈 สีพื้นหลัง Dropdown */
+  background: white; /* 👈 สีพื้นหลัง Dropdown */
   border: 1px solid var(--border-color);
   border-radius: 16px;
   width: 180px;
@@ -432,7 +432,7 @@
   top: 120%;
   right: 0;
   width: 320px;
-  background: var(--card-bg); /* 👈 สีหน้าต่างแจ้งเตือน */
+  background: white; /* 👈 สีหน้าต่างแจ้งเตือน */
   border-radius: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border-color);

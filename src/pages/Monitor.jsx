@@ -124,6 +124,9 @@ function Monitor() {
               <div className="thai-plate">
                 <h2 className="plate-number">{latestCapture.plate}</h2>
                 <p className="plate-province">{latestCapture.province}</p>
+                {latestCapture.color && (
+                  <p className="plate-province" style={{ marginTop: '2px' }}>{latestCapture.color}</p>
+                )}
               </div>
             </div>
 
@@ -134,6 +137,7 @@ function Monitor() {
                     <th>Time</th>
                     <th>License Plate</th>
                     <th>Province</th>
+                    <th>Color</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -143,11 +147,12 @@ function Monitor() {
                         <td>{item.time}</td>
                         <td className="bold-plate">{item.plate}</td>
                         <td>{item.province}</td>
+                        <td>{item.color}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="3">
+                      <td colSpan="4">
                         <EmptyState
                           title="No capture yet"
                           description="Waiting for vehicle detection..."

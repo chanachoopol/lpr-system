@@ -50,6 +50,7 @@ function Dashboard() {
                   <th>Time</th>
                   <th>License Plate</th>
                   <th>Province</th>
+                  <th>Color</th>
                 </tr>
               </thead>
               <tbody>
@@ -59,11 +60,12 @@ function Dashboard() {
                       <td>{item.time}</td>
                       <td className="plate-text">{item.plate}</td>
                       <td>{item.province}</td>
+                      <td>{item.color}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="3">No data available</td>
+                    <td colSpan="4">No data available</td>
                   </tr>
                 )}
               </tbody>

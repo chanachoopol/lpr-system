@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
 import { FaXmark } from 'react-icons/fa6'
 import Layout from '../components/Layout'
@@ -20,19 +21,22 @@ const sortedHistoryData = [...mockHistoryData].sort((a, b) => {
 })
 
 function History() {
+  const [searchParams] = useSearchParams()
   const [searchInput, setSearchInput] = useState('')
   const [selectedCamera, setSelectedCamera] = useState('all')
   const [selectedDate, setSelectedDate] = useState(null)
   const [filteredData, setFilteredData] = useState(sortedHistoryData)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedItem, setSelectedItem] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)  // ← ย้ายมาไว้ตรงนี้
+  
 
-  // จำลอง loading ตอนเปิดหน้า
+  // จำลอง loading ตอนเปิดหน้า ← ย้ายมาไว้ตรงนี้ด้วย
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 800)
   }, [])
 
+  // ... useEffect อื่น ๆ ต่อไป
   useEffect(() => {
     const keyword = searchInput.toLowerCase().trim()
 
@@ -55,6 +59,14 @@ function History() {
     setFilteredData(result)
     setCurrentPage(1)
   }, [searchInput, selectedCamera, selectedDate])
+
+  // รับค่า search จาก URL (มาจาก Navbar search)
+  useEffect(() => {
+    const searchFromURL = searchParams.get('search')
+    if (searchFromURL) {
+      setSearchInput(searchFromURL)
+    }
+  }, [searchParams])
 
   function handleReset() {
     setSearchInput('')
@@ -142,6 +154,7 @@ function History() {
                   <th>Time</th>
                   <th>License Plate</th>
                   <th>Province</th>
+                  <th>Color</th>
                   <th>Camera</th>
                   <th>Action</th>
                 </tr>
@@ -149,7 +162,7 @@ function History() {
               <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <Spinner text="Loading history..." />
                   </td>
                 </tr>
@@ -161,6 +174,7 @@ function History() {
                     <td>{item.time}</td>
                     <td className="plate-text">{item.plate}</td>
                     <td>{item.province}</td>
+                    <td>{item.color}</td>
                     <td>{item.cameraName}</td>
                     <td>
                       <button className="btn-view" onClick={() => setSelectedItem(item)}>
@@ -171,7 +185,7 @@ function History() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <EmptyState
                       icon={<FaSearch />}
                       title="No records found"

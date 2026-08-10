@@ -2,15 +2,16 @@
 
 export const mockLatestCapture = {
   plate: 'กค 1234',
-  province: 'นครปฐม'
+  province: 'นครปฐม',
+  color: 'White'
 };
 
 export const mockRecentHistory = [
-  { id: 1, time: '13:33:39', plate: 'กค 1234', province: 'นครปฐม' },
-  { id: 2, time: '13:33:35', plate: 'ฮฮ 1111', province: 'สมุทรสาคร' },
-  { id: 3, time: '13:33:31', plate: '8กฒ 5678', province: 'ราชบุรี' },
-  { id: 4, time: '13:33:27', plate: 'ฮฮ 1111', province: 'สมุทรสาคร' },
-  { id: 5, time: '13:33:23', plate: '2ขย 2222', province: 'กรุงเทพมหานคร' }
+  { id: 1, time: '13:33:39', plate: 'กค 1234', province: 'นครปฐม', color: 'White' },
+  { id: 2, time: '13:33:35', plate: 'ฮฮ 1111', province: 'สมุทรสาคร', color: 'Black' },
+  { id: 3, time: '13:33:31', plate: '8กฒ 5678', province: 'ราชบุรี', color: 'Red' },
+  { id: 4, time: '13:33:27', plate: 'ฮฮ 1111', province: 'สมุทรสาคร', color: 'Black' },
+  { id: 5, time: '13:33:23', plate: '2ขย 2222', province: 'กรุงเทพมหานคร', color: 'Silver' }
 ];
 
 export const mockCameraLocations = [
@@ -48,11 +49,11 @@ export const mockDashboardStats = {
 }
 
 export const mockDashboardHistory = [
-  { id: 1, time: '15:15:22', plate: '1ขร 9999', province: 'กรุงเทพมหานคร' },
-  { id: 2, time: '15:10:05', plate: 'กค 1234', province: 'นครปฐม' },
-  { id: 3, time: '14:55:30', plate: '8กฒ 5678', province: 'ราชบุรี' },
-  { id: 4, time: '14:42:11', plate: 'ฮฮ 1111', province: 'สมุทรสาคร' },
-  { id: 5, time: '14:30:00', plate: '2ขข 2222', province: 'กรุงเทพมหานคร' },
+  { id: 1, time: '15:15:22', plate: '1ขร 9999', province: 'กรุงเทพมหานคร', color: 'Blue' },
+  { id: 2, time: '15:10:05', plate: 'กค 1234', province: 'นครปฐม', color: 'White' },
+  { id: 3, time: '14:55:30', plate: '8กฒ 5678', province: 'ราชบุรี', color: 'Red' },
+  { id: 4, time: '14:42:11', plate: 'ฮฮ 1111', province: 'สมุทรสาคร', color: 'Silver' },
+  { id: 5, time: '14:30:00', plate: '2ขข 2222', province: 'กรุงเทพมหานคร', color: 'Black' },
 ]
 
 export const mockHistoryData = Array.from({ length: 40 }, (_, i) => {
@@ -77,12 +78,16 @@ export const mockHistoryData = Array.from({ length: 40 }, (_, i) => {
   const itemDate = new Date()
   itemDate.setDate(itemDate.getDate() - randomDaysAgo)
 
+  const colors = ['White', 'Black', 'Silver', 'Red', 'Blue', 'Gray', 'Green']
+  const randomColor = colors[Math.floor(Math.random() * colors.length)]
+
   return {
     id: i + 1,
     time: `${hour}:${min}:${sec}`,
     date: itemDate.toLocaleDateString('th-TH'),
     plate: `${Math.floor(Math.random() * 9 + 1)}กข ${Math.floor(1000 + Math.random() * 8999)}`,
     province: randomProvince,
+    color: randomColor,
     cameraId: randomCam,
     cameraName: cameraNames[randomCam],
     plateImg: null,
@@ -91,11 +96,11 @@ export const mockHistoryData = Array.from({ length: 40 }, (_, i) => {
 })
 
 export const mockBlacklistData = [
-  { id: 1, plate: 'ทน 5566', province: 'กรุงเทพฯ', reason: 'Suspicious Vehicle', date: '21/05/2026' },
-  { id: 2, plate: 'พพ 1122', province: 'นครปฐม', reason: 'Reported Stolen', date: '21/05/2026' },
-  { id: 3, plate: 'กข 9900', province: 'ราชบุรี', reason: 'Suspicious Vehicle', date: '19/05/2026' },
-  { id: 4, plate: 'ฮฮ 0077', province: 'สมุทรสาคร', reason: 'Blacklisted', date: '18/05/2026' },
-  { id: 5, plate: 'บต 3344', province: 'ชลบุรี', reason: 'Reported Stolen', date: '17/05/2026' },
+  { id: 1, plate: 'ทน5566', province: 'กรุงเทพฯ', reason: 'Suspicious Vehicle', date: '21/05/2026' },
+  { id: 2, plate: 'พพ1122', province: 'นครปฐม', reason: 'Reported Stolen', date: '21/05/2026' },
+  { id: 3, plate: 'กข9900', province: 'ราชบุรี', reason: 'Suspicious Vehicle', date: '19/05/2026' },
+  { id: 4, plate: 'ฮฮ0077', province: 'สมุทรสาคร', reason: 'Blacklisted', date: '18/05/2026' },
+  { id: 5, plate: 'บต3344', province: 'ชลบุรี', reason: 'Reported Stolen', date: '17/05/2026' },
 ]
 
 export const mockBlacklistFoundToday = [
@@ -164,7 +169,7 @@ export const mockNotifications = [
 // Mock ผู้ใช้สำหรับหน้า User Management
 // status: 'active' | 'inactive' — สถานะบัญชี ไม่ใช่ activity ล่าสุด (แยกจาก lastLogin)
 export const mockUserData = [
-  { id: 1, username: 'boomc4', fullName: 'บุญมา ชูเกียรติ', phone: '0651216629', role: 'user', status: 'active', lastLogin: '20/07/2026 09:46', createdAt: '2026-03-02' },
+  { id: 1, username: 'boomc4', fullName: 'บุญมา ชูเกียรติ', phone: '0891234567', role: 'user', status: 'active', lastLogin: '20/07/2026 09:46', createdAt: '2026-03-02' },
   { id: 2, username: 'somsak_p', fullName: 'สมศักดิ์ พงษ์ไพร', phone: '0812345678', role: 'user', status: 'active', lastLogin: '20/07/2026 08:12', createdAt: '2026-05-14' },
   { id: 3, username: 'nattaya_ad', fullName: 'ณัฐยา อดิเรก', phone: '0898765432', role: 'admin', status: 'active', lastLogin: '19/07/2026 17:03', createdAt: '2026-01-20' },
   { id: 4, username: 'kittipong_w', fullName: 'กิตติพงศ์ วงศ์สุริยะ', phone: '0865554443', role: 'user', status: 'inactive', lastLogin: '02/06/2026 11:40', createdAt: '2026-06-01' },

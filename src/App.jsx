@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
-import { useThemeStore } from './store/themeStore' // เช็ก path ให้ตรงกับโฟลเดอร์ที่น้องเมษาสร้างไว้นะครับ
+import { useThemeStore } from './store/themeStore'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
+import useAuthStore from './store/authStore'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
 import Dashboard from './pages/Dashboard'
@@ -13,7 +14,6 @@ import UserManagement from './pages/UserManagement'
 import CameraManagement from './pages/CameraManagement'
 
 
-// แยกออกมาเป็น component ย่อย เพราะ useLocation() ต้องอยู่ใต้ BrowserRouter เท่านั้น
 function AnimatedRoutes() {
   const location = useLocation()
 
@@ -36,8 +36,14 @@ function AnimatedRoutes() {
 
 function App() {
   const theme = useThemeStore((state) => state.theme)
+  const { loadFromStorage } = useAuthStore()
 
-  // ให้ React คอยแปะหรือดึง Class 'dark' ออก ตามค่าของ theme
+  // อ่าน cookie และ restore สถานะ login ทันทีตอน app เริ่มต้น
+  // ป้องกัน sidebar/layout หาย ตอนกด refresh หรือ Vite hot reload
+  useEffect(() => {
+    loadFromStorage()
+  }, [])
+
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark')
