@@ -1,126 +1,84 @@
 import axios from 'axios'
 import Cookies from 'js-cookie'
 
-// =======================
-// Environment
-// =======================
-const BASE_URL = import.meta.env.VITE_API_URL
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+// Base URL ของ backend
+// พอย้าย server แก้แค่บรรทัดนี้พอ
+const BASE_URL = 'http://192.168.100.211:8000'
 
-// =======================
-// Axios Instance
-// =======================
+// สร้าง axios instance สำหรับ request ทั่วไป (JSON)
 export const api = axios.create({
-  baseURL: BASE_URL
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
 })
 
-// =======================
-// Attach Token ทุก Request
-// =======================
+// แนบ token ทุก request อัตโนมัติ
 api.interceptors.request.use((config) => {
   const token = Cookies.get('access_token')
-
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
-
   return config
 })
 
-// =======================
-// Login API
-// =======================
+// ฟังก์ชัน Login — ใช้ form-urlencoded ตามที่ backend กำหนด (OAuth2 standard)
+// หมายเหตุ: ไม่ครอบ try/catch ในนี้ เพื่อให้ error (เช่น 401 username/password ผิด)
+// หลุดออกไปให้ฝั่งที่เรียกใช้ (Login.jsx) ดักจับเองผ่าน catch
 export async function loginAPI(username, password) {
-
-  // ---------- Mock ----------
-  if (USE_MOCK) {
-
-    const mockAccounts = [
-      { id: 1, username: 'admin', password: '1234', role: 'admin' },
-      { id: 2, username: 'superadmin', password: '1234', role: 'superadmin' },
-      { id: 3, username: 'user', password: '1234', role: 'user' }
-    ]
-
-    const matched = mockAccounts.find(
-      account =>
-        account.username === username &&
-        account.password === password
-    )
-
-    if (!matched) {
-      throw new Error('Username หรือ Password ไม่ถูกต้อง')
-    }
-
-    return {
-      access_token: `mock-token-${matched.id}`,
-      token_type: 'bearer',
-      user: {
-        id: matched.id,
-        username: matched.username,
-        role: matched.role
-      }
-    }
-  }
-
-  // ---------- Backend ----------
   const formData = new URLSearchParams()
-
   formData.append('grant_type', 'password')
   formData.append('username', username)
   formData.append('password', password)
-  formData.append('scope', '')
-  formData.append('client_id', 'string')
-  formData.append('client_secret', 'string')
 
-  const response = await api.post('/auth/login', formData, {
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json'
+  const response = await axios.post(
+    `${BASE_URL}/api/auth/login`,
+    formData,
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  )
+
+  const data = response.data
+  return {
+    access_token: data.access_token,
+    user: {
+      id: data.user.id,
+      username: data.user.username,
+      fullName: data.user.fullname,
+      email: data.user.email,
+      role: data.user.role,
+      is_active: data.user.is_active,
+      village_id: data.user.village_id
     }
-  })
+  }
+}
 
+// ==================== Blacklist APIs ====================
+
+// ดึงรายการ Blacklist — รองรับ filter ตามป้ายทะเบียน/จังหวัด และแบ่งหน้า (pagination)
+// คืนค่าเป็น { items, total, page, page_size } ตามที่ backend ส่งมา
+export async function getBlacklistAPI({ villageId, licensePlate, province, page = 1, pageSize = 100 } = {}) {
+  const params = { page, page_size: pageSize }
+  if (villageId) params.village_id = villageId
+  if (licensePlate) params.license_plate = licensePlate
+  if (province) params.province = province
+
+  const response = await api.get('/api/blacklist', { params })
   return response.data
 }
 
-// =======================
-// History API
-// =======================
-export async function getDetections(page = 1, pageSize = 20) {
-
-  // ---------- Mock ----------
-  if (USE_MOCK) {
-    return {
-      items: [
-        {
-          id: 1,
-          license_plate: 'กข 1234',
-          province: 'กรุงเทพมหานคร',
-          color: 'ขาว',
-          time_detect: '2026-07-31T10:00:00Z',
-          is_blacklist: false
-        },
-        {
-          id: 2,
-          license_plate: 'ฮฮ 8197',
-          province: 'เชียงใหม่',
-          color: 'แดง',
-          time_detect: '2026-07-31T10:10:00Z',
-          is_blacklist: true
-        }
-      ],
-      total: 2,
-      page,
-      page_size: pageSize
-    }
-  }
-
-  // ---------- Backend ----------
-  const response = await api.get('/detections', {
-    params: {
-      page,
-      page_size: pageSize
-    }
+// เพิ่มรายการ Blacklist ใหม่
+export async function createBlacklistAPI(villageId, licensePlate, province, reason) {
+  const response = await api.post('/api/blacklist', {
+    village_id: villageId,
+    license_plate: licensePlate,
+    province,
+    reason
   })
+  return response.data
+}
 
+// ลบรายการ Blacklist ตาม id (UUID)
+export async function deleteBlacklistAPI(entryId) {
+  const response = await api.delete(`/api/blacklist/${entryId}`)
   return response.data
 }

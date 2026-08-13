@@ -5,41 +5,34 @@ import Cookies from 'js-cookie'
 // ไม่ติ๊ก = ไม่ตั้ง expires เลย → เป็น session cookie (หายตอนปิด browser)
 const REMEMBER_ME_EXPIRY_DAYS = 7
 
-// Store เก็บข้อมูล user ที่ login อยู่
 const useAuthStore = create((set) => ({
-
-  // ข้อมูลเริ่มต้น
   user: null,
   token: null,
   isLoggedIn: false,
+  isLoading: true, // true ตอนเริ่ม เพื่อรอ loadFromStorage() ก่อน
 
-  // ฟังก์ชันเก็บข้อมูลหลัง login สำเร็จ
-  // rememberMe: true = cookie อยู่นาน (REMEMBER_ME_EXPIRY_DAYS วัน), false/undefined = session cookie
   login: (user, token, rememberMe) => {
     const cookieOptions = rememberMe ? { expires: REMEMBER_ME_EXPIRY_DAYS } : {}
     Cookies.set('access_token', token, cookieOptions)
     Cookies.set('user', JSON.stringify(user), cookieOptions)
-    set({ user, token, isLoggedIn: true })
+    set({ user, token, isLoggedIn: true, isLoading: false })
   },
 
-  // ฟังก์ชัน logout ล้างข้อมูลทั้งหมด
   logout: () => {
     Cookies.remove('access_token')
     Cookies.remove('user')
-    set({ user: null, token: null, isLoggedIn: false })
+    set({ user: null, token: null, isLoggedIn: false, isLoading: false })
   },
 
-  // โหลดข้อมูลจาก cookie ตอนเปิดเว็บใหม่
-  // ป้องกัน login หาย ตอน refresh หน้า
+  // อ่าน cookie ตอนเปิดเว็บใหม่/refresh แล้ว set isLoading: false เสมอ
+  // ไม่ว่าจะมี cookie หรือไม่ก็ตาม เพื่อให้ ProtectedRoute รู้ว่าตรวจเสร็จแล้ว
   loadFromStorage: () => {
     const token = Cookies.get('access_token')
     const user = Cookies.get('user')
     if (token && user) {
-      set({
-        token,
-        user: JSON.parse(user),
-        isLoggedIn: true
-      })
+      set({ token, user: JSON.parse(user), isLoggedIn: true, isLoading: false })
+    } else {
+      set({ isLoading: false })
     }
   }
 }))

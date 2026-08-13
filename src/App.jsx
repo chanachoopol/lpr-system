@@ -3,6 +3,7 @@ import { useThemeStore } from './store/themeStore'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import useAuthStore from './store/authStore'
+import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
 import Dashboard from './pages/Dashboard'
@@ -12,7 +13,7 @@ import Blacklist from './pages/Blacklist'
 import Report from './pages/Report'
 import UserManagement from './pages/UserManagement'
 import CameraManagement from './pages/CameraManagement'
-
+// import ActivityLog from './pages/ActivityLog' // ยังไม่ได้ทำ
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -20,15 +21,45 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
+        {/* Public routes — ไม่ต้อง login */}
         <Route path="/" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/monitor" element={<Monitor />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/blacklist" element={<Blacklist />} />
-        <Route path="/report" element={<Report />} />
-        <Route path="/users" element={<UserManagement />} />
-        <Route path="/cameras" element={<CameraManagement />} />
+
+        {/* Protected routes — ต้อง login ทุก role */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute><Dashboard /></ProtectedRoute>
+        } />
+        <Route path="/monitor" element={
+          <ProtectedRoute><Monitor /></ProtectedRoute>
+        } />
+        <Route path="/history" element={
+          <ProtectedRoute><History /></ProtectedRoute>
+        } />
+        <Route path="/blacklist" element={
+          <ProtectedRoute><Blacklist /></ProtectedRoute>
+        } />
+        <Route path="/report" element={
+          <ProtectedRoute><Report /></ProtectedRoute>
+        } />
+
+        {/* Admin routes — เฉพาะ admin และ superadmin */}
+        <Route path="/users" element={
+          <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
+            <UserManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="/cameras" element={
+          <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
+            <CameraManagement />
+          </ProtectedRoute>
+        } />
+
+        {/* Superadmin routes — เฉพาะ superadmin เท่านั้น */}
+        {/* <Route path="/activity-log" element={
+          <ProtectedRoute allowedRoles={['superadmin']}>
+            <ActivityLog />
+          </ProtectedRoute>
+        } /> */}
       </Routes>
     </AnimatePresence>
   )
