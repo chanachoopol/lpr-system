@@ -13,7 +13,7 @@ import Blacklist from './pages/Blacklist'
 import Report from './pages/Report'
 import UserManagement from './pages/UserManagement'
 import CameraManagement from './pages/CameraManagement'
-// import ActivityLog from './pages/ActivityLog' // ยังไม่ได้ทำ
+import AuditLog from './pages/AuditLog'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -53,13 +53,11 @@ function AnimatedRoutes() {
             <CameraManagement />
           </ProtectedRoute>
         } />
-
-        {/* Superadmin routes — เฉพาะ superadmin เท่านั้น */}
-        {/* <Route path="/activity-log" element={
-          <ProtectedRoute allowedRoles={['superadmin']}>
-            <ActivityLog />
+        {<Route path="/audit-logs" element={
+          <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
+            <AuditLog />
           </ProtectedRoute>
-        } /> */}
+          } />}
       </Routes>
     </AnimatePresence>
   )

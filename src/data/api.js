@@ -82,3 +82,26 @@ export async function deleteBlacklistAPI(entryId) {
   const response = await api.delete(`/api/blacklist/${entryId}`)
   return response.data
 }
+
+// ==================== Audit Log APIs ====================
+
+// ดึงรายการ Audit Log — filter ตาม action/user/village และช่วงวันที่ + pagination
+export async function getAuditLogsAPI({
+  villageId,
+  userId,
+  action,
+  createdAtFrom,
+  createdAtTo,
+  page = 1,
+  pageSize = 20
+} = {}) {
+  const params = { page, page_size: pageSize }
+  if (villageId) params.village_id = villageId
+  if (userId) params.user_id = userId
+  if (action) params.action = action
+  if (createdAtFrom) params.created_at_from = createdAtFrom
+  if (createdAtTo) params.created_at_to = createdAtTo
+
+  const response = await api.get('/api/audit-logs', { params })
+  return response.data
+}
