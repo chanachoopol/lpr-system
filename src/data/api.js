@@ -105,3 +105,30 @@ export async function getAuditLogsAPI({
   const response = await api.get('/api/audit-logs', { params })
   return response.data
 }
+// ==================== Password Reset APIs ====================
+
+// ขอลิงก์รีเซ็ตรหัสผ่าน — backend จะส่งอีเมลที่มี token แนบไปให้
+export async function forgotPasswordAPI(email) {
+  const response = await api.post('/api/auth/forgot-password', { email })
+  return response.data
+}
+
+// ตั้งรหัสผ่านใหม่ด้วย token ที่ได้จากลิงก์ในอีเมล
+export async function setPasswordAPI(token, newPassword, confirmNewPassword) {
+  const response = await api.post('/api/auth/set-password', {
+    token,
+    new_password: newPassword,
+    confirm_new_password: confirmNewPassword
+  })
+  return response.data
+}
+// ==================== Change Password API (สำหรับ user ที่ login อยู่แล้ว) ====================
+export async function changePasswordAPI(currentPassword, newPassword, confirmNewPassword, logoutAllSessions = false) {
+  const response = await api.post('/api/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+    confirm_new_password: confirmNewPassword,
+    logout_all_sessions: logoutAllSessions
+  })
+  return response.data
+}

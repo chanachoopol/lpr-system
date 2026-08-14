@@ -355,10 +355,10 @@
   position: absolute;
   top: 120%;
   right: 0;
-  background: white; /* 👈 สีพื้นหลัง Dropdown */
+  background: white;
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  width: 180px;
+  width: 220px;              /* 👈 ขยายจาก 180px เป็น 220px */
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   z-index: 100;
   padding: 8px;
@@ -371,12 +371,12 @@
 .nb-dropdown-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   padding: 12px 16px;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-main); /* 👈 สีตัวหนังสือ */
+  color: var(--text-main);
   cursor: pointer;
   border: none;
   background: none;
@@ -386,8 +386,12 @@
 }
 
 .nb-dropdown-item:hover {
-  background: var(--bg-input);
+  background: rgba(27, 42, 71, 0.08);
   color: var(--sidebar-active-color);
+}
+.nb-dropdown-item:active {
+  transform: scale(0.98);
+  background: rgba(27, 42, 71, 0.08);
 }
 
 .nb-dropdown-item.danger {
@@ -396,6 +400,10 @@
 
 .nb-dropdown-item.danger:hover {
   background: rgb(254, 242, 242);
+}
+
+.nb-dropdown-item.danger:active {
+  background: rgb(254, 226, 226);
 }
 
 .nb-divider {

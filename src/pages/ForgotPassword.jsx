@@ -1,36 +1,23 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FaEye, FaEyeSlash, FaArrowLeft } from 'react-icons/fa'
+import { FaArrowLeft } from 'react-icons/fa'
+import { FaEnvelopeCircleCheck } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import { motion } from 'framer-motion'
 import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
 import '../styles/ForgotPassword.css'
-import { mockUserData } from '../data/mockData'
+import { forgotPasswordAPI } from '../data/api'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
 
-// จำนวนหลักของ OTP ที่จำลอง
-const OTP_LENGTH = 6
-
-// เวลานับถอยหลังก่อนกดขอ OTP ใหม่ได้ (วินาที)
+// เวลานับถอยหลังก่อนกดขอส่งอีเมลใหม่ได้ (วินาที)
 const RESEND_COOLDOWN_SECONDS = 30
-
-function generateMockOtp() {
-  return Math.floor(Math.random() * 10 ** OTP_LENGTH)
-    .toString()
-    .padStart(OTP_LENGTH, '0')
-}
 
 function ForgotPassword() {
   const navigate = useNavigate()
-  const [step, setStep] = useState(1) // 1 = กรอกเบอร์โทร, 2 = กรอก OTP, 3 = ตั้งรหัสใหม่
-  const [phone, setPhone] = useState('')
-  const [matchedUser, setMatchedUser] = useState(null)
-  const [generatedOtp, setGeneratedOtp] = useState('')
-  const [otpDigits, setOtpDigits] = useState(Array(OTP_LENGTH).fill(''))
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [email, setEmail] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSent, setIsSent] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
 
   // นับถอยหลังปุ่ม "ส่งอีกครั้ง" ทีละ 1 วินาที
@@ -40,124 +27,48 @@ function ForgotPassword() {
     return () => clearTimeout(timer)
   }, [resendCooldown])
 
-  function sendOtpTo(targetUser) {
-    const otp = generateMockOtp()
-    setGeneratedOtp(otp)
-    setOtpDigits(Array(OTP_LENGTH).fill(''))
-    setResendCooldown(RESEND_COOLDOWN_SECONDS)
+  async function sendResetLink(e) {
+    e?.preventDefault()
 
-    // จำลองการส่ง SMS ด้วย SweetAlert (backend/SMS gateway จริงยังไม่พร้อม)
-    Swal.fire({
-      icon: 'info',
-      title: 'ส่ง OTP แล้ว (จำลอง)',
-      html: `รหัส OTP สำหรับเบอร์ ${targetUser.phone} คือ <strong>${otp}</strong><br/><small>เมื่อเชื่อม SMS gateway จริง ข้อความนี้จะไม่โชว์รหัสตรงนี้อีก</small>`,
-      confirmButtonColor: 'var(--sidebar-bg)'
-    })
-  }
-
-  function handleRequestOtp(e) {
-    e.preventDefault()
-
-    const found = mockUserData.find((u) => u.phone === phone.trim())
-
-    if (!found) {
-      Swal.fire({
-        icon: 'error',
-        title: 'ไม่พบบัญชีนี้',
-        text: 'ไม่พบเบอร์โทรนี้ในระบบ',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    setMatchedUser(found)
-    sendOtpTo(found)
-    setStep(2)
-  }
-
-  function handleResendOtp() {
-    if (resendCooldown > 0 || !matchedUser) return
-    sendOtpTo(matchedUser)
-  }
-
-  function handleBack() {
-    if (step > 1) {
-      setStep(step - 1)
-    } else {
-      navigate('/')
-    }
-  }
-
-  function handleOtpDigitChange(index, value) {
-    // รับแค่ตัวเลขตัวเดียวต่อช่อง
-    const digit = value.replace(/[^0-9]/g, '').slice(-1)
-    const updated = [...otpDigits]
-    updated[index] = digit
-    setOtpDigits(updated)
-
-    // ขยับ focus ไปช่องถัดไปอัตโนมัติเมื่อกรอกครบ 1 หลัก
-    if (digit && index < OTP_LENGTH - 1) {
-      const nextBox = document.getElementById(`otp-box-${index + 1}`)
-      nextBox?.focus()
-    }
-  }
-
-  function handleOtpKeyDown(index, e) {
-    // กด Backspace ในช่องว่าง ให้ย้อนกลับไปช่องก่อนหน้า
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      const prevBox = document.getElementById(`otp-box-${index - 1}`)
-      prevBox?.focus()
-    }
-  }
-
-  function handleVerifyOtp(e) {
-    e.preventDefault()
-    const otpInput = otpDigits.join('')
-
-    if (otpInput.length < OTP_LENGTH || otpInput !== generatedOtp) {
-      Swal.fire({
-        icon: 'error',
-        title: 'รหัส OTP ไม่ถูกต้อง',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    setStep(3)
-  }
-
-  function handleResetPassword(e) {
-    e.preventDefault()
-
-    if (!newPassword || newPassword.length < 6) {
+    if (!email.trim()) {
       Swal.fire({
         icon: 'warning',
-        title: 'รหัสผ่านสั้นเกินไป',
-        text: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร',
+        title: 'กรุณากรอกอีเมล',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
     }
 
-    if (newPassword !== confirmPassword) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'รหัสผ่านไม่ตรงกัน',
-        text: 'กรุณายืนยันรหัสผ่านให้ตรงกัน',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
+    setIsSubmitting(true)
+    try {
+      await forgotPasswordAPI(email.trim())
+      setIsSent(true)
+      setResendCooldown(RESEND_COOLDOWN_SECONDS)
+    } catch (error) {
+      console.error(error)
 
-    // TODO: ตอน backend พร้อม ให้เรียก API เปลี่ยนรหัสผ่านจริงตรงนี้แทน
-    Swal.fire({
-      icon: 'success',
-      title: 'ตั้งรหัสผ่านใหม่สำเร็จ',
-      text: 'กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่',
-      confirmButtonColor: 'var(--sidebar-bg)'
-    }).then(() => {
-      navigate('/')
-    })
+      // เพื่อความปลอดภัย ไม่บอกตรงๆ ว่า email นี้มีอยู่ในระบบหรือไม่
+      // ถ้า backend ตอบ error ระดับ client (4xx เช่น validation email format ผิด) ยังโชว์ "ส่งแล้ว" เหมือนเดิม
+      // ยกเว้น error ฝั่ง server จริงๆ (5xx) หรือ network ล่ม ถึงจะแจ้ง error ตรงๆ
+      if (error.response && error.response.status < 500) {
+        setIsSent(true)
+        setResendCooldown(RESEND_COOLDOWN_SECONDS)
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'ส่งอีเมลไม่สำเร็จ',
+          text: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  function handleResend() {
+    if (resendCooldown > 0) return
+    sendResetLink()
   }
 
   return (
@@ -182,121 +93,58 @@ function ForgotPassword() {
         transition={pageTransition}
       >
         <div className="card-right fp-panel">
-          <button className="fp-back" onClick={handleBack}>
-            <FaArrowLeft /> {step > 1 ? 'ย้อนกลับ' : 'กลับไปหน้าเข้าสู่ระบบ'}
+          <button className="fp-back" onClick={() => navigate('/')}>
+            <FaArrowLeft /> กลับไปหน้าเข้าสู่ระบบ
           </button>
 
-          <h2 className="r-title">Forgot Password</h2>
-          <p className="r-sub">
-            {step === 1 && 'กรอกเบอร์โทรที่ผูกกับบัญชีของคุณ'}
-            {step === 2 && `กรอกรหัส OTP ที่ส่งไปยังเบอร์ ${matchedUser?.phone}`}
-            {step === 3 && 'ตั้งรหัสผ่านใหม่'}
-          </p>
+          {!isSent ? (
+            <>
+              <h2 className="r-title">Forgot Password</h2>
+              <p className="r-sub">
+                กรอกอีเมลที่ผูกกับบัญชีของคุณ เราจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้
+              </p>
 
-          <div className="fp-steps">
-            <div className="fp-step">
-              <span className={`fp-step-dot ${step >= 1 ? 'active' : ''}`}>1</span>
-              <span className={`fp-step-label ${step >= 1 ? 'active' : ''}`}>Send OTP</span>
-            </div>
-            <span className={`fp-step-line ${step >= 2 ? 'active' : ''}`}></span>
-            <div className="fp-step">
-              <span className={`fp-step-dot ${step >= 2 ? 'active' : ''}`}>2</span>
-              <span className={`fp-step-label ${step >= 2 ? 'active' : ''}`}>Verify</span>
-            </div>
-            <span className={`fp-step-line ${step >= 3 ? 'active' : ''}`}></span>
-            <div className="fp-step">
-              <span className={`fp-step-dot ${step >= 3 ? 'active' : ''}`}>3</span>
-              <span className={`fp-step-label ${step >= 3 ? 'active' : ''}`}>Reset Password</span>
-            </div>
-          </div>
-
-          {step === 1 && (
-            <form onSubmit={handleRequestOtp}>
-              <div className="f-group">
-                <label className="f-label">เบอร์โทร</label>
-                <div className="f-row">
-                  <input
-                    type="tel"
-                    className="f-box"
-                    placeholder="เบอร์โทรที่ผูกกับบัญชี"
-                    inputMode="numeric"
-                    maxLength={10}
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                  />
-                </div>
-              </div>
-              <button type="submit" className="btn">ส่งรหัส OTP</button>
-            </form>
-          )}
-
-          {step === 2 && (
-            <form onSubmit={handleVerifyOtp}>
-              <div className="f-group">
-                <label className="f-label">รหัส OTP</label>
-                <div className="fp-otp-row">
-                  {otpDigits.map((digit, index) => (
+              <form onSubmit={sendResetLink}>
+                <div className="f-group">
+                  <label className="f-label">Email</label>
+                  <div className="f-row">
                     <input
-                      key={index}
-                      id={`otp-box-${index}`}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      className="fp-otp-box"
-                      value={digit}
-                      onChange={(e) => handleOtpDigitChange(index, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      type="email"
+                      className="f-box"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
                     />
-                  ))}
+                  </div>
                 </div>
+
+                <button type="submit" className="btn" disabled={isSubmitting}>
+                  {isSubmitting ? 'กำลังส่ง...' : 'ส่งลิงก์รีเซ็ตรหัสผ่าน'}
+                </button>
+              </form>
+            </>
+          ) : (
+            <div className="fp-sent-state">
+              <div className="fp-sent-icon">
+                <FaEnvelopeCircleCheck />
               </div>
-
-              <button type="submit" className="btn">ยืนยัน OTP</button>
-
+              <h2 className="r-title">Check your email</h2>
+              <p className="r-sub">
+                เราได้ส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปที่ <strong>{email}</strong> แล้ว
+                กรุณาเปิดอีเมลและกดลิงก์เพื่อดำเนินการต่อ
+              </p>
               <button
                 type="button"
                 className="fp-resend"
                 disabled={resendCooldown > 0}
-                onClick={handleResendOtp}
+                onClick={handleResend}
               >
                 {resendCooldown > 0
                   ? `ส่งอีกครั้งใน ${resendCooldown} วินาที`
-                  : 'ไม่ได้รับ OTP? ส่งอีกครั้ง'}
+                  : 'ไม่ได้รับอีเมล? ส่งอีกครั้ง'}
               </button>
-            </form>
-          )}
-
-          {step === 3 && (
-            <form onSubmit={handleResetPassword}>
-              <div className="f-group">
-                <label className="f-label">รหัสผ่านใหม่</label>
-                <div className="f-row">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="f-box"
-                    placeholder="อย่างน้อย 6 ตัวอักษร"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                  />
-                  <span className="eye-icon" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <FaEye /> : <FaEyeSlash />}
-                  </span>
-                </div>
-              </div>
-              <div className="f-group">
-                <label className="f-label">ยืนยันรหัสผ่านใหม่</label>
-                <div className="f-row">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="f-box"
-                    placeholder="พิมพ์อีกครั้ง"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                </div>
-              </div>
-              <button type="submit" className="btn">บันทึกรหัสผ่านใหม่</button>
-            </form>
+            </div>
           )}
         </div>
       </motion.div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars } from 'react-icons/fa'
-import { FaTriangleExclamation, FaVideo, FaArrowRight } from 'react-icons/fa6'
+import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars, FaSignOutAlt } from 'react-icons/fa'
+import { FaTriangleExclamation, FaVideo, FaArrowRight, FaKey } from 'react-icons/fa6'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import { mockNotifications } from '../data/mockData'
@@ -161,11 +161,24 @@ function Navbar({ title, onToggle }) {
 
           <div className={`nb-dropdown ${showDropdown ? 'show' : ''}`}>
             <button className="nb-dropdown-item" onClick={handleToggleMode}>
-              {theme === 'dark' ? <FaSun /> : <FaMoon />}
+              <span className="nb-dropdown-icon">
+                {theme === 'dark' ? <FaSun /> : <FaMoon />}
+              </span>
               <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
+
+            <button
+                className="nb-dropdown-item"
+                onClick={() => { navigate('/change-password'); setShowDropdown(false) }}
+              >
+                <span className="nb-dropdown-icon"><FaKey /></span>
+                <span>Change Password</span>
+            </button>
+
             <hr className="nb-divider" />
+
             <button className="nb-dropdown-item danger" onClick={handleLogout}>
+              <span className="nb-dropdown-icon"><FaSignOutAlt /></span>
               <span>Log out</span>
             </button>
           </div>

@@ -14,6 +14,8 @@ import Report from './pages/Report'
 import UserManagement from './pages/UserManagement'
 import CameraManagement from './pages/CameraManagement'
 import AuditLog from './pages/AuditLog'
+import ResetPassword from './pages/ResetPassword'
+import ChangePassword from './pages/ChangePassword'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -24,6 +26,7 @@ function AnimatedRoutes() {
         {/* Public routes — ไม่ต้อง login */}
         <Route path="/" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/set-password" element={<ResetPassword />} />
 
         {/* Protected routes — ต้อง login ทุก role */}
         <Route path="/dashboard" element={
@@ -40,6 +43,9 @@ function AnimatedRoutes() {
         } />
         <Route path="/report" element={
           <ProtectedRoute><Report /></ProtectedRoute>
+        } />
+        <Route path="/change-password" element={
+          <ProtectedRoute><ChangePassword /></ProtectedRoute>
         } />
 
         {/* Admin routes — เฉพาะ admin และ superadmin */}
