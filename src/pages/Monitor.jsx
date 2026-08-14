@@ -1,38 +1,89 @@
 import { useState, useEffect, useRef } from 'react'
 import { FaVideo } from 'react-icons/fa'
+import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/Monitor.css'
-import { mockLatestCapture, mockRecentHistory, mockCameraLocations } from '../data/mockData'
+import { getCamerasAPI, getCameraLiveAPI } from '../data/api'
+import useAuthStore from '../store/authStore'
 import { useSearchParams } from 'react-router-dom'
 import Hls from 'hls.js'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 
+// ดึงข้อมูล detection ใหม่ทุกๆ กี่มิลลิวินาที (ปรับตัวเลขนี้ได้ตามต้องการ)
+const POLLING_INTERVAL_MS = 5000
+
+// แปลง ISO timestamp จาก backend เป็นเวลาแบบ HH:MM:SS โซนไทย
+function formatTime(isoString) {
+  if (!isoString) return '-'
+  return new Date(isoString).toLocaleTimeString('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
 function Monitor() {
-  const [selectedCamera, setSelectedCamera] = useState('cam1')
-  const [latestCapture, setLatestCapture] = useState(mockLatestCapture)
-  const [recentHistory, setRecentHistory] = useState(mockRecentHistory)
+  const { user } = useAuthStore()
+  const [cameras, setCameras] = useState([])
+  const [isLoadingCameras, setIsLoadingCameras] = useState(true)
+  const [selectedCamera, setSelectedCamera] = useState('')
   const [searchParams] = useSearchParams()
   const videoRef = useRef(null)
   const [isVideoLoading, setIsVideoLoading] = useState(true)
+  const [hasStreamError, setHasStreamError] = useState(false)
 
+  // ข้อมูล detection ล่าสุดจาก /api/detections/live
+  const [latestCaptures, setLatestCaptures] = useState([])
+  const [isLoadingDetections, setIsLoadingDetections] = useState(true)
+
+  // ดึงรายการกล้องจาก backend ตอนเปิดหน้า
   useEffect(() => {
-    const cameraFromURL = searchParams.get('camera')
-    if (cameraFromURL) {
-      setSelectedCamera(cameraFromURL)
-    }
-  }, [searchParams])
+    async function fetchCameras() {
+      if (!user?.village_id) return
 
-  const currentCameraData = mockCameraLocations.find(cam => cam.id === selectedCamera)
+      setIsLoadingCameras(true)
+      try {
+        const data = await getCamerasAPI(user.village_id)
+        setCameras(data)
+
+        // ตั้งกล้องเริ่มต้น: เอาจาก URL ถ้ามี ไม่งั้นเอาตัวแรกในลิสต์
+        const cameraFromURL = searchParams.get('camera')
+        if (cameraFromURL && data.some((cam) => cam.id === cameraFromURL)) {
+          setSelectedCamera(cameraFromURL)
+        } else if (data.length > 0) {
+          setSelectedCamera(data[0].id)
+        }
+      } catch (error) {
+        console.error(error)
+        Swal.fire({
+          icon: 'error',
+          title: 'โหลดรายการกล้องไม่สำเร็จ',
+          text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      } finally {
+        setIsLoadingCameras(false)
+      }
+    }
+
+    fetchCameras()
+  }, [user?.village_id])
+
+  const currentCameraData = cameras.find((cam) => cam.id === selectedCamera)
 
   // Reset loading ทุกครั้งที่เปลี่ยนกล้อง
   useEffect(() => {
     setIsVideoLoading(true)
   }, [selectedCamera])
 
+  // โหลดวิดีโอ HLS
   useEffect(() => {
     const video = videoRef.current
-    const streamUrl = currentCameraData?.streamUrl
+    const streamUrl = currentCameraData?.stream_url
+
+    setHasStreamError(false)
 
     if (!video || !streamUrl) {
       setIsVideoLoading(false)
@@ -47,23 +98,63 @@ function Monitor() {
       hls.attachMedia(video)
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsVideoLoading(false)
-        video.play().catch(err => console.log("รอผู้ใช้กด Play:", err))
+        video.play().catch((err) => console.log("รอผู้ใช้กด Play:", err))
       })
-      hls.on(Hls.Events.ERROR, () => {
-        setIsVideoLoading(false)
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          setIsVideoLoading(false)
+          setHasStreamError(true)
+        }
       })
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = streamUrl
       video.addEventListener('loadedmetadata', () => {
         setIsVideoLoading(false)
-        video.play().catch(err => console.log("รอผู้ใช้กด Play:", err))
+        video.play().catch((err) => console.log("รอผู้ใช้กด Play:", err))
+      })
+      video.addEventListener('error', () => {
+        setIsVideoLoading(false)
+        setHasStreamError(true)
       })
     }
 
     return () => {
       if (hls) hls.destroy()
     }
-  }, [currentCameraData?.streamUrl])
+  }, [currentCameraData?.stream_url])
+
+  // Polling ดึง latest detection ทุกๆ POLLING_INTERVAL_MS วินาที
+  useEffect(() => {
+    if (!selectedCamera) return
+
+    let isCancelled = false
+
+    async function fetchLive() {
+      try {
+        const data = await getCameraLiveAPI(selectedCamera, 5)
+        if (!isCancelled) {
+          setLatestCaptures(data.latest_captures || [])
+        }
+      } catch (error) {
+        console.error(error)
+        // ไม่ต้องเด้ง alert ทุกครั้งที่ polling พลาด กันรบกวนผู้ใช้ถี่เกินไป
+      } finally {
+        if (!isCancelled) setIsLoadingDetections(false)
+      }
+    }
+
+    setIsLoadingDetections(true)
+    fetchLive() // ดึงทันทีครั้งแรกตอนเปลี่ยนกล้อง ไม่ต้องรอ interval รอบแรก
+
+    const interval = setInterval(fetchLive, POLLING_INTERVAL_MS)
+
+    return () => {
+      isCancelled = true
+      clearInterval(interval)
+    }
+  }, [selectedCamera])
+
+  const latestCapture = latestCaptures[0] || null
 
   return (
     <Layout title="Monitor">
@@ -78,12 +169,19 @@ function Monitor() {
             className="camera-select"
             value={selectedCamera}
             onChange={(e) => setSelectedCamera(e.target.value)}
+            disabled={isLoadingCameras || cameras.length === 0}
           >
-            {mockCameraLocations.map((cam) => (
-              <option key={cam.id} value={cam.id}>
-                {cam.name}
-              </option>
-            ))}
+            {isLoadingCameras ? (
+              <option value="">กำลังโหลดกล้อง...</option>
+            ) : cameras.length === 0 ? (
+              <option value="">ไม่พบกล้องในระบบ</option>
+            ) : (
+              cameras.map((cam) => (
+                <option key={cam.id} value={cam.id}>
+                  {cam.name}
+                </option>
+              ))
+            )}
           </select>
         </div>
 
@@ -93,25 +191,48 @@ function Monitor() {
           <div className="monitor-left content-card">
             <div className="video-wrapper">
 
-              {/* Loading Skeleton */}
-              {isVideoLoading && (
+              {isLoadingCameras ? (
                 <div className="video-skeleton">
-                  <Spinner text="Connecting to camera..." />
+                  <Spinner text="กำลังโหลดรายการกล้อง..." />
                 </div>
-              )}
-
-              <video
-                ref={videoRef}
-                className="live-video"
-                controls={true}
-                muted={true}
-                style={{ display: isVideoLoading ? 'none' : 'block' }}
-              />
-
-              {!isVideoLoading && (
-                <div className="video-overlay">
-                  <span className="live-badge">● LIVE</span>
+              ) : cameras.length === 0 ? (
+                <div className="video-skeleton">
+                  <EmptyState
+                    icon={<FaVideo />}
+                    title="ไม่พบกล้องในระบบ"
+                    description="กรุณาเพิ่มกล้องในหน้า Camera Management ก่อน"
+                  />
                 </div>
+              ) : hasStreamError ? (
+                <div className="video-skeleton">
+                  <EmptyState
+                    icon={<FaVideo />}
+                    title="เชื่อมต่อกล้องไม่สำเร็จ"
+                    description="ไม่สามารถเข้าถึงสัญญาณภาพจากกล้องนี้ได้ในขณะนี้"
+                  />
+                </div>
+              ) : (
+                <>
+                  {isVideoLoading && (
+                    <div className="video-skeleton">
+                      <Spinner text="Connecting to camera..." />
+                    </div>
+                  )}
+
+                  <video
+                    ref={videoRef}
+                    className="live-video"
+                    controls={true}
+                    muted={true}
+                    style={{ display: isVideoLoading ? 'none' : 'block' }}
+                  />
+
+                  {!isVideoLoading && (
+                    <div className="video-overlay">
+                      <span className="live-badge">● LIVE</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -122,10 +243,16 @@ function Monitor() {
 
             <div className="plate-showcase">
               <div className="thai-plate">
-                <h2 className="plate-number">{latestCapture.plate}</h2>
-                <p className="plate-province">{latestCapture.province}</p>
-                {latestCapture.color && (
-                  <p className="plate-province" style={{ marginTop: '2px' }}>{latestCapture.color}</p>
+                <h2 className="plate-number">
+                  {latestCapture ? latestCapture.license_plate : '-'}
+                </h2>
+                <p className="plate-province">
+                  {latestCapture ? latestCapture.province : 'ยังไม่มีข้อมูล'}
+                </p>
+                {latestCapture?.color && (
+                  <p className="plate-province" style={{ marginTop: '2px' }}>
+                    {latestCapture.color}
+                  </p>
                 )}
               </div>
             </div>
@@ -141,11 +268,17 @@ function Monitor() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentHistory.length > 0 ? (
-                    recentHistory.map((item) => (
+                  {isLoadingDetections ? (
+                    <tr>
+                      <td colSpan="4">
+                        <Spinner text="กำลังโหลดข้อมูล..." />
+                      </td>
+                    </tr>
+                  ) : latestCaptures.length > 0 ? (
+                    latestCaptures.map((item) => (
                       <tr key={item.id}>
-                        <td>{item.time}</td>
-                        <td className="bold-plate">{item.plate}</td>
+                        <td>{formatTime(item.time_detect)}</td>
+                        <td className="bold-plate">{item.license_plate}</td>
                         <td>{item.province}</td>
                         <td>{item.color}</td>
                       </tr>

@@ -132,3 +132,22 @@ export async function changePasswordAPI(currentPassword, newPassword, confirmNew
   })
   return response.data
 }
+// ==================== Camera API ====================
+export async function getCamerasAPI(villageId) {
+  const response = await api.get('/api/cameras', {
+    params: {
+      village_id: villageId,
+      is_active: true,
+      page: 1,
+      page_size: 100
+    }
+  })
+  return response.data.items
+}
+// ==================== Camera Live Detection API ====================
+export async function getCameraLiveAPI(cameraId, limit = 5) {
+  const response = await api.get('/api/detections/live', {
+    params: { camera_id: cameraId, limit }
+  })
+  return response.data
+}
