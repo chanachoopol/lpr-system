@@ -20,11 +20,10 @@ function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
-  function handleLogout() {
-    logout()
-    navigate('/')
-  }
-
+  async function handleLogout() {
+  await logout()
+  navigate('/')
+}
   function handleMenuClick() {
     if (window.innerWidth <= 768) {
       onClose()

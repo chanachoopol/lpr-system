@@ -163,3 +163,11 @@ export async function getAuthedImageURL(imageEndpointUrl) {
   const response = await api.get(imageEndpointUrl, { responseType: 'blob' })
   return URL.createObjectURL(response.data)
 }
+// ==================== Auth APIs ====================
+
+// Logout — บอก backend ให้ invalidate session/token
+// ไม่ต้องส่ง body ใด ๆ, token แนบไปกับ header อัตโนมัติผ่าน interceptor อยู่แล้ว
+export async function logoutAPI() {
+  const response = await api.post('/api/auth/logout')
+  return response.data
+}

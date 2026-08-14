@@ -53,10 +53,10 @@ function Navbar({ title, onToggle }) {
     // (เราไม่ต้องสั่งแก้ document.body ตรงนี้แล้ว เพราะ App.jsx คอยจัดการให้แบบอัตโนมัติแล้วครับ!)
   }
 
-  function handleLogout() {
-    logout()
-    navigate('/')
-  }
+  async function handleLogout() {
+  await logout()
+  navigate('/')
+}
 
   function markAllRead() {
     setNotifications(notifications.map(n => ({ ...n, read: true })))

@@ -249,11 +249,7 @@ function Monitor() {
                 <p className="plate-province">
                   {latestCapture ? latestCapture.province : 'ยังไม่มีข้อมูล'}
                 </p>
-                {latestCapture?.color && (
-                  <p className="plate-province" style={{ marginTop: '2px' }}>
-                    {latestCapture.color}
-                  </p>
-                )}
+                
               </div>
             </div>
 
