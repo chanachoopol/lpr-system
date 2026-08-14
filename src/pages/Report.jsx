@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import {
@@ -7,26 +7,122 @@ import {
 } from 'recharts'
 import { FaCar, FaClock, FaTriangleExclamation, FaFilePdf } from 'react-icons/fa6'
 import { FaCalendarAlt } from 'react-icons/fa'
+import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
-import { mockReportData } from '../data/mockData'
+import useAuthStore from '../store/authStore'
+import { getReportDailyAPI, getReportSummaryAPI } from '../data/api'
 import '../styles/Report.css'
+import Spinner from '../components/Spinner'
+import EmptyState from '../components/EmptyState'
+
+// จำนวนวันย้อนหลังสำหรับตาราง Top Frequent Visitors
+// backend รองรับสูงสุด 60 วัน (ดู max ที่ /api/reports/summary)
+const TOP_VISITORS_DAYS = 7
+
+// แปลง Date object เป็น YYYY-MM-DD ตามที่ backend ต้องการ (ไม่ใช้ toISOString เพราะจะเพี้ยน timezone)
+function toDateParam(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+// แปลงวันที่เป็นภาษาไทย
+function formatDateThai(date) {
+  return date.toLocaleDateString('th-TH', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+// หาชั่วโมงที่มีการตรวจจับสูงสุดจาก hourly_buckets
+function computePeakHour(hourlyBuckets) {
+  if (!hourlyBuckets || hourlyBuckets.length === 0) return '-'
+  const peak = hourlyBuckets.reduce(
+    (max, cur) => (cur.count > max.count ? cur : max),
+    hourlyBuckets[0]
+  )
+  if (peak.count === 0) return '-'
+  const startH = String(peak.hour).padStart(2, '0')
+  const endH = String((peak.hour + 1) % 24).padStart(2, '0')
+  return `${startH}:00 - ${endH}:00`
+}
+
+// แปลง hourly_buckets ให้เป็น label แบบ "09:00" สำหรับแกน X ของกราฟ
+function formatHourlyDataForChart(hourlyBuckets) {
+  if (!hourlyBuckets) return []
+  return hourlyBuckets.map((b) => ({
+    hour: `${String(b.hour).padStart(2, '0')}:00`,
+    count: b.count
+  }))
+}
 
 function Report() {
-  const [data] = useState(mockReportData)
+  const { user } = useAuthStore()
   const [selectedDate, setSelectedDate] = useState(new Date())
 
-  // แปลงวันที่เป็นภาษาไทย
-  function formatDateThai(date) {
-    return date.toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  }
+  const [dailyData, setDailyData] = useState(null)
+  const [isLoadingDaily, setIsLoadingDaily] = useState(true)
+
+  const [summaryData, setSummaryData] = useState(null)
+  const [isLoadingSummary, setIsLoadingSummary] = useState(true)
+
+  // ดึงข้อมูลรายวัน — โหลดใหม่ทุกครั้งที่เปลี่ยนวันที่จาก DatePicker
+  const fetchDaily = useCallback(async () => {
+    if (!user) return
+    setIsLoadingDaily(true)
+    try {
+      const data = await getReportDailyAPI({
+        villageId: user.village_id,
+        date: toDateParam(selectedDate)
+      })
+      setDailyData(data)
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        icon: 'error',
+        title: 'โหลดข้อมูลรายงานไม่สำเร็จ',
+        text: 'ไม่สามารถดึงข้อมูลของวันที่เลือกได้ กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setIsLoadingDaily(false)
+    }
+  }, [user, selectedDate])
+
+  useEffect(() => {
+    fetchDaily()
+  }, [fetchDaily])
+
+  // ดึงข้อมูลสรุปช่วง 30 วัน — สำหรับ Top Visitors เท่านั้น ไม่ผูกกับ DatePicker
+  useEffect(() => {
+    async function fetchSummary() {
+      if (!user) return
+      setIsLoadingSummary(true)
+      try {
+        const data = await getReportSummaryAPI({
+          villageId: user.village_id,
+          days: TOP_VISITORS_DAYS
+        })
+        setSummaryData(data)
+      } catch (error) {
+        console.error(error)
+        // ไม่ต้องเด้ง alert ซ้ำกับ fetchDaily กันรบกวนถ้าพังพร้อมกัน
+      } finally {
+        setIsLoadingSummary(false)
+      }
+    }
+    fetchSummary()
+  }, [user])
 
   function handlePrint() {
     window.print()
   }
+
+  const chartData = formatHourlyDataForChart(dailyData?.hourly_buckets)
+  const peakHour = computePeakHour(dailyData?.hourly_buckets)
+  const topVisitors = summaryData?.top_repeated_plates || []
 
   return (
     <Layout title="Report">
@@ -65,7 +161,7 @@ function Report() {
             <div className="report-kpi-info">
               <p className="report-kpi-label">Total Vehicles Today</p>
               <h2 className="report-kpi-val">
-                {data.totalCars.toLocaleString()}
+                {isLoadingDaily ? '—' : (dailyData?.total_detections ?? 0).toLocaleString()}
               </h2>
             </div>
           </div>
@@ -76,7 +172,7 @@ function Report() {
             </div>
             <div className="report-kpi-info">
               <p className="report-kpi-label">Peak Hour</p>
-              <h2 className="report-kpi-val">{data.peakTime}</h2>
+              <h2 className="report-kpi-val">{isLoadingDaily ? '—' : peakHour}</h2>
             </div>
           </div>
 
@@ -86,48 +182,60 @@ function Report() {
             </div>
             <div className="report-kpi-info">
               <p className="report-kpi-label">Blacklist Alerts</p>
-              <h2 className="report-kpi-val red">{data.blacklistCount}</h2>
+              <h2 className="report-kpi-val red">
+                {isLoadingDaily ? '—' : (dailyData?.blacklist_detections ?? 0)}
+              </h2>
             </div>
           </div>
         </div>
 
         {/* Bar Chart */}
         <div className="content-card">
-          <h3 className="card-title">Hourly Vehicle Traffic</h3>
+          <h3 className="card-title">Hourly Vehicle Detections</h3>
           <div className="chart-wrapper">
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart
-                data={data.hourlyData}
-                margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-                barGap={4}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(27,42,71,0.06)" />
-                <XAxis
-                  dataKey="hour"
-                  tick={{ fontFamily: 'DM Sans', fontSize: 12, fill: 'rgb(142,154,171)' }}
-                />
-                <YAxis
-                  tick={{ fontFamily: 'DM Sans', fontSize: 12, fill: 'rgb(142,154,171)' }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    fontFamily: 'DM Sans',
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 8px 24px rgba(27,42,71,0.12)'
-                  }}
-                />
-                <Legend wrapperStyle={{ fontFamily: 'DM Sans', fontSize: 13 }} />
-                <Bar dataKey="in" name="Vehicles In" fill="rgb(27, 42, 71)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="out" name="Vehicles Out" fill="rgb(147, 197, 253)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {isLoadingDaily ? (
+              <Spinner text="Loading chart..." />
+            ) : chartData.every((d) => d.count === 0) ? (
+              <EmptyState
+                icon={<FaCar />}
+                title="No detections on this day"
+                description="ยังไม่มีข้อมูลการตรวจจับในวันที่เลือก"
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                  barGap={4}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(27,42,71,0.06)" />
+                  <XAxis
+                    dataKey="hour"
+                    tick={{ fontFamily: 'DM Sans', fontSize: 12, fill: 'rgb(142,154,171)' }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontFamily: 'DM Sans', fontSize: 12, fill: 'rgb(142,154,171)' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      fontFamily: 'DM Sans',
+                      borderRadius: '12px',
+                      border: 'none',
+                      boxShadow: '0 8px 24px rgba(27,42,71,0.12)'
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontFamily: 'DM Sans', fontSize: 13 }} />
+                  <Bar dataKey="count" name="Detections" fill="rgb(27, 42, 71)" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
-        {/* Top 5 Table */}
+        {/* Top Visitors Table */}
         <div className="content-card">
-          <h3 className="card-title">Top 5 Frequent Visitors This Month</h3>
+          <h3 className="card-title">Top 5 Frequent Visitors Today</h3>
           <table className="report-table">
             <thead>
               <tr>
@@ -137,20 +245,38 @@ function Report() {
               </tr>
             </thead>
             <tbody>
-              {data.topVisitors.map((item, index) => (
-                <tr key={index}>
-                  <td>
-                    <span className={`rank-badge rank-${index + 1}`}>
-                      {index + 1}
-                    </span>
+              {isLoadingSummary ? (
+                <tr>
+                  <td colSpan={3}>
+                    <Spinner text="Loading top visitors..." />
                   </td>
-                  <td>
-                    <span className="plate-text">{item.plate}</span>
-                    <span className="report-province"> {item.province}</span>
-                  </td>
-                  <td><strong>{item.count}</strong> times</td>
                 </tr>
-              ))}
+              ) : topVisitors.length > 0 ? (
+                topVisitors.map((item, index) => (
+                  <tr key={`${item.license_plate}-${index}`}>
+                    <td>
+                      <span className={`rank-badge rank-${index + 1}`}>
+                        {index + 1}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="plate-text">{item.license_plate}</span>
+                      <span className="report-province"> {item.province}</span>
+                    </td>
+                    <td><strong>{item.count}</strong> times</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3}>
+                    <EmptyState
+                      icon={<FaCar />}
+                      title="No data"
+                      description={`ไม่มีข้อมูลผู้มาเยือนซ้ำในช่วง ${TOP_VISITORS_DAYS} วันล่าสุด`}
+                    />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

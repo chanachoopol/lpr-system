@@ -171,3 +171,22 @@ export async function logoutAPI() {
   const response = await api.post('/api/auth/logout')
   return response.data
 }
+// ==================== Report APIs ====================
+
+// สรุปรายวัน — ใช้กับ KPI cards + กราฟ hourly ของวันที่เลือกจาก DatePicker
+export async function getReportDailyAPI({ villageId, date } = {}) {
+  const params = { date }
+  if (villageId) params.village_id = villageId
+
+  const response = await api.get('/api/reports/daily', { params })
+  return response.data
+}
+
+// สรุปแบบช่วงหลายวัน (1-60 วัน) — ใช้กับตาราง Top Frequent Visitors
+export async function getReportSummaryAPI({ villageId, days = 7 } = {}) {
+  const params = { days }
+  if (villageId) params.village_id = villageId
+
+  const response = await api.get('/api/reports/summary', { params })
+  return response.data
+}
