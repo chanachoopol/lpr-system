@@ -39,37 +39,38 @@ function Monitor() {
   const [isLoadingDetections, setIsLoadingDetections] = useState(true)
 
   // ดึงรายการกล้องจาก backend ตอนเปิดหน้า
-  useEffect(() => {
-    async function fetchCameras() {
-      if (!user?.village_id) return
+  // แก้เป็น
+useEffect(() => {
+  async function fetchCameras() {
+    if (!user) return   // รอแค่ login เสร็จ ไม่ใช่รอ village_id
 
-      setIsLoadingCameras(true)
-      try {
-        const data = await getCamerasAPI(user.village_id)
-        setCameras(data)
+    setIsLoadingCameras(true)
+    try {
+      // ส่ง village_id ไปถ้ามี (admin) / ไม่ส่งถ้าไม่มี (superadmin → ได้ทุกหมู่บ้าน)
+      const data = await getCamerasAPI(user.village_id)
+      setCameras(data)
 
-        // ตั้งกล้องเริ่มต้น: เอาจาก URL ถ้ามี ไม่งั้นเอาตัวแรกในลิสต์
-        const cameraFromURL = searchParams.get('camera')
-        if (cameraFromURL && data.some((cam) => cam.id === cameraFromURL)) {
-          setSelectedCamera(cameraFromURL)
-        } else if (data.length > 0) {
-          setSelectedCamera(data[0].id)
-        }
-      } catch (error) {
-        console.error(error)
-        Swal.fire({
-          icon: 'error',
-          title: 'โหลดรายการกล้องไม่สำเร็จ',
-          text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
-          confirmButtonColor: 'var(--sidebar-bg)'
-        })
-      } finally {
-        setIsLoadingCameras(false)
+      const cameraFromURL = searchParams.get('camera')
+      if (cameraFromURL && data.some((cam) => cam.id === cameraFromURL)) {
+        setSelectedCamera(cameraFromURL)
+      } else if (data.length > 0) {
+        setSelectedCamera(data[0].id)
       }
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        icon: 'error',
+        title: 'โหลดรายการกล้องไม่สำเร็จ',
+        text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setIsLoadingCameras(false)
     }
+  }
 
-    fetchCameras()
-  }, [user?.village_id])
+  fetchCameras()
+}, [user])
 
   const currentCameraData = cameras.find((cam) => cam.id === selectedCamera)
 

@@ -82,9 +82,11 @@ function History() {
   }, [searchParams])
 
   // ดึงรายการกล้อง (สำหรับ dropdown filter + แปลง camera_id เป็นชื่อ)
+  // fetchCameras
+// ดึงรายการกล้อง (สำหรับ dropdown filter + แปลง camera_id เป็นชื่อ)
   useEffect(() => {
     async function fetchCameras() {
-      if (!user?.village_id) return
+      if (!user) return
       try {
         const data = await getCamerasAPI(user.village_id)
         setCameras(data)
@@ -93,21 +95,23 @@ function History() {
       }
     }
     fetchCameras()
-  }, [user?.village_id])
+  }, [user])
 
   // ดึงประวัติจาก backend ทุกครั้งที่ filter หรือหน้าเปลี่ยน
+  // fetchHistory
+// ดึงประวัติจาก backend ทุกครั้งที่ filter หรือหน้าเปลี่ยน
   useEffect(() => {
     async function fetchHistory() {
-      if (!user?.village_id) return
+      if (!user) return
 
       setIsLoading(true)
       try {
         const params = {
-          village_id: user.village_id,
           page: currentPage,
           page_size: ROWS_PER_PAGE
         }
 
+        if (user.village_id) params.village_id = user.village_id
         if (debouncedSearch) params.license_plate = debouncedSearch
         if (selectedCamera !== 'all') params.camera_id = selectedCamera
 
@@ -131,8 +135,7 @@ function History() {
     }
 
     fetchHistory()
-  }, [user?.village_id, debouncedSearch, selectedCamera, selectedDate, currentPage])
-
+  }, [user, debouncedSearch, selectedCamera, selectedDate, currentPage])
   // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
   useEffect(() => {
     setCurrentPage(1)
