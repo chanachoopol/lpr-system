@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
 import { FaXmark } from 'react-icons/fa6'
 import Layout from '../components/Layout'
-import { mockHistoryData, mockCameraLocations } from '../data/mockData'
+import { getDetectionsAPI, getCamerasAPI, getAuthedImageURL } from '../data/api'
+import useAuthStore from '../store/authStore'
 import '../styles/History.css'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -12,55 +13,67 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 
 const ROWS_PER_PAGE = 10
-// เรียงข้อมูลจากล่าสุดไปเก่าสุดไว้ตั้งแต่แรก
-const sortedHistoryData = [...mockHistoryData].sort((a, b) => {
-  // แปลง date + time เป็น Date object เพื่อเทียบ
-  const dateA = new Date(`${a.date.split('/').reverse().join('-')} ${a.time}`)
-  const dateB = new Date(`${b.date.split('/').reverse().join('-')} ${b.time}`)
-  return dateB - dateA
-})
+const SEARCH_DEBOUNCE_MS = 400
+const MAX_VISIBLE_PAGES = 4 // จำนวนปุ่มเลขหน้าสูงสุดที่โชว์พร้อมกัน
+
+// แปลง ISO timestamp เป็นวันที่ + เวลาแบบไทย
+function formatDate(isoString) {
+  if (!isoString) return '-'
+  return new Date(isoString).toLocaleDateString('th-TH')
+}
+function formatTime(isoString) {
+  if (!isoString) return '-'
+  return new Date(isoString).toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
+// คำนวณว่าจะโชว์เลขหน้าไหนบ้าง (จำกัดไม่ให้ยาวเกินไปเวลามีหลายสิบหน้า)
+// เช่น อยู่หน้า 8 จาก 27 หน้า จะโชว์ [7, 8, 9, 10] แทนที่จะโชว์ 1-27 ทั้งหมด
+function getVisiblePageNumbers(current, total, maxVisible) {
+  if (total <= maxVisible) {
+    return Array.from({ length: total }, (_, i) => i + 1)
+  }
+  let start = Math.max(1, current - Math.floor(maxVisible / 2))
+  let end = start + maxVisible - 1
+  if (end > total) {
+    end = total
+    start = end - maxVisible + 1
+  }
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+}
 
 function History() {
+  const { user } = useAuthStore()
   const [searchParams] = useSearchParams()
+
+  const [cameras, setCameras] = useState([])
   const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedCamera, setSelectedCamera] = useState('all')
   const [selectedDate, setSelectedDate] = useState(null)
-  const [filteredData, setFilteredData] = useState(sortedHistoryData)
+
+  const [historyData, setHistoryData] = useState([])
+  const [totalItems, setTotalItems] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
+  const [isLoading, setIsLoading] = useState(true)
+
   const [selectedItem, setSelectedItem] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)  // ← ย้ายมาไว้ตรงนี้
-  
+  const [modalImages, setModalImages] = useState({ crop: null, full: null })
+  const [isLoadingImages, setIsLoadingImages] = useState(false)
 
-  // จำลอง loading ตอนเปิดหน้า ← ย้ายมาไว้ตรงนี้ด้วย
+  // รูปที่กำลังดูแบบเต็มจอ (คลิกจากรูปใน modal)
+  const [fullscreenImage, setFullscreenImage] = useState(null)
+
+  // Debounce ช่อง search 400ms ก่อนยิง API (ลดจำนวน request ตอนพิมพ์รัว)
   useEffect(() => {
-    setTimeout(() => setIsLoading(false), 800)
-  }, [])
+    const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
-  // ... useEffect อื่น ๆ ต่อไป
-  useEffect(() => {
-    const keyword = searchInput.toLowerCase().trim()
-
-    const result = sortedHistoryData.filter((item) => {
-      const matchSearch =
-        keyword === '' ||
-        item.plate.toLowerCase().includes(keyword) ||
-        item.province.includes(keyword)
-
-      const matchCamera = selectedCamera === 'all' || item.cameraId === selectedCamera
-
-      // ถ้าไม่ได้เลือกวันที่ → ไม่กรองวันที่เลย (แสดงทุกวัน)
-      const matchDate =
-        selectedDate === null ||
-        item.date === selectedDate.toLocaleDateString('th-TH')
-
-      return matchSearch && matchCamera && matchDate
-    })
-
-    setFilteredData(result)
-    setCurrentPage(1)
-  }, [searchInput, selectedCamera, selectedDate])
-
-  // รับค่า search จาก URL (มาจาก Navbar search)
+  // รับค่า search จาก URL (มาจาก Navbar search) ตอนเปิดหน้าครั้งแรก
   useEffect(() => {
     const searchFromURL = searchParams.get('search')
     if (searchFromURL) {
@@ -68,16 +81,117 @@ function History() {
     }
   }, [searchParams])
 
+  // ดึงรายการกล้อง (สำหรับ dropdown filter + แปลง camera_id เป็นชื่อ)
+  useEffect(() => {
+    async function fetchCameras() {
+      if (!user?.village_id) return
+      try {
+        const data = await getCamerasAPI(user.village_id)
+        setCameras(data)
+      } catch (error) {
+        console.error(error)
+      }
+    }
+    fetchCameras()
+  }, [user?.village_id])
+
+  // ดึงประวัติจาก backend ทุกครั้งที่ filter หรือหน้าเปลี่ยน
+  useEffect(() => {
+    async function fetchHistory() {
+      if (!user?.village_id) return
+
+      setIsLoading(true)
+      try {
+        const params = {
+          village_id: user.village_id,
+          page: currentPage,
+          page_size: ROWS_PER_PAGE
+        }
+
+        if (debouncedSearch) params.license_plate = debouncedSearch
+        if (selectedCamera !== 'all') params.camera_id = selectedCamera
+
+        if (selectedDate) {
+          const startOfDay = new Date(selectedDate)
+          startOfDay.setHours(0, 0, 0, 0)
+          const endOfDay = new Date(selectedDate)
+          endOfDay.setHours(23, 59, 59, 999)
+          params.time_detect_from = startOfDay.toISOString()
+          params.time_detect_to = endOfDay.toISOString()
+        }
+
+        const data = await getDetectionsAPI(params)
+        setHistoryData(data.items)
+        setTotalItems(data.total)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchHistory()
+  }, [user?.village_id, debouncedSearch, selectedCamera, selectedDate, currentPage])
+
+  // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearch, selectedCamera, selectedDate])
+
   function handleReset() {
     setSearchInput('')
     setSelectedCamera('all')
     setSelectedDate(null)
   }
 
-  // Pagination
-  const totalPages = Math.ceil(filteredData.length / ROWS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ROWS_PER_PAGE
-  const currentData = filteredData.slice(startIndex, startIndex + ROWS_PER_PAGE)
+  // หาชื่อกล้องจาก camera_id (backend ส่งมาแค่ id ไม่ส่งชื่อมาด้วย)
+  function getCameraName(cameraId) {
+    const cam = cameras.find((c) => c.id === cameraId)
+    return cam ? cam.name : '-'
+  }
+
+  // โหลดรูปภาพ (แบบแนบ auth token) ทุกครั้งที่เปิด modal ดูรายละเอียด
+  useEffect(() => {
+    if (!selectedItem) {
+      setModalImages({ crop: null, full: null })
+      return
+    }
+
+    let isCancelled = false
+    setIsLoadingImages(true)
+
+    async function loadImages() {
+      try {
+        const [cropURL, fullURL] = await Promise.all([
+          selectedItem.image_crop ? getAuthedImageURL(selectedItem.image_crop) : null,
+          selectedItem.image_full ? getAuthedImageURL(selectedItem.image_full) : null
+        ])
+        if (!isCancelled) {
+          setModalImages({ crop: cropURL, full: fullURL })
+        }
+      } catch (error) {
+        console.error(error)
+      } finally {
+        if (!isCancelled) setIsLoadingImages(false)
+      }
+    }
+
+    loadImages()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [selectedItem])
+
+  const totalPages = Math.ceil(totalItems / ROWS_PER_PAGE)
+  const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
+
+  function closeModal() {
+    // คืนหน่วยความจำ blob URL ทิ้งตอนปิด modal กัน memory leak
+    if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
+    if (modalImages.full) URL.revokeObjectURL(modalImages.full)
+    setSelectedItem(null)
+  }
 
   return (
     <Layout title="History">
@@ -86,7 +200,7 @@ function History() {
         {/* ส่วนค้นหา */}
         <div className="content-card history-filter">
           <div className="filter-group">
-            <label>Search License Plate / Province</label>
+            <label>Search License Plate</label>
             <div className="filter-input-wrap">
               <FaSearch className="filter-icon" />
               <input
@@ -105,7 +219,7 @@ function History() {
               onChange={(e) => setSelectedCamera(e.target.value)}
             >
               <option value="all">All Cameras</option>
-              {mockCameraLocations.map((cam) => (
+              {cameras.map((cam) => (
                 <option key={cam.id} value={cam.id}>
                   {cam.name}
                 </option>
@@ -141,7 +255,7 @@ function History() {
           <div className="history-table-header">
             <h3 className="card-title" style={{ margin: 0 }}>Vehicle History</h3>
             <p className="history-total">
-              Found <strong>{filteredData.length}</strong> records
+              Found <strong>{totalItems}</strong> records
             </p>
           </div>
 
@@ -160,45 +274,45 @@ function History() {
                 </tr>
               </thead>
               <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan="8">
-                    <Spinner text="Loading history..." />
-                  </td>
-                </tr>
-              ) : currentData.length > 0 ? (
-                currentData.map((item, index) => (
-                  <tr key={item.id}>
-                    <td>{startIndex + index + 1}</td>
-                    <td>{item.date}</td>
-                    <td>{item.time}</td>
-                    <td className="plate-text">{item.plate}</td>
-                    <td>{item.province}</td>
-                    <td>{item.color}</td>
-                    <td>{item.cameraName}</td>
-                    <td>
-                      <button className="btn-view" onClick={() => setSelectedItem(item)}>
-                        <FaEye /> View
-                      </button>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan="8">
+                      <Spinner text="Loading history..." />
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="8">
-                    <EmptyState
-                      icon={<FaSearch />}
-                      title="No records found"
-                      description="Try changing the filter or search keyword"
-                    />
-                  </td>
-                </tr>
-              )}
-            </tbody>
+                ) : historyData.length > 0 ? (
+                  historyData.map((item, index) => (
+                    <tr key={item.id}>
+                      <td>{(currentPage - 1) * ROWS_PER_PAGE + index + 1}</td>
+                      <td>{formatDate(item.time_detect)}</td>
+                      <td>{formatTime(item.time_detect)}</td>
+                      <td className="plate-text">{item.license_plate}</td>
+                      <td>{item.province}</td>
+                      <td>{item.color}</td>
+                      <td>{getCameraName(item.camera_id)}</td>
+                      <td>
+                        <button className="btn-view" onClick={() => setSelectedItem(item)}>
+                          <FaEye /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="8">
+                      <EmptyState
+                        icon={<FaSearch />}
+                        title="No records found"
+                        description="Try changing the filter or search keyword"
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
             </table>
           </div>
 
-          {/* Pagination */}
+          {/* Pagination — จำกัดแค่ 4 ปุ่มพร้อมกัน ไม่ยาวเป็นพรืด */}
           {totalPages > 1 && (
             <div className="pagination">
               <button
@@ -209,7 +323,7 @@ function History() {
                 ‹
               </button>
 
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              {visiblePages.map((page) => (
                 <button
                   key={page}
                   className={`page-btn ${currentPage === page ? 'active' : ''}`}
@@ -232,29 +346,51 @@ function History() {
 
       </div>
 
-      {/* Modal */}
+      {/* Modal รายละเอียด */}
       {selectedItem && (
-        <div className="modal-overlay" onClick={() => setSelectedItem(null)}>
+        <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Vehicle Detail</h3>
-              <button className="modal-close" onClick={() => setSelectedItem(null)}>
+              <button className="modal-close" onClick={closeModal}>
                 <FaXmark />
               </button>
             </div>
             <div className="modal-body">
               <div className="modal-img-section">
                 <div className="modal-img-placeholder">
-                  <p>Full Image</p>
+                  {isLoadingImages ? (
+                    <Spinner text="กำลังโหลดรูป..." />
+                  ) : modalImages.full ? (
+                    <img
+                      src={modalImages.full}
+                      alt="Full capture"
+                      onClick={() => setFullscreenImage(modalImages.full)}
+                      style={{ cursor: 'zoom-in' }}
+                    />
+                  ) : (
+                    <p>ไม่มีรูปภาพ</p>
+                  )}
                 </div>
                 <div className="modal-img-placeholder small">
-                  <p>Plate Crop</p>
+                  {isLoadingImages ? (
+                    <Spinner text="" />
+                  ) : modalImages.crop ? (
+                    <img
+                      src={modalImages.crop}
+                      alt="Plate crop"
+                      onClick={() => setFullscreenImage(modalImages.crop)}
+                      style={{ cursor: 'zoom-in' }}
+                    />
+                  ) : (
+                    <p>ไม่มีรูปป้าย</p>
+                  )}
                 </div>
               </div>
               <div className="modal-info">
                 <div className="modal-info-row">
                   <span className="info-label">License Plate</span>
-                  <span className="plate-text">{selectedItem.plate}</span>
+                  <span className="plate-text">{selectedItem.license_plate}</span>
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Province</span>
@@ -262,15 +398,22 @@ function History() {
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Time</span>
-                  <span>{selectedItem.time}</span>
+                  <span>{formatDate(selectedItem.time_detect)} {formatTime(selectedItem.time_detect)}</span>
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Camera</span>
-                  <span>{selectedItem.cameraName}</span>
+                  <span>{getCameraName(selectedItem.camera_id)}</span>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* รูปเต็มจอ — คลิกรูปใน modal แล้วมาโผล่ตรงนี้ ไม่มีตกแต่งอะไรเลย */}
+      {fullscreenImage && (
+        <div className="image-fullscreen-overlay" onClick={() => setFullscreenImage(null)}>
+          <img src={fullscreenImage} alt="Full size" />
         </div>
       )}
 

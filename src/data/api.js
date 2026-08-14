@@ -151,3 +151,15 @@ export async function getCameraLiveAPI(cameraId, limit = 5) {
   })
   return response.data
 }
+// ==================== Detections (History) API ====================
+export async function getDetectionsAPI(params) {
+  const response = await api.get('/api/detections', { params })
+  return response.data // { items, total, page, page_size }
+}
+
+// ดึงรูปภาพแบบแนบ Bearer token (เพราะ endpoint รูปมี auth คุ้มครองอยู่)
+// คืนค่าเป็น blob URL ชั่วคราวไว้ใส่ใน <img src>
+export async function getAuthedImageURL(imageEndpointUrl) {
+  const response = await api.get(imageEndpointUrl, { responseType: 'blob' })
+  return URL.createObjectURL(response.data)
+}
