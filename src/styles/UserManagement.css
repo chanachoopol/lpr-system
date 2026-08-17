@@ -528,3 +528,29 @@
     flex-direction: column;
   }
 }
+.btn-add-village {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgb(255, 255, 255);
+  color: rgb(27, 42, 71);
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-add-village:hover:not(:disabled) {
+  background: rgb(241, 245, 249);
+  transform: translateY(-1px);
+}
+
+.btn-add-village:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

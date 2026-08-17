@@ -132,7 +132,7 @@ export async function changePasswordAPI(currentPassword, newPassword, confirmNew
   })
   return response.data
 }
-// ==================== Camera API ====================
+// ==================== Camera API (สำหรับ dropdown เลือกกล้อง เช่น Monitor/History) ====================
 export async function getCamerasAPI(villageId) {
   const response = await api.get('/api/cameras', {
     params: {
@@ -151,6 +151,64 @@ export async function getCameraLiveAPI(cameraId, limit = 5) {
   })
   return response.data
 }
+
+// ==================== Camera Management APIs (CRUD สำหรับหน้า Camera Management) ====================
+// หมายเหตุ field ของ backend: lat/long (ไม่ใช่ lon), ไม่มี status online/offline
+// มีแค่ is_active (เปิด/ปิดใช้งานกล้อง) และ ai_vision_synced_at (เวลาซิงค์ล่าสุดกับ AI Vision)
+// stream_url เป็นค่าที่ backend generate ให้เองจาก stream_ai (RTSP source) ห้ามส่งตอน create/update
+
+// ดึงรายการกล้องแบบเต็ม พร้อม pagination — ต่างจาก getCamerasAPI ด้านบนที่ใช้แค่ทำ dropdown
+export async function getCameraListAPI({ villageId, isActive, page = 1, pageSize = 100 } = {}) {
+  const params = { page, page_size: pageSize }
+  if (villageId) params.village_id = villageId
+  if (isActive !== undefined) params.is_active = isActive
+
+  const response = await api.get('/api/cameras', { params })
+  return response.data // { items, total, page, page_size }
+}
+
+// ดึงข้อมูลกล้องตัวเดียว
+export async function getCameraByIdAPI(cameraId) {
+  const response = await api.get(`/api/cameras/${cameraId}`)
+  return response.data
+}
+
+// เพิ่มกล้องใหม่ — ต้องระบุ village_id เสมอ (backend คืน 404 "Village not found" ถ้า village_id ไม่มีจริง)
+export async function createCameraAPI(villageId, name, lat, long, streamAi) {
+  const response = await api.post('/api/cameras', {
+    village_id: villageId,
+    name,
+    lat,
+    long,
+    stream_ai: streamAi
+  })
+  return response.data
+}
+
+// แก้ไขกล้อง (PATCH) — ส่งเฉพาะ field ที่จะอัปเดต เช่น { name, lat, long, stream_ai, is_active }
+export async function updateCameraAPI(cameraId, payload) {
+  const response = await api.patch(`/api/cameras/${cameraId}`, payload)
+  return response.data
+}
+
+// ลบกล้อง
+export async function deleteCameraAPI(cameraId) {
+  const response = await api.delete(`/api/cameras/${cameraId}`)
+  return response.data
+}
+
+// สั่งซิงค์กล้องทั้งหมดกับ AI Vision ใหม่ทั้งระบบ
+export async function resyncAllCamerasAPI() {
+  const response = await api.post('/api/cameras/resync-all')
+  return response.data
+}
+
+// สั่งซิงค์กล้องตัวเดียวกับ AI Vision ใหม่
+export async function resyncCameraAiVisionAPI(cameraId) {
+  const response = await api.post(`/api/cameras/${cameraId}/resync-ai-vision`)
+  return response.data
+}
+
 // ==================== Detections (History) API ====================
 export async function getDetectionsAPI(params) {
   const response = await api.get('/api/detections', { params })
@@ -198,4 +256,90 @@ export async function getVillagesAPI({ isActive, search, page = 1, pageSize = 10
 
   const response = await api.get('/api/villages', { params })
   return response.data // { items, total, page, page_size }
+}
+// ==================== Profile API ====================
+
+// ดูข้อมูลบัญชีตัวเอง — ใช้ได้ทุก role ที่ login สำเร็จ (เช็คจาก token ไม่เช็ค role)
+// GET อย่างเดียว ยังไม่มี endpoint แก้ไข (PATCH) จาก backend
+export async function getMyProfileAPI() {
+  const response = await api.get('/api/users/me')
+  return response.data
+}
+// ==================== Contacts API ====================
+// content_type: 'phone' | 'email' | 'line' | 'other' (ยืนยันแล้วว่า custom_label ห้ามส่งเว้นแต่เป็น 'other')
+export async function createContactAPI({ userId, contentType, value, customLabel }) {
+  const payload = { user_id: userId, content_type: contentType, value }
+  if (contentType === 'other' && customLabel) {
+    payload.custom_label = customLabel
+  }
+  const response = await api.post('/api/contacts', payload)
+  return response.data
+}
+
+// ==================== User Management APIs ====================
+export async function getUsersAPI({
+  villageId,
+  role,
+  isActive,
+  search,
+  page = 1,
+  pageSize = 20
+} = {}) {
+  const params = { page, page_size: pageSize }
+  if (villageId) params.village_id = villageId
+  if (role) params.role = role
+  if (isActive !== undefined) params.is_active = isActive
+  if (search) params.search = search
+
+  const response = await api.get('/api/users', { params })
+  return response.data // { items, total, page, page_size }
+}
+
+// ไม่มี field password ตอนสร้าง — backend เป็นระบบ invite ผ่านอีเมล
+export async function createUserAPI({ username, fullname, email, role, villageId }) {
+  const response = await api.post('/api/users', {
+    username,
+    fullname,
+    email,
+    role,
+    village_id: villageId || null
+  })
+  return response.data
+}
+
+export async function getUserDetailAPI(userId) {
+  const response = await api.get(`/api/users/${userId}`)
+  return response.data
+}
+
+// PATCH นี้แก้ได้แค่ is_active เท่านั้น (ยืนยันจาก schema UserStatusUpdate)
+export async function updateUserStatusAPI(userId, isActive) {
+  const response = await api.patch(`/api/users/${userId}`, { is_active: isActive })
+  return response.data
+}
+
+export async function deleteUserAPI(userId) {
+  const response = await api.delete(`/api/users/${userId}`)
+  return response.data
+}
+
+// admin พิมพ์รหัสใหม่เอง ไม่ใช่ auto-generate (ยืนยันจาก schema จริง)
+export async function resetUserPasswordAPI(userId, newPassword, confirmNewPassword) {
+  const response = await api.post(`/api/users/${userId}/reset-password`, {
+    new_password: newPassword,
+    confirm_new_password: confirmNewPassword
+  })
+  return response.data // { detail, username }
+}
+
+export async function resendInviteAPI(userId) {
+  const response = await api.post(`/api/users/${userId}/resend-invite`)
+  return response.data
+}
+
+// ==================== Village Management ====================
+// ⚠️ ยังไม่มี schema VillageCreate ยืนยัน — เดาตาม field ที่น่าจะมี ถ้าผิดส่ง schema มาแก้จุดเดียว
+export async function createVillageAPI(name, address) {
+  const response = await api.post('/api/villages', { name, address })
+  return response.data
 }

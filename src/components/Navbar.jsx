@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars, FaSignOutAlt } from 'react-icons/fa'
-import { FaTriangleExclamation, FaVideo, FaArrowRight, FaKey } from 'react-icons/fa6'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import { mockNotifications } from '../data/mockData'
 import { useThemeStore } from '../store/themeStore'
 import VillageSelector from './VillageSelector'
 import Swal from 'sweetalert2'
+import { FaTriangleExclamation, FaVideo, FaArrowRight, FaKey, FaIdCard } from 'react-icons/fa6'
 
 function Navbar({ title, onToggle }) {
   const { user, logout } = useAuthStore()
@@ -183,7 +183,13 @@ function Navbar({ title, onToggle }) {
               </span>
               <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
-
+            <button
+                className="nb-dropdown-item"
+                onClick={() => { navigate('/profile'); setShowDropdown(false) }}
+              >
+                <span className="nb-dropdown-icon"><FaIdCard /></span>
+                <span>My Profile</span>
+            </button>
             <button
                 className="nb-dropdown-item"
                 onClick={() => { navigate('/change-password'); setShowDropdown(false) }}

@@ -1,86 +1,146 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { FaUsers, FaUserPlus, FaUserShield, FaSearch } from 'react-icons/fa'
-import { FaUserCheck, FaUserClock, FaPen, FaTrashCan, FaKey, FaXmark } from 'react-icons/fa6'
+import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaToggleOn, FaToggleOff, FaPaperPlane, FaCircleCheck, FaCircleXmark } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
-import { mockUserData } from '../data/mockData'
+import useVillageStore from '../store/villageStore'
+import {
+  getUsersAPI,
+  createUserAPI,
+  updateUserStatusAPI,
+  deleteUserAPI,
+  resetUserPasswordAPI,
+  resendInviteAPI,
+  createContactAPI,
+  createVillageAPI
+} from '../data/api'
 import '../styles/UserManagement.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 
-// Role ที่แก้ไข/ลบบัญชี "admin" ได้ — เฉพาะ superadmin เท่านั้น
-// admin แก้ไข/ลบกันเองไม่ได้ ป้องกัน admin คนหนึ่งลบ admin คนอื่น
-const CAN_MANAGE_ADMIN_ROLES = ['superadmin']
+const PAGE_SIZE = 20
+const SEARCH_DEBOUNCE_MS = 400
+const MIN_PASSWORD_LENGTH = 8
 
-// Role ที่เพิ่มบัญชี "admin" ได้ — เฉพาะ superadmin
 const CAN_ADD_ADMIN_ROLES = ['superadmin']
+const CAN_ADD_VILLAGE_ROLES = ['superadmin']
 
-const EMPTY_FORM = { username: '', fullName: '', phone: '', password: '', status: 'active' }
+const EMPTY_FORM = { username: '', fullname: '', email: '', phone: '', villageId: '' }
+const EMPTY_VILLAGE_FORM = { name: '', address: '' }
+const EMPTY_RESET_FORM = { newPassword: '', confirmPassword: '' }
 
 function capitalize(text) {
   if (!text) return ''
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-function isSameMonth(dateString) {
-  const date = new Date(dateString)
-  const now = new Date()
-  return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+function formatDate(isoString) {
+  if (!isoString) return '-'
+  return new Date(isoString).toLocaleDateString('th-TH', { dateStyle: 'medium' })
 }
 
 function UserManagement() {
   const { user: currentUser } = useAuthStore()
-  const [users, setUsers] = useState(mockUserData)
-  const [searchInput, setSearchInput] = useState('')
-  const [roleFilter, setRoleFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [showFormModal, setShowFormModal] = useState(false)
-  const [editingUser, setEditingUser] = useState(null)
-  const [addRole, setAddRole] = useState('user')
-  const [formData, setFormData] = useState(EMPTY_FORM)
+  const { villages, selectedVillageId, fetchVillages, getVillageName } = useVillageStore()
+
+  const [users, setUsers] = useState([])
+  const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
 
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all') // all | active | inactive
+
+  // Add User modal
+  const [showFormModal, setShowFormModal] = useState(false)
+  const [addRole, setAddRole] = useState('user')
+  const [formData, setFormData] = useState(EMPTY_FORM)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Add Village modal
+  const [showVillageModal, setShowVillageModal] = useState(false)
+  const [villageFormData, setVillageFormData] = useState(EMPTY_VILLAGE_FORM)
+  const [isSubmittingVillage, setIsSubmittingVillage] = useState(false)
+
+  // Reset Password modal — API ต้องการ new_password + confirm ตรงๆ ไม่ auto-generate
+  const [resetTargetUser, setResetTargetUser] = useState(null)
+  const [resetForm, setResetForm] = useState(EMPTY_RESET_FORM)
+  const [isResetting, setIsResetting] = useState(false)
+
+  // KPI
+  const [kpiLoading, setKpiLoading] = useState(true)
+  const [totalUsers, setTotalUsers] = useState(0)
+  const [activeUsers, setActiveUsers] = useState(0)
+
   useEffect(() => {
-    setTimeout(() => setIsLoading(false), 800)
-  }, [])
+    if (!currentUser) return
+    fetchVillages()
+  }, [currentUser, fetchVillages])
 
-  const totalUsers = users.length
-  const activeToday = users.filter((u) => u.status === 'active').length
-  const newThisMonth = users.filter((u) => isSameMonth(u.createdAt)).length
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
-  const filteredUsers = users.filter((u) => {
-    const keyword = searchInput.toLowerCase().trim()
-    const matchSearch =
-      keyword === '' ||
-      u.username.toLowerCase().includes(keyword) ||
-      u.fullName.toLowerCase().includes(keyword)
-    const matchRole = roleFilter === 'all' || u.role === roleFilter
-    const matchStatus = statusFilter === 'all' || u.status === statusFilter
-    return matchSearch && matchRole && matchStatus
-  })
+  const fetchUsers = useCallback(async () => {
+    if (!currentUser) return
+    setIsLoading(true)
+    try {
+      const data = await getUsersAPI({
+        villageId: selectedVillageId || undefined,
+        role: roleFilter === 'all' ? undefined : roleFilter,
+        isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
+        search: debouncedSearch || undefined,
+        page: 1,
+        pageSize: PAGE_SIZE
+      })
+      setUsers(data.items)
+      setTotal(data.total)
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        icon: 'error',
+        title: 'โหลดข้อมูลผู้ใช้ไม่สำเร็จ',
+        text: 'ไม่สามารถดึงข้อมูลผู้ใช้ได้ กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [currentUser, selectedVillageId, roleFilter, statusFilter, debouncedSearch])
 
-  // เช็คว่า currentUser จัดการ (แก้ไข/ลบ) บัญชีเป้าหมายได้ไหม
-  function canManage(targetUser) {
-    if (targetUser.role === 'user') return true
-    return CAN_MANAGE_ADMIN_ROLES.includes(currentUser?.role)
-  }
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
+
+  useEffect(() => {
+    async function fetchKpis() {
+      if (!currentUser) return
+      setKpiLoading(true)
+      try {
+        const [all, active] = await Promise.all([
+          getUsersAPI({ villageId: selectedVillageId || undefined, page: 1, pageSize: 1 }),
+          getUsersAPI({ villageId: selectedVillageId || undefined, isActive: true, page: 1, pageSize: 1 })
+        ])
+        setTotalUsers(all.total)
+        setActiveUsers(active.total)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setKpiLoading(false)
+      }
+    }
+    fetchKpis()
+  }, [currentUser, selectedVillageId])
 
   function openAddModal(role) {
-    setEditingUser(null)
     setAddRole(role)
-    setFormData(EMPTY_FORM)
-    setShowFormModal(true)
-  }
-
-  function openEditModal(targetUser) {
-    setEditingUser(targetUser)
     setFormData({
-      username: targetUser.username,
-      fullName: targetUser.fullName,
-      phone: targetUser.phone,
-      password: '',
-      status: targetUser.status
+      ...EMPTY_FORM,
+      // admin สร้าง user ได้แค่ในหมู่บ้านตัวเองเท่านั้น
+      villageId: currentUser?.role === 'admin' ? currentUser.village_id : ''
     })
     setShowFormModal(true)
   }
@@ -90,84 +150,271 @@ function UserManagement() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  function handleFormSubmit(e) {
+  async function handleFormSubmit(e) {
     e.preventDefault()
 
-    if (!formData.username.trim() || !formData.fullName.trim() || !formData.phone.trim()) {
+    if (!formData.username.trim() || !formData.fullname.trim() || !formData.email.trim()) {
       Swal.fire({
         icon: 'warning',
         title: 'กรอกข้อมูลไม่ครบ',
-        text: 'กรุณากรอก Username, ชื่อ-นามสกุล และเบอร์โทร',
+        text: 'กรุณากรอก Username, ชื่อ-นามสกุล และอีเมล',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
     }
 
-    if (editingUser) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === editingUser.id
-            ? { ...u, username: formData.username.trim(), fullName: formData.fullName.trim(), phone: formData.phone.trim(), status: formData.status }
-            : u
-        )
-      )
+    if (!formData.villageId) {
       Swal.fire({
-        icon: 'success',
-        title: 'บันทึกการแก้ไขแล้ว',
+        icon: 'warning',
+        title: 'กรุณาเลือกหมู่บ้าน',
+        text: 'ต้องระบุหมู่บ้านให้ผู้ใช้ก่อนสร้างบัญชี',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
-    } else {
-      const newUser = {
-        id: Date.now(),
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const newUser = await createUserAPI({
         username: formData.username.trim(),
-        fullName: formData.fullName.trim(),
-        phone: formData.phone.trim(),
+        fullname: formData.fullname.trim(),
+        email: formData.email.trim(),
         role: addRole,
-        status: 'active',
-        lastLogin: '-',
-        createdAt: new Date().toISOString().slice(0, 10)
+        villageId: formData.villageId
+      })
+
+      // เบอร์โทรเป็น optional — ถ้ากรอกมาค่อยยิงสร้าง contact แยกอีกครั้ง
+      if (formData.phone.trim()) {
+        try {
+          await createContactAPI({
+            userId: newUser.id,
+            contentType: 'phone',
+            value: formData.phone.trim()
+          })
+        } catch (contactError) {
+          console.error(contactError)
+          // สร้าง user สำเร็จแล้ว แค่เบอร์โทรพลาด ไม่ต้อง rollback user แค่แจ้งเตือนแยก
+          Swal.fire({
+            icon: 'warning',
+            title: 'สร้างผู้ใช้สำเร็จ แต่บันทึกเบอร์โทรไม่สำเร็จ',
+            text: 'กรุณาเพิ่มเบอร์โทรภายหลังผ่านหน้ารายละเอียดผู้ใช้',
+            confirmButtonColor: 'var(--sidebar-bg)'
+          })
+          setShowFormModal(false)
+          fetchUsers()
+          return
+        }
       }
-      setUsers((prev) => [newUser, ...prev])
+
       Swal.fire({
         icon: 'success',
         title: addRole === 'admin' ? 'เพิ่มบัญชี Admin แล้ว' : 'เพิ่มผู้ใช้ใหม่แล้ว',
+        text: 'ระบบได้ส่งคำเชิญไปที่อีเมลของผู้ใช้แล้ว',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      setShowFormModal(false)
+      fetchUsers()
+    } catch (error) {
+      console.error(error)
+      const backendMessage = error.response?.data?.detail
+      Swal.fire({
+        icon: 'error',
+        title: 'สร้างผู้ใช้ไม่สำเร็จ',
+        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Toggle เปิด/ปิดบัญชี — แทนที่ปุ่ม Edit เดิม เพราะ API แก้ได้แค่ is_active
+  async function handleToggleActive(targetUser) {
+    const willActivate = !targetUser.is_active
+    const result = await Swal.fire({
+      icon: 'question',
+      title: willActivate ? 'เปิดใช้งานบัญชีนี้?' : 'ปิดใช้งานบัญชีนี้?',
+      text: `บัญชี "${targetUser.username}" จะถูก${willActivate ? 'เปิด' : 'ปิด'}การใช้งาน`,
+      showCancelButton: true,
+      confirmButtonText: willActivate ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: willActivate ? 'rgb(22, 163, 74)' : 'rgb(220, 38, 38)',
+      cancelButtonColor: 'var(--sidebar-bg)'
+    })
+    if (!result.isConfirmed) return
+
+    try {
+      await updateUserStatusAPI(targetUser.id, willActivate)
+      Swal.fire({
+        icon: 'success',
+        title: willActivate ? 'เปิดใช้งานแล้ว' : 'ปิดใช้งานแล้ว',
+        showConfirmButton: false,
+        timer: 1200
+      })
+      fetchUsers()
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        icon: 'error',
+        title: 'ทำรายการไม่สำเร็จ',
+        text: 'เกิดข้อผิดพลาด กรุณาลองใหม่',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     }
-
-    setShowFormModal(false)
   }
 
   async function handleDelete(targetUser) {
-    const result = await Swal.fire({
-      icon: 'warning',
-      title: 'ยืนยันการลบผู้ใช้',
-      text: `ต้องการลบบัญชี "${targetUser.username}" ใช่หรือไม่?`,
-      showCancelButton: true,
-      confirmButtonText: 'ลบ',
-      cancelButtonText: 'ยกเลิก',
-      confirmButtonColor: 'rgb(220, 38, 38)',
-      cancelButtonColor: 'var(--sidebar-bg)'
-    })
+  const result = await Swal.fire({
+    icon: 'warning',
+    title: 'ยืนยันการลบผู้ใช้',
+    text: `ต้องการลบบัญชี "${targetUser.username}" ใช่หรือไม่?`,
+    showCancelButton: true,
+    confirmButtonText: 'ลบ',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: 'rgb(220, 38, 38)',
+    cancelButtonColor: 'var(--sidebar-bg)'
+  })
+  if (!result.isConfirmed) return
 
-    if (result.isConfirmed) {
-      setUsers((prev) => prev.filter((u) => u.id !== targetUser.id))
+  try {
+    await deleteUserAPI(targetUser.id)
+    Swal.fire({ icon: 'success', title: 'ลบผู้ใช้แล้ว', confirmButtonColor: 'var(--sidebar-bg)' })
+    fetchUsers()
+  } catch (error) {
+    const status = error.response?.status
+    const detail = error.response?.data?.detail
+
+    // 409 = มีข้อมูลผูกกับ user นี้อยู่ ลบตรง ๆ ไม่ได้
+    if (status === 409) {
+      Swal.fire({
+        icon: 'error',
+        title: 'ไม่สามารถลบได้',
+        text: typeof detail === 'string'
+          ? detail
+          : 'ผู้ใช้นี้ยังมีข้อมูลผูกอยู่ในระบบ ไม่สามารถลบได้',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'ลบไม่สำเร็จ',
+        text: typeof detail === 'string' ? detail : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    }
+  }
+}
+
+  async function handleResendInvite(targetUser) {
+    try {
+      await resendInviteAPI(targetUser.id)
       Swal.fire({
         icon: 'success',
-        title: 'ลบผู้ใช้แล้ว',
+        title: 'ส่งคำเชิญอีกครั้งแล้ว',
+        text: `ระบบได้ส่งอีเมลคำเชิญไปยัง "${targetUser.username}" อีกครั้ง`,
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        icon: 'error',
+        title: 'ส่งคำเชิญไม่สำเร็จ',
+        text: 'เกิดข้อผิดพลาด กรุณาลองใหม่',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     }
   }
 
-  async function handleResetPassword(targetUser) {
-    await Swal.fire({
-      icon: 'info',
-      title: 'รีเซ็ตรหัสผ่านแล้ว',
-      text: `ระบบได้ส่งรหัสผ่านชั่วคราวให้ "${targetUser.username}" แล้ว`,
-      confirmButtonColor: 'var(--sidebar-bg)'
-    })
+  function openResetModal(targetUser) {
+    setResetTargetUser(targetUser)
+    setResetForm(EMPTY_RESET_FORM)
   }
+
+  function handleResetFormChange(e) {
+    const { name, value } = e.target
+    setResetForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  async function handleResetSubmit(e) {
+    e.preventDefault()
+
+    if (resetForm.newPassword.length < MIN_PASSWORD_LENGTH) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'รหัสผ่านสั้นเกินไป',
+        text: `รหัสผ่านใหม่ต้องมีอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`,
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+    if (resetForm.newPassword !== resetForm.confirmPassword) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'รหัสผ่านไม่ตรงกัน',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    setIsResetting(true)
+    try {
+      await resetUserPasswordAPI(resetTargetUser.id, resetForm.newPassword, resetForm.confirmPassword)
+      Swal.fire({
+        icon: 'success',
+        title: 'รีเซ็ตรหัสผ่านสำเร็จ',
+        text: `ตั้งรหัสผ่านใหม่ให้ "${resetTargetUser.username}" แล้ว`,
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      setResetTargetUser(null)
+    } catch (error) {
+      console.error(error)
+      const backendMessage = error.response?.data?.detail
+      Swal.fire({
+        icon: 'error',
+        title: 'รีเซ็ตรหัสผ่านไม่สำเร็จ',
+        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
+  function handleVillageFormChange(e) {
+    const { name, value } = e.target
+    setVillageFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  async function handleVillageFormSubmit(e) {
+    e.preventDefault()
+    if (!villageFormData.name.trim()) {
+      Swal.fire({ icon: 'warning', title: 'กรุณากรอกชื่อหมู่บ้าน', confirmButtonColor: 'var(--sidebar-bg)' })
+      return
+    }
+
+    setIsSubmittingVillage(true)
+    try {
+      await createVillageAPI(villageFormData.name.trim(), villageFormData.address.trim())
+      Swal.fire({ icon: 'success', title: 'เพิ่มหมู่บ้านแล้ว', confirmButtonColor: 'var(--sidebar-bg)' })
+      setShowVillageModal(false)
+      setVillageFormData(EMPTY_VILLAGE_FORM)
+      fetchVillages()
+    } catch (error) {
+      console.error(error)
+      const backendMessage = error.response?.data?.detail
+      Swal.fire({
+        icon: 'error',
+        title: 'เพิ่มหมู่บ้านไม่สำเร็จ',
+        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่ (endpoint นี้ยังไม่ยืนยัน schema)',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setIsSubmittingVillage(false)
+    }
+  }
+
+  const isSuperadmin = currentUser?.role === 'superadmin'
+  const isAdmin = currentUser?.role === 'admin'
 
   return (
     <Layout title="User Management">
@@ -176,32 +423,28 @@ function UserManagement() {
         {/* KPI Cards */}
         <div className="um-kpi-row">
           <div className="um-kpi-card">
-            <div className="um-kpi-icon blue">
-              <FaUsers />
-            </div>
+            <div className="um-kpi-icon blue"><FaUsers /></div>
             <div className="um-kpi-info">
               <p className="um-kpi-label">Total Users</p>
-              <h2 className="um-kpi-val">{totalUsers}</h2>
+              <h2 className="um-kpi-val">{kpiLoading ? '—' : totalUsers.toLocaleString()}</h2>
             </div>
           </div>
-
           <div className="um-kpi-card">
-            <div className="um-kpi-icon green">
-              <FaUserCheck />
-            </div>
+            <div className="um-kpi-icon green"><FaUserCheck /></div>
             <div className="um-kpi-info">
-              <p className="um-kpi-label">Active Today</p>
-              <h2 className="um-kpi-val">{activeToday}</h2>
+              <p className="um-kpi-label">Active</p>
+              <h2 className="um-kpi-val">{kpiLoading ? '—' : activeUsers.toLocaleString()}</h2>
             </div>
           </div>
-
           <div className="um-kpi-card">
-            <div className="um-kpi-icon orange">
-              <FaUserClock />
-            </div>
+            <div className="um-kpi-icon orange"><FaCity /></div>
             <div className="um-kpi-info">
-              <p className="um-kpi-label">New This Month</p>
-              <h2 className="um-kpi-val">{newThisMonth}</h2>
+              <p className="um-kpi-label">Village Scope</p>
+              <h2 className="um-kpi-val" style={{ fontSize: 18 }}>
+                {isSuperadmin
+                  ? (selectedVillageId ? getVillageName(selectedVillageId) : 'ทุกหมู่บ้าน')
+                  : getVillageName(currentUser?.village_id)}
+              </h2>
             </div>
           </div>
         </div>
@@ -212,10 +455,18 @@ function UserManagement() {
             <div>
               <h3 className="card-title" style={{ margin: 0 }}>User List</h3>
               <p className="um-description">
-                รายชื่อผู้ใช้งานทั้งหมดในระบบ — แก้ไข/ลบได้เฉพาะสิทธิ์ที่อนุญาต
+                รายชื่อผู้ใช้งานทั้งหมดในระบบ — สร้างบัญชีใหม่จะส่งคำเชิญไปทางอีเมลอัตโนมัติ
               </p>
             </div>
             <div className="um-header-actions">
+              <button
+                className="btn-add-village"
+                disabled={!CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role)}
+                onClick={() => CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) && setShowVillageModal(true)}
+                title={!CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) ? 'เฉพาะ Superadmin เท่านั้นที่เพิ่มหมู่บ้านได้' : undefined}
+              >
+                <FaCity /> Add Village
+              </button>
               <button className="btn-add-user" onClick={() => openAddModal('user')}>
                 <FaUserPlus /> Add User
               </button>
@@ -223,11 +474,7 @@ function UserManagement() {
                 className="btn-add-admin"
                 disabled={!CAN_ADD_ADMIN_ROLES.includes(currentUser?.role)}
                 onClick={() => CAN_ADD_ADMIN_ROLES.includes(currentUser?.role) && openAddModal('admin')}
-                title={
-                  !CAN_ADD_ADMIN_ROLES.includes(currentUser?.role)
-                    ? 'เฉพาะ Superadmin เท่านั้นที่เพิ่มบัญชี Admin ได้'
-                    : undefined
-                }
+                title={!CAN_ADD_ADMIN_ROLES.includes(currentUser?.role) ? 'เฉพาะ Superadmin เท่านั้นที่เพิ่มบัญชี Admin ได้' : undefined}
               >
                 <FaUserShield /> Add Admin
               </button>
@@ -239,7 +486,7 @@ function UserManagement() {
               <FaSearch className="um-search-icon" />
               <input
                 type="text"
-                placeholder="ค้นหา username หรือชื่อ..."
+                placeholder="ค้นหา username..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="um-search-input"
@@ -263,173 +510,191 @@ function UserManagement() {
               <thead>
                 <tr>
                   <th>Username</th>
-                  <th>Phone</th>
                   <th>Role</th>
                   <th>Status</th>
-                  <th>Last Login</th>
+                  <th>Verified</th>
+                  <th>Created At</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={6}>
-                      <Spinner text="Loading users..." />
-                    </td>
-                  </tr>
-                ) : filteredUsers.length > 0 ? (
-                  filteredUsers.map((u) => {
-                    const manageable = canManage(u)
-                    return (
-                      <tr key={u.id}>
-                        <td>
-                          <div className="um-user-cell">
-                            <div className="um-mini-avatar">{u.username.charAt(0).toUpperCase()}</div>
-                            <div>
-                              <div className="um-username">{u.username}</div>
-                              <div className="um-fullname">{u.fullName}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td>{u.phone}</td>
-                        <td>
-                          <span className={`um-badge um-badge-${u.role}`}>{u.role}</span>
-                        </td>
-                        <td>
-                          <span className={`um-status-dot ${u.status}`}></span>
-                          {u.status === 'active' ? 'Active' : 'Inactive'}
-                        </td>
-                        <td>{u.lastLogin}</td>
-                        <td>
-                          <div className="um-actions">
-                            <button
-                              className="um-icon-btn edit"
-                              disabled={!manageable}
-                              onClick={() => manageable && openEditModal(u)}
-                            >
-                              <FaPen />
+                  <tr><td colSpan={6}><Spinner text="Loading users..." /></td></tr>
+                ) : users.length > 0 ? (
+                  users.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        <div className="um-user-cell">
+                          <div className="um-mini-avatar">{u.username.charAt(0).toUpperCase()}</div>
+                          <div className="um-username">{u.username}</div>
+                        </div>
+                      </td>
+                      <td><span className={`um-badge um-badge-${u.role}`}>{u.role}</span></td>
+                      <td>
+                        <span className={`um-status-dot ${u.is_active ? 'active' : 'inactive'}`}></span>
+                        {u.is_active ? 'Active' : 'Inactive'}
+                      </td>
+                      <td>
+                        {u.is_verify
+                          ? <FaCircleCheck style={{ color: 'rgb(22,163,74)' }} title="Verified" />
+                          : <FaCircleXmark style={{ color: 'rgb(148,163,184)' }} title="Not verified" />}
+                      </td>
+                      <td>{formatDate(u.created_at)}</td>
+                      <td>
+                        <div className="um-actions">
+                          <button
+                            className="um-icon-btn edit"
+                            onClick={() => handleToggleActive(u)}
+                            title={u.is_active ? 'ปิดใช้งานบัญชี' : 'เปิดใช้งานบัญชี'}
+                          >
+                            {u.is_active ? <FaToggleOn /> : <FaToggleOff />}
+                          </button>
+                          {!u.is_verify && (
+                            <button className="um-icon-btn reset" onClick={() => handleResendInvite(u)} title="ส่งคำเชิญอีกครั้ง">
+                              <FaPaperPlane />
                             </button>
-                            <button
-                              className="um-icon-btn reset"
-                              disabled={!manageable}
-                              onClick={() => manageable && handleResetPassword(u)}
-                            >
-                              <FaKey />
-                            </button>
-                            <button
-                              className="um-icon-btn delete"
-                              disabled={!manageable}
-                              onClick={() => manageable && handleDelete(u)}
-                            >
-                              <FaTrashCan />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })
+                          )}
+                          <button className="um-icon-btn reset" onClick={() => openResetModal(u)} title="Reset Password">
+                            <FaKey />
+                          </button>
+                          <button className="um-icon-btn delete" onClick={() => handleDelete(u)} title="ลบผู้ใช้">
+                            <FaTrashCan />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 ) : (
                   <tr>
                     <td colSpan={6}>
-                      <EmptyState
-                        icon={<FaUsers />}
-                        title="No users found"
-                        description="Try changing the filter or search keyword"
-                      />
+                      <EmptyState icon={<FaUsers />} title="No users found" description="Try changing the filter or search keyword" />
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+          <p className="um-total-count">Showing {users.length} of {total.toLocaleString()} users</p>
         </div>
       </div>
 
-      {/* Modal Add/Edit User */}
+      {/* Modal Add User */}
       {showFormModal && (
-        <div className="modal-overlay" onClick={() => setShowFormModal(false)}>
+        <div className="modal-overlay" onClick={() => !isSubmitting && setShowFormModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{editingUser ? 'Edit User' : 'Add New User'}</h3>
-              <button className="modal-close" onClick={() => setShowFormModal(false)}>
-                <FaXmark />
-              </button>
+              <h3>{addRole === 'admin' ? 'Add New Admin' : 'Add New User'}</h3>
+              <button className="modal-close" onClick={() => setShowFormModal(false)}><FaXmark /></button>
             </div>
             <form className="um-form" onSubmit={handleFormSubmit}>
               <div className="um-form-field">
                 <label>Username</label>
-                <input
-                  type="text"
-                  name="username"
-                  placeholder="เช่น somchai_k"
-                  value={formData.username}
-                  onChange={handleFormChange}
-                />
+                <input type="text" name="username" placeholder="เช่น somchai_k" value={formData.username} onChange={handleFormChange} />
               </div>
               <div className="um-form-field">
                 <label>ชื่อ-นามสกุล</label>
-                <input
-                  type="text"
-                  name="fullName"
-                  placeholder="เช่น สมชาย กิจเจริญ"
-                  value={formData.fullName}
-                  onChange={handleFormChange}
-                />
+                <input type="text" name="fullname" placeholder="เช่น สมชาย กิจเจริญ" value={formData.fullname} onChange={handleFormChange} />
               </div>
               <div className="um-form-field">
-                <label>เบอร์โทร</label>
-                <input
-                  type="tel"
-                  name="phone"
-                  placeholder="เช่น 0891234567"
-                  value={formData.phone}
-                  onChange={handleFormChange}
-                />
+                <label>อีเมล</label>
+                <input type="email" name="email" placeholder="user@example.com" value={formData.email} onChange={handleFormChange} />
+                <p className="um-role-hint">ระบบจะส่งคำเชิญให้ตั้งรหัสผ่านไปที่อีเมลนี้</p>
               </div>
               <div className="um-form-field">
-                <label>Role</label>
-                <input
-                  type="text"
-                  value={editingUser ? capitalize(editingUser.role) : capitalize(addRole)}
-                  disabled
-                />
+                <label>เบอร์โทร (ไม่บังคับ)</label>
+                <input type="tel" name="phone" placeholder="เช่น 0891234567" value={formData.phone} onChange={handleFormChange} />
+              </div>
+
+              <div className="um-form-field">
+                <label>หมู่บ้าน</label>
+                {isAdmin ? (
+                  <input type="text" value={getVillageName(currentUser?.village_id)} disabled />
+                ) : (
+                  <select name="villageId" value={formData.villageId} onChange={handleFormChange}>
+                    <option value="">-- เลือกหมู่บ้าน --</option>
+                    {villages.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                )}
                 <p className="um-role-hint">
-                  {editingUser
-                    ? null
-                    : addRole === 'admin'
-                      ? 'กำลังสร้างบัญชีสิทธิ์ Admin'
-                      : currentUser?.role === 'admin'
-                        ? 'จำกัดไว้ที่ User เนื่องจากบัญชีของคุณมีสิทธิ์ Admin เท่านั้น'
-                        : 'กำลังสร้างบัญชีสิทธิ์ User'}
+                  {isAdmin
+                    ? 'ล็อกไว้ที่หมู่บ้านของคุณ เนื่องจาก Admin สร้างผู้ใช้ได้เฉพาะหมู่บ้านตัวเอง'
+                    : 'Superadmin ต้องเลือกหมู่บ้านให้ผู้ใช้ใหม่ก่อนบันทึก'}
                 </p>
               </div>
-              {!editingUser && (
-                <div className="um-form-field">
-                  <label>Password ชั่วคราว</label>
-                  <input
-                    type="password"
-                    name="password"
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={handleFormChange}
-                  />
-                </div>
-              )}
-              {editingUser && (
-                <div className="um-form-field">
-                  <label>สถานะ</label>
-                  <select name="status" value={formData.status} onChange={handleFormChange}>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-              )}
+
+              <div className="um-form-field">
+                <label>Role</label>
+                <input type="text" value={capitalize(addRole)} disabled />
+              </div>
+
               <div className="um-form-actions">
-                <button type="button" className="btn-cancel-um" onClick={() => setShowFormModal(false)}>
-                  ยกเลิก
+                <button type="button" className="btn-cancel-um" onClick={() => setShowFormModal(false)} disabled={isSubmitting}>ยกเลิก</button>
+                <button type="submit" className="btn-confirm-um" disabled={isSubmitting}>
+                  {isSubmitting ? 'กำลังบันทึก...' : 'บันทึก'}
                 </button>
-                <button type="submit" className="btn-confirm-um">
-                  บันทึก
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Reset Password */}
+      {resetTargetUser && (
+        <div className="modal-overlay" onClick={() => !isResetting && setResetTargetUser(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Reset Password — {resetTargetUser.username}</h3>
+              <button className="modal-close" onClick={() => setResetTargetUser(null)}><FaXmark /></button>
+            </div>
+            <form className="um-form" onSubmit={handleResetSubmit}>
+              <div className="um-form-field">
+                <label>รหัสผ่านใหม่</label>
+                <input
+                  type="password" name="newPassword" placeholder={`อย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`}
+                  value={resetForm.newPassword} onChange={handleResetFormChange} autoComplete="new-password"
+                />
+              </div>
+              <div className="um-form-field">
+                <label>ยืนยันรหัสผ่านใหม่</label>
+                <input
+                  type="password" name="confirmPassword" placeholder="พิมพ์อีกครั้ง"
+                  value={resetForm.confirmPassword} onChange={handleResetFormChange} autoComplete="new-password"
+                />
+              </div>
+              <div className="um-form-actions">
+                <button type="button" className="btn-cancel-um" onClick={() => setResetTargetUser(null)} disabled={isResetting}>ยกเลิก</button>
+                <button type="submit" className="btn-confirm-um" disabled={isResetting}>
+                  {isResetting ? 'กำลังบันทึก...' : 'ยืนยันรีเซ็ต'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Add Village */}
+      {showVillageModal && (
+        <div className="modal-overlay" onClick={() => !isSubmittingVillage && setShowVillageModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Add Village</h3>
+              <button className="modal-close" onClick={() => setShowVillageModal(false)}><FaXmark /></button>
+            </div>
+            <form className="um-form" onSubmit={handleVillageFormSubmit}>
+              <div className="um-form-field">
+                <label>ชื่อหมู่บ้าน</label>
+                <input type="text" name="name" placeholder="เช่น หมู่บ้านสวนทอง" value={villageFormData.name} onChange={handleVillageFormChange} />
+              </div>
+              <div className="um-form-field">
+                <label>ที่อยู่ (ไม่บังคับ)</label>
+                <input type="text" name="address" placeholder="เช่น ต.บางแค อ.บางแค กทม." value={villageFormData.address} onChange={handleVillageFormChange} />
+              </div>
+              <div className="um-form-actions">
+                <button type="button" className="btn-cancel-um" onClick={() => setShowVillageModal(false)} disabled={isSubmittingVillage}>ยกเลิก</button>
+                <button type="submit" className="btn-confirm-um" disabled={isSubmittingVillage}>
+                  {isSubmittingVillage ? 'กำลังบันทึก...' : 'บันทึก'}
                 </button>
               </div>
             </form>

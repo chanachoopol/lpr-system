@@ -16,6 +16,7 @@ import CameraManagement from './pages/CameraManagement'
 import AuditLog from './pages/AuditLog'
 import ResetPassword from './pages/ResetPassword'
 import ChangePassword from './pages/ChangePassword'
+import Profile from './pages/Profile'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -46,6 +47,9 @@ function AnimatedRoutes() {
         } />
         <Route path="/change-password" element={
           <ProtectedRoute><ChangePassword /></ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute><Profile /></ProtectedRoute>
         } />
 
         {/* Admin routes — เฉพาะ admin และ superadmin */}
