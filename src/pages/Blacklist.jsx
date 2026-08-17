@@ -4,12 +4,12 @@ import { FaCar, FaSearch } from 'react-icons/fa'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
+import useVillageStore from '../store/villageStore'
 import { mockBlacklistFoundToday } from '../data/mockData'
 import { getBlacklistAPI, createBlacklistAPI, deleteBlacklistAPI } from '../data/api'
 import '../styles/Blacklist.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
-import useVillageStore from '../store/villageStore'
 
 // Role ที่จัดการ (เพิ่ม/ลบ) รายการ blacklist ได้ — เปิดให้ทุก role
 const BLACKLIST_MANAGE_ROLES = ['user', 'admin', 'superadmin']
@@ -29,6 +29,7 @@ function formatDate(isoString) {
 
 function Blacklist() {
   const { user } = useAuthStore()
+  const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
   const canManageBlacklist = BLACKLIST_MANAGE_ROLES.includes(user?.role)
 
   const [blacklist, setBlacklist] = useState([])
@@ -63,7 +64,7 @@ function Blacklist() {
     }
   }
 
-  // ทำงานตอนเปิดหน้าครั้งแรก และทุกครั้งที่ searchInput เปลี่ยน (มี debounce)
+  // ทำงานตอนเปิดหน้าครั้งแรก และทุกครั้งที่ searchInput หรือหมู่บ้านที่เลือกเปลี่ยน (มี debounce)
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchBlacklist()
@@ -131,10 +132,22 @@ function Blacklist() {
       return
     }
 
+    // superadmin เลือก "ทุกหมู่บ้าน" อยู่ (selectedVillageId เป็น null) → ไม่รู้จะเพิ่มเข้าหมู่บ้านไหน
+    // ต้องให้เลือกหมู่บ้านที่แน่นอนก่อนถึงจะเพิ่มได้
+    if (!selectedVillageId) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'กรุณาเลือกหมู่บ้าน',
+        text: 'โปรดเลือกหมู่บ้านที่ต้องการเพิ่มรายการ Blacklist จากเมนูด้านบนก่อน',
+        confirmButtonColor: '#3b82f6'
+      })
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const newEntry = await createBlacklistAPI(
-        selectedVillageId || user?.village_id, // ตอน add ต้องมี village_id เสมอ ถ้า superadmin เลือก "ทุกหมู่บ้าน" (null) ต้องกันไว้
+        selectedVillageId,
         formData.plate.trim(),
         formData.province.trim(),
         formData.reason.trim()
@@ -225,7 +238,7 @@ function Blacklist() {
                 />
               </div>
 
-              {canManageBlacklist && selectedVillageId && (
+              {canManageBlacklist && (
                 <button className="btn-add-blacklist" onClick={() => setShowAddModal(true)}>
                   <FaPlus /> Add to Blacklist
                 </button>

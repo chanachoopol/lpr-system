@@ -5,12 +5,12 @@ import Layout from '../components/Layout'
 import '../styles/Monitor.css'
 import { getCamerasAPI, getCameraLiveAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
+import useVillageStore from '../store/villageStore'
 import { useSearchParams } from 'react-router-dom'
 import Hls from 'hls.js'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
-import Cookies from 'js-cookie'
-import useVillageStore from '../store/villageStore'
+
 // ดึงข้อมูล detection ใหม่ทุกๆ กี่มิลลิวินาที (ปรับตัวเลขนี้ได้ตามต้องการ)
 const POLLING_INTERVAL_MS = 5000
 
@@ -27,6 +27,7 @@ function formatTime(isoString) {
 
 function Monitor() {
   const { user } = useAuthStore()
+  const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
   const [cameras, setCameras] = useState([])
   const [isLoadingCameras, setIsLoadingCameras] = useState(true)
   const [selectedCamera, setSelectedCamera] = useState('')
@@ -40,36 +41,40 @@ function Monitor() {
   const [isLoadingDetections, setIsLoadingDetections] = useState(true)
 
   // ดึงรายการกล้องจาก backend ตอนเปิดหน้า
-  // แก้เป็น
-useEffect(() => {
+  // ยึดตาม selectedVillageId (หมู่บ้านที่กำลังดูอยู่) ไม่ใช่ user.village_id ตรงๆ
+  // เพราะ superadmin สลับหมู่บ้านผ่าน dropdown ใน Navbar ได้
+  useEffect(() => {
     async function fetchCameras() {
-      if (!user) return
+      if (!user) return   // รอแค่ login เสร็จ ไม่ใช่รอ village_id
+
       setIsLoadingCameras(true)
       try {
-        const data = await getCamerasAPI(selectedVillageId) // undefined/null → backend คืนทุกกล้อง
+        // ส่ง selectedVillageId ไปถ้ามี (admin ถูกล็อกไว้ / superadmin เลือกจาก dropdown)
+        // ไม่ส่ง (null) ถ้า superadmin เลือก "ทุกหมู่บ้าน" → ได้ทุกหมู่บ้าน
+        const data = await getCamerasAPI(selectedVillageId)
         setCameras(data)
 
-      const cameraFromURL = searchParams.get('camera')
-      if (cameraFromURL && data.some((cam) => cam.id === cameraFromURL)) {
-        setSelectedCamera(cameraFromURL)
-      } else if (data.length > 0) {
-        setSelectedCamera(data[0].id)
+        const cameraFromURL = searchParams.get('camera')
+        if (cameraFromURL && data.some((cam) => cam.id === cameraFromURL)) {
+          setSelectedCamera(cameraFromURL)
+        } else if (data.length > 0) {
+          setSelectedCamera(data[0].id)
+        }
+      } catch (error) {
+        console.error(error)
+        Swal.fire({
+          icon: 'error',
+          title: 'โหลดรายการกล้องไม่สำเร็จ',
+          text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      } finally {
+        setIsLoadingCameras(false)
       }
-    } catch (error) {
-      console.error(error)
-      Swal.fire({
-        icon: 'error',
-        title: 'โหลดรายการกล้องไม่สำเร็จ',
-        text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-    } finally {
-      setIsLoadingCameras(false)
     }
-  }
 
-  fetchCameras()
-}, [user, selectedVillageId])
+    fetchCameras()
+  }, [user, selectedVillageId])
 
   const currentCameraData = cameras.find((cam) => cam.id === selectedCamera)
 
@@ -93,15 +98,8 @@ useEffect(() => {
     let hls
 
     if (Hls.isSupported()) {
-  hls = new Hls({
-    xhrSetup: (xhr) => {
-      const token = Cookies.get('access_token')
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-      }
-    }
-  })
-  hls.loadSource(streamUrl)
+      hls = new Hls()
+      hls.loadSource(streamUrl)
       hls.attachMedia(video)
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsVideoLoading(false)

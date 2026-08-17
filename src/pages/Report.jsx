@@ -61,6 +61,7 @@ function formatHourlyDataForChart(hourlyBuckets) {
 
 function Report() {
   const { user } = useAuthStore()
+  const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
   const [selectedDate, setSelectedDate] = useState(new Date())
 
   const [dailyData, setDailyData] = useState(null)
@@ -69,13 +70,13 @@ function Report() {
   const [summaryData, setSummaryData] = useState(null)
   const [isLoadingSummary, setIsLoadingSummary] = useState(true)
 
-  // ดึงข้อมูลรายวัน — โหลดใหม่ทุกครั้งที่เปลี่ยนวันที่จาก DatePicker
+  // ดึงข้อมูลรายวัน — โหลดใหม่ทุกครั้งที่เปลี่ยนวันที่จาก DatePicker หรือหมู่บ้านที่เลือก
   const fetchDaily = useCallback(async () => {
     if (!user) return
     setIsLoadingDaily(true)
     try {
       const data = await getReportDailyAPI({
-        villageId: user.village_id,
+        villageId: selectedVillageId || undefined,
         date: toDateParam(selectedDate)
       })
       setDailyData(data)
@@ -103,7 +104,7 @@ function Report() {
       setIsLoadingSummary(true)
       try {
         const data = await getReportSummaryAPI({
-          villageId: user.village_id,
+          villageId: selectedVillageId || undefined,
           days: TOP_VISITORS_DAYS
         })
         setSummaryData(data)
