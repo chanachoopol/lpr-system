@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { FaHome, FaDesktop, FaHistory, FaExclamationTriangle, FaChartBar, FaUser, FaSignOutAlt, FaUsers, FaVideo, FaClipboardList} from 'react-icons/fa'
 import useAuthStore from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
+import Swal from 'sweetalert2'
 
 // แต่ละเมนูมี roles กำกับว่า role ไหนเห็นได้บ้าง
 // เมนูเดิมเปิดให้ทุก role เห็นเหมือนเดิม ไม่กระทบของเดิม
@@ -21,6 +22,19 @@ function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
   const navigate = useNavigate()
 
   async function handleLogout() {
+  const result = await Swal.fire({
+    icon: 'question',
+    title: 'ยืนยันการออกจากระบบ?',
+    text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+    showCancelButton: true,
+    confirmButtonText: 'ออกจากระบบ',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: 'rgb(220, 38, 38)',
+    cancelButtonColor: 'var(--sidebar-bg)'
+  })
+
+  if (!result.isConfirmed) return
+
   await logout()
   navigate('/')
 }

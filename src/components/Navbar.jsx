@@ -6,6 +6,7 @@ import useAuthStore from '../store/authStore'
 import { mockNotifications } from '../data/mockData'
 import { useThemeStore } from '../store/themeStore'
 import VillageSelector from './VillageSelector'
+import Swal from 'sweetalert2'
 
 function Navbar({ title, onToggle }) {
   const { user, logout } = useAuthStore()
@@ -55,6 +56,19 @@ function Navbar({ title, onToggle }) {
   }
 
   async function handleLogout() {
+  const result = await Swal.fire({
+    icon: 'question',
+    title: 'ยืนยันการออกจากระบบ?',
+    text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+    showCancelButton: true,
+    confirmButtonText: 'ออกจากระบบ',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: 'rgb(220, 38, 38)',
+    cancelButtonColor: 'var(--sidebar-bg)'
+  })
+
+  if (!result.isConfirmed) return
+
   await logout()
   navigate('/')
 }
