@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import { mockNotifications } from '../data/mockData'
 import { useThemeStore } from '../store/themeStore'
+import VillageSelector from './VillageSelector'
 
 function Navbar({ title, onToggle }) {
   const { user, logout } = useAuthStore()
@@ -84,6 +85,8 @@ function Navbar({ title, onToggle }) {
       <h1 className="nb-title">{title}</h1>
 
       <div className="nb-right">
+        <VillageSelector />
+
         <div className="nb-time">{time}</div>
 
         {/* Notification Bell */}

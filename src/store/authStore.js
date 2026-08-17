@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import Cookies from 'js-cookie'
 import { logoutAPI } from '../data/api'
+import useVillageStore from './villageStore'
 
 const REMEMBER_ME_EXPIRY_DAYS = 7
 
@@ -29,6 +30,8 @@ const useAuthStore = create((set) => ({
       Cookies.remove('access_token')
       Cookies.remove('user')
       set({ user: null, token: null, isLoggedIn: false, isLoading: false })
+      // เคลียร์หมู่บ้านที่เลือกไว้ ไม่ให้ user คนถัดไปที่ login เจอค่าค้างจากคนก่อนหน้า
+      useVillageStore.getState().reset()
     }
   },
 
@@ -36,7 +39,11 @@ const useAuthStore = create((set) => ({
     const token = Cookies.get('access_token')
     const user = Cookies.get('user')
     if (token && user) {
-      set({ token, user: JSON.parse(user), isLoggedIn: true, isLoading: false })
+      const parsedUser = JSON.parse(user)
+      set({ token, user: parsedUser, isLoggedIn: true, isLoading: false })
+      // Refresh หน้าเว็บ → ต้อง restore ค่าหมู่บ้านที่ควรดูตาม role ด้วย
+      // (admin/user ล็อกหมู่บ้านตัวเอง, superadmin default = ทุกหมู่บ้าน)
+      useVillageStore.getState().initSelectedVillage(parsedUser)
     } else {
       set({ isLoading: false })
     }

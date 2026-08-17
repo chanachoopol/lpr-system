@@ -11,6 +11,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { FaCalendarAlt } from 'react-icons/fa'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
+import useVillageStore from '../store/villageStore'
 
 const ROWS_PER_PAGE = 10
 const SEARCH_DEBOUNCE_MS = 400
@@ -47,6 +48,7 @@ function getVisiblePageNumbers(current, total, maxVisible) {
 
 function History() {
   const { user } = useAuthStore()
+  const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
   const [searchParams] = useSearchParams()
 
   const [cameras, setCameras] = useState([])
@@ -82,24 +84,22 @@ function History() {
   }, [searchParams])
 
   // ดึงรายการกล้อง (สำหรับ dropdown filter + แปลง camera_id เป็นชื่อ)
-  // fetchCameras
-// ดึงรายการกล้อง (สำหรับ dropdown filter + แปลง camera_id เป็นชื่อ)
+  // ยึดตาม selectedVillageId (หมู่บ้านที่กำลังดูอยู่) ไม่ใช่ user.village_id ตรงๆ
+  // เพราะ superadmin สลับหมู่บ้านผ่าน dropdown ใน Navbar ได้
   useEffect(() => {
     async function fetchCameras() {
       if (!user) return
       try {
-        const data = await getCamerasAPI(user.village_id)
+        const data = await getCamerasAPI(selectedVillageId)
         setCameras(data)
       } catch (error) {
         console.error(error)
       }
     }
     fetchCameras()
-  }, [user])
+  }, [user, selectedVillageId])
 
   // ดึงประวัติจาก backend ทุกครั้งที่ filter หรือหน้าเปลี่ยน
-  // fetchHistory
-// ดึงประวัติจาก backend ทุกครั้งที่ filter หรือหน้าเปลี่ยน
   useEffect(() => {
     async function fetchHistory() {
       if (!user) return
@@ -111,7 +111,7 @@ function History() {
           page_size: ROWS_PER_PAGE
         }
 
-        if (user.village_id) params.village_id = user.village_id
+        if (selectedVillageId) params.village_id = selectedVillageId
         if (debouncedSearch) params.license_plate = debouncedSearch
         if (selectedCamera !== 'all') params.camera_id = selectedCamera
 
@@ -135,7 +135,8 @@ function History() {
     }
 
     fetchHistory()
-  }, [user, debouncedSearch, selectedCamera, selectedDate, currentPage])
+  }, [user, debouncedSearch, selectedCamera, selectedDate, currentPage, selectedVillageId])
+
   // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
   useEffect(() => {
     setCurrentPage(1)

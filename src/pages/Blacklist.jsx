@@ -9,6 +9,7 @@ import { getBlacklistAPI, createBlacklistAPI, deleteBlacklistAPI } from '../data
 import '../styles/Blacklist.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
+import useVillageStore from '../store/villageStore'
 
 // Role ที่จัดการ (เพิ่ม/ลบ) รายการ blacklist ได้ — เปิดให้ทุก role
 const BLACKLIST_MANAGE_ROLES = ['user', 'admin', 'superadmin']
@@ -44,7 +45,7 @@ function Blacklist() {
     setIsLoading(true)
     try {
       const data = await getBlacklistAPI({
-        villageId: user?.village_id,
+        villageId: selectedVillageId || undefined,
         licensePlate: searchInput.trim() || undefined
       })
       setBlacklist(data.items)
@@ -70,7 +71,7 @@ function Blacklist() {
 
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchInput])
+  }, [searchInput, selectedVillageId])
 
   function handleSearch(e) {
     setSearchInput(e.target.value)
@@ -133,7 +134,7 @@ function Blacklist() {
     setIsSubmitting(true)
     try {
       const newEntry = await createBlacklistAPI(
-        user?.village_id,
+        selectedVillageId || user?.village_id, // ตอน add ต้องมี village_id เสมอ ถ้า superadmin เลือก "ทุกหมู่บ้าน" (null) ต้องกันไว้
         formData.plate.trim(),
         formData.province.trim(),
         formData.reason.trim()
@@ -224,7 +225,7 @@ function Blacklist() {
                 />
               </div>
 
-              {canManageBlacklist && (
+              {canManageBlacklist && selectedVillageId && (
                 <button className="btn-add-blacklist" onClick={() => setShowAddModal(true)}>
                   <FaPlus /> Add to Blacklist
                 </button>

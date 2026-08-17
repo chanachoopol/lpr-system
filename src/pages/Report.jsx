@@ -14,6 +14,7 @@ import { getReportDailyAPI, getReportSummaryAPI } from '../data/api'
 import '../styles/Report.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
+import useVillageStore from '../store/villageStore'
 
 // จำนวนวันย้อนหลังสำหรับตาราง Top Frequent Visitors
 // backend รองรับสูงสุด 60 วัน (ดู max ที่ /api/reports/summary)
@@ -89,7 +90,7 @@ function Report() {
     } finally {
       setIsLoadingDaily(false)
     }
-  }, [user, selectedDate])
+  }, [user, selectedDate, selectedVillageId])
 
   useEffect(() => {
     fetchDaily()
@@ -114,7 +115,7 @@ function Report() {
       }
     }
     fetchSummary()
-  }, [user])
+  }, [user, selectedVillageId])
 
   function handlePrint() {
     window.print()

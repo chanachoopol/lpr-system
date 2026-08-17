@@ -10,7 +10,7 @@ import Hls from 'hls.js'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import Cookies from 'js-cookie'
-
+import useVillageStore from '../store/villageStore'
 // ดึงข้อมูล detection ใหม่ทุกๆ กี่มิลลิวินาที (ปรับตัวเลขนี้ได้ตามต้องการ)
 const POLLING_INTERVAL_MS = 5000
 
@@ -42,14 +42,12 @@ function Monitor() {
   // ดึงรายการกล้องจาก backend ตอนเปิดหน้า
   // แก้เป็น
 useEffect(() => {
-  async function fetchCameras() {
-    if (!user) return   // รอแค่ login เสร็จ ไม่ใช่รอ village_id
-
-    setIsLoadingCameras(true)
-    try {
-      // ส่ง village_id ไปถ้ามี (admin) / ไม่ส่งถ้าไม่มี (superadmin → ได้ทุกหมู่บ้าน)
-      const data = await getCamerasAPI(user.village_id)
-      setCameras(data)
+    async function fetchCameras() {
+      if (!user) return
+      setIsLoadingCameras(true)
+      try {
+        const data = await getCamerasAPI(selectedVillageId) // undefined/null → backend คืนทุกกล้อง
+        setCameras(data)
 
       const cameraFromURL = searchParams.get('camera')
       if (cameraFromURL && data.some((cam) => cam.id === cameraFromURL)) {
@@ -71,7 +69,7 @@ useEffect(() => {
   }
 
   fetchCameras()
-}, [user])
+}, [user, selectedVillageId])
 
   const currentCameraData = cameras.find((cam) => cam.id === selectedCamera)
 

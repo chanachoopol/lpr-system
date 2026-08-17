@@ -190,3 +190,12 @@ export async function getReportSummaryAPI({ villageId, days = 7 } = {}) {
   const response = await api.get('/api/reports/summary', { params })
   return response.data
 }
+// ==================== Village API ====================
+export async function getVillagesAPI({ isActive, search, page = 1, pageSize = 100 } = {}) {
+  const params = { page, page_size: pageSize }
+  if (isActive !== undefined) params.is_active = isActive
+  if (search) params.search = search
+
+  const response = await api.get('/api/villages', { params })
+  return response.data // { items, total, page, page_size }
+}

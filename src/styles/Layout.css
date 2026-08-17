@@ -754,3 +754,41 @@
     border-radius: 50%;
   }
 }
+/* Village Selector */
+.village-select-wrap,
+.village-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--bg-input);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.village-select-icon,
+.village-badge-icon {
+  color: rgb(148, 163, 184);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.village-select {
+  border: none;
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+  outline: none;
+  cursor: pointer;
+}
+
+@media (max-width: 1024px) {
+  .village-select-wrap,
+  .village-badge {
+    display: none; /* ซ่อนบนจอเล็ก เหมือน nb-time */
+  }
+}

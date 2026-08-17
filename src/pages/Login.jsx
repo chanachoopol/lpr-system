@@ -8,6 +8,7 @@ import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
 import { loginAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
+import useVillageStore from '../store/villageStore'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
 
 function Login() {
@@ -28,6 +29,10 @@ function Login() {
 
     // เก็บข้อมูลลง Zustand + Cookie
     login(result.user, result.access_token, remember)
+
+    // ตั้งค่าหมู่บ้านเริ่มต้นตาม role
+    // superadmin -> ทุกหมู่บ้าน (null), admin/user -> ล็อกหมู่บ้านตัวเอง
+    useVillageStore.getState().initSelectedVillage(result.user)
 
     // ไปหน้า Dashboard
     navigate('/dashboard')
