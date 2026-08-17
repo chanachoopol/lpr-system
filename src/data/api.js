@@ -266,13 +266,31 @@ export async function getMyProfileAPI() {
   return response.data
 }
 // ==================== Contacts API ====================
-// content_type: 'phone' | 'email' | 'line' | 'other' (ยืนยันแล้วว่า custom_label ห้ามส่งเว้นแต่เป็น 'other')
+// content_type: 'phone' | 'line' | 'facebook' | 'instagram' | 'email' | 'other'
+// custom_label ส่งเฉพาะตอน content_type === 'other' เท่านั้น
 export async function createContactAPI({ userId, contentType, value, customLabel }) {
   const payload = { user_id: userId, content_type: contentType, value }
   if (contentType === 'other' && customLabel) {
     payload.custom_label = customLabel
   }
   const response = await api.post('/api/contacts', payload)
+  return response.data
+}
+
+// แก้ไขช่องทางการติดต่อ — ส่งเฉพาะ field ที่เปลี่ยน (ทุก field เป็น optional ฝั่ง backend)
+export async function updateContactAPI(contactId, { contentType, value, customLabel } = {}) {
+  const payload = {}
+  if (contentType !== undefined) payload.content_type = contentType
+  if (value !== undefined) payload.value = value
+  if (customLabel !== undefined) payload.custom_label = customLabel
+
+  const response = await api.patch(`/api/contacts/${contactId}`, payload)
+  return response.data
+}
+
+// ลบช่องทางการติดต่อ
+export async function deleteContactAPI(contactId) {
+  const response = await api.delete(`/api/contacts/${contactId}`)
   return response.data
 }
 
