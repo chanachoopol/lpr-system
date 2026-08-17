@@ -9,6 +9,7 @@ import { useSearchParams } from 'react-router-dom'
 import Hls from 'hls.js'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
+import Cookies from 'js-cookie'
 
 // ดึงข้อมูล detection ใหม่ทุกๆ กี่มิลลิวินาที (ปรับตัวเลขนี้ได้ตามต้องการ)
 const POLLING_INTERVAL_MS = 5000
@@ -94,8 +95,15 @@ useEffect(() => {
     let hls
 
     if (Hls.isSupported()) {
-      hls = new Hls()
-      hls.loadSource(streamUrl)
+  hls = new Hls({
+    xhrSetup: (xhr) => {
+      const token = Cookies.get('access_token')
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      }
+    }
+  })
+  hls.loadSource(streamUrl)
       hls.attachMedia(video)
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsVideoLoading(false)
