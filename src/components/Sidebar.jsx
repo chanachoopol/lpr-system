@@ -10,7 +10,7 @@ const menuItems = [
   { path: '/dashboard', icon: <FaHome />, label: 'Dashboard', roles: ['user', 'admin', 'superadmin'] },
   { path: '/monitor', icon: <FaDesktop />, label: 'Monitor', roles: ['user', 'admin', 'superadmin'] },
   { path: '/history', icon: <FaHistory />, label: 'History', roles: ['user', 'admin', 'superadmin'] },
-  { path: '/blacklist', icon: <FaExclamationTriangle />, label: 'Blacklist', roles: ['user', 'admin', 'superadmin'] },
+  { path: '/blacklist', icon: <FaExclamationTriangle />, label: 'Blacklist & Whitelist', roles: ['user', 'admin', 'superadmin'] },
   { path: '/report', icon: <FaChartBar />, label: 'Report', roles: ['user', 'admin', 'superadmin'] },
   { path: '/users', icon: <FaUsers />, label: 'User Management', roles: ['admin', 'superadmin'] },
   { path: '/cameras', icon: <FaVideo />, label: 'Camera Management', roles: ['admin', 'superadmin'] },
