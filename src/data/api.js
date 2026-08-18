@@ -82,6 +82,60 @@ export async function deleteBlacklistAPI(entryId) {
   const response = await api.delete(`/api/blacklist/${entryId}`)
   return response.data
 }
+// แก้ไขรายการ Blacklist (PATCH) — schema ตรงกับที่เดาไว้ ไม่ต้องแก้
+export async function updateBlacklistAPI(entryId, { licensePlate, province, reason } = {}) {
+  const payload = {}
+  if (licensePlate !== undefined) payload.license_plate = licensePlate
+  if (province !== undefined) payload.province = province
+  if (reason !== undefined) payload.reason = reason
+
+  const response = await api.patch(`/api/blacklist/${entryId}`, payload)
+  return response.data
+}
+// ==================== Whitelist APIs ====================
+// ยืนยันจาก Swagger จริง — ต่างจาก blacklist ตรงที่ไม่มี "reason"
+// แต่มี category (resident/regular/guest), name (ชื่อเจ้าของ/ผู้พักอาศัย), note แทน
+
+export async function getWhitelistAPI({ villageId, category, name, licensePlate, province, page = 1, pageSize = 100 } = {}) {
+  const params = { page, page_size: pageSize }
+  if (villageId) params.village_id = villageId
+  if (category) params.category = category
+  if (name) params.name = name
+  if (licensePlate) params.license_plate = licensePlate
+  if (province) params.province = province
+
+  const response = await api.get('/api/whitelist', { params })
+  return response.data
+}
+
+export async function createWhitelistAPI(villageId, category, name, licensePlate, province, note) {
+  const response = await api.post('/api/whitelist', {
+    village_id: villageId,
+    category,
+    name,
+    license_plate: licensePlate,
+    province,
+    note
+  })
+  return response.data
+}
+
+export async function updateWhitelistAPI(entryId, { category, name, licensePlate, province, note } = {}) {
+  const payload = {}
+  if (category !== undefined) payload.category = category
+  if (name !== undefined) payload.name = name
+  if (licensePlate !== undefined) payload.license_plate = licensePlate
+  if (province !== undefined) payload.province = province
+  if (note !== undefined) payload.note = note
+
+  const response = await api.patch(`/api/whitelist/${entryId}`, payload)
+  return response.data
+}
+
+export async function deleteWhitelistAPI(entryId) {
+  const response = await api.delete(`/api/whitelist/${entryId}`)
+  return response.data
+}
 
 // ==================== Audit Log APIs ====================
 
