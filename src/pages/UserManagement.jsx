@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FaUsers, FaUserPlus, FaUserShield, FaSearch } from 'react-icons/fa'
-import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaToggleOn, FaToggleOff, FaPaperPlane, FaCircleCheck, FaCircleXmark } from 'react-icons/fa6'
+import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaToggleOn, FaToggleOff, FaPaperPlane, FaCircleCheck, FaCircleXmark, FaPen } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
@@ -13,7 +13,9 @@ import {
   resetUserPasswordAPI,
   resendInviteAPI,
   createContactAPI,
-  createVillageAPI
+  createVillageAPI,
+  getVillagesAPI,
+  updateVillageAPI
 } from '../data/api'
 import '../styles/UserManagement.css'
 import Spinner from '../components/Spinner'
@@ -44,6 +46,9 @@ function UserManagement() {
   const { user: currentUser } = useAuthStore()
   const { villages, selectedVillageId, fetchVillages, getVillageName } = useVillageStore()
 
+  const isSuperadmin = currentUser?.role === 'superadmin'
+  const isAdmin = currentUser?.role === 'admin'
+
   const [users, setUsers] = useState([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -59,10 +64,15 @@ function UserManagement() {
   const [formData, setFormData] = useState(EMPTY_FORM)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Add Village modal
+  // Add/Edit Village modal — null = โหมดเพิ่ม, มีค่า = โหมดแก้ไข
   const [showVillageModal, setShowVillageModal] = useState(false)
+  const [editingVillage, setEditingVillage] = useState(null)
   const [villageFormData, setVillageFormData] = useState(EMPTY_VILLAGE_FORM)
   const [isSubmittingVillage, setIsSubmittingVillage] = useState(false)
+
+  // รายการหมู่บ้านทั้งหมด (ไม่กรอง active) สำหรับตารางจัดการ — เฉพาะ superadmin
+  const [villagesList, setVillagesList] = useState([])
+  const [isLoadingVillagesList, setIsLoadingVillagesList] = useState(true)
 
   // Reset Password modal — API ต้องการ new_password + confirm ตรงๆ ไม่ auto-generate
   const [resetTargetUser, setResetTargetUser] = useState(null)
@@ -134,6 +144,31 @@ function UserManagement() {
     }
     fetchKpis()
   }, [currentUser, selectedVillageId])
+
+  // ดึงหมู่บ้านทั้งหมด (รวม inactive) — เฉพาะ superadmin เท่านั้นที่เห็นตารางนี้
+  // แยกจาก useVillageStore เพราะ store นั้นดึงมาแค่ active สำหรับ dropdown เลือกหมู่บ้าน
+  const fetchVillagesList = useCallback(async () => {
+    if (!isSuperadmin) return
+    setIsLoadingVillagesList(true)
+    try {
+      const data = await getVillagesAPI({ page: 1, pageSize: 100 }) // ไม่ส่ง isActive = ได้ทั้งหมด
+      setVillagesList(data.items)
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        icon: 'error',
+        title: 'โหลดข้อมูลหมู่บ้านไม่สำเร็จ',
+        text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setIsLoadingVillagesList(false)
+    }
+  }, [isSuperadmin])
+
+  useEffect(() => {
+    fetchVillagesList()
+  }, [fetchVillagesList])
 
   function openAddModal(role) {
     setAddRole(role)
@@ -380,6 +415,18 @@ function UserManagement() {
     }
   }
 
+  function openAddVillageModal() {
+    setEditingVillage(null)
+    setVillageFormData(EMPTY_VILLAGE_FORM)
+    setShowVillageModal(true)
+  }
+
+  function openEditVillageModal(village) {
+    setEditingVillage(village)
+    setVillageFormData({ name: village.name, address: '' })
+    setShowVillageModal(true)
+  }
+
   function handleVillageFormChange(e) {
     const { name, value } = e.target
     setVillageFormData((prev) => ({ ...prev, [name]: value }))
@@ -394,18 +441,27 @@ function UserManagement() {
 
     setIsSubmittingVillage(true)
     try {
-      await createVillageAPI(villageFormData.name.trim(), villageFormData.address.trim())
-      Swal.fire({ icon: 'success', title: 'เพิ่มหมู่บ้านแล้ว', confirmButtonColor: 'var(--sidebar-bg)' })
+      if (editingVillage) {
+        // แก้ไขได้แค่ชื่อ — address ยังไม่มี endpoint รองรับ
+        await updateVillageAPI(editingVillage.id, { name: villageFormData.name.trim() })
+        Swal.fire({ icon: 'success', title: 'แก้ไขชื่อหมู่บ้านแล้ว', confirmButtonColor: 'var(--sidebar-bg)' })
+      } else {
+        await createVillageAPI(villageFormData.name.trim(), villageFormData.address.trim())
+        Swal.fire({ icon: 'success', title: 'เพิ่มหมู่บ้านแล้ว', confirmButtonColor: 'var(--sidebar-bg)' })
+      }
+
       setShowVillageModal(false)
       setVillageFormData(EMPTY_VILLAGE_FORM)
-      fetchVillages()
+      setEditingVillage(null)
+      fetchVillagesList()
+      useVillageStore.getState().fetchVillages(true) // force refresh dropdown บน Navbar ด้วย
     } catch (error) {
       console.error(error)
       const backendMessage = error.response?.data?.detail
       Swal.fire({
         icon: 'error',
-        title: 'เพิ่มหมู่บ้านไม่สำเร็จ',
-        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่ (endpoint นี้ยังไม่ยืนยัน schema)',
+        title: editingVillage ? 'แก้ไขไม่สำเร็จ' : 'เพิ่มหมู่บ้านไม่สำเร็จ',
+        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     } finally {
@@ -413,8 +469,46 @@ function UserManagement() {
     }
   }
 
-  const isSuperadmin = currentUser?.role === 'superadmin'
-  const isAdmin = currentUser?.role === 'admin'
+  // Suspend / Activate พร้อมข้อความเตือนชัดเจน
+  async function handleToggleVillageActive(village) {
+    const willActivate = !village.is_active
+
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: willActivate ? 'เปิดใช้งานหมู่บ้านนี้?' : 'ระงับการใช้งานหมู่บ้านนี้?',
+      html: willActivate
+        ? `หมู่บ้าน <strong>${village.name}</strong> จะกลับมาใช้งานได้ตามปกติ`
+        : `หมู่บ้าน <strong>${village.name}</strong> จะถูกระงับการใช้งาน<br/>ผู้ใช้และกล้องในหมู่บ้านนี้จะไม่สามารถใช้งานได้จนกว่าจะเปิดใช้งานอีกครั้ง`,
+      showCancelButton: true,
+      confirmButtonText: willActivate ? 'เปิดใช้งาน' : 'ยืนยันระงับ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: willActivate ? 'rgb(22, 163, 74)' : 'rgb(220, 38, 38)',
+      cancelButtonColor: 'var(--sidebar-bg)'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      await updateVillageAPI(village.id, { isActive: willActivate })
+      Swal.fire({
+        icon: 'success',
+        title: willActivate ? 'เปิดใช้งานแล้ว' : 'ระงับการใช้งานแล้ว',
+        showConfirmButton: false,
+        timer: 1200
+      })
+      fetchVillagesList()
+      useVillageStore.getState().fetchVillages(true) // force refresh dropdown บน Navbar ด้วย
+    } catch (error) {
+      console.error(error)
+      const backendMessage = error.response?.data?.detail
+      Swal.fire({
+        icon: 'error',
+        title: 'ทำรายการไม่สำเร็จ',
+        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    }
+  }
 
   return (
     <Layout title="User Management">
@@ -462,7 +556,7 @@ function UserManagement() {
               <button
                 className="btn-add-village"
                 disabled={!CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role)}
-                onClick={() => CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) && setShowVillageModal(true)}
+                onClick={() => CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) && openAddVillageModal()}
                 title={!CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) ? 'เฉพาะ Superadmin เท่านั้นที่เพิ่มหมู่บ้านได้' : undefined}
               >
                 <FaCity /> Add Village
@@ -576,6 +670,72 @@ function UserManagement() {
           </div>
           <p className="um-total-count">Showing {users.length} of {total.toLocaleString()} users</p>
         </div>
+
+        {/* Village Management — เฉพาะ Superadmin */}
+        {isSuperadmin && (
+          <div className="content-card">
+            <div className="um-table-header">
+              <div>
+                <h3 className="card-title" style={{ margin: 0 }}>Village Management</h3>
+                <p className="um-description">
+                  จัดการหมู่บ้านทั้งหมดในระบบ — เพิ่มหมู่บ้านใหม่ หรือระงับการใช้งานหมู่บ้านที่ไม่ใช้แล้ว
+                </p>
+              </div>
+              <button className="btn-add-village" onClick={openAddVillageModal}>
+                <FaCity /> Add Village
+              </button>
+            </div>
+
+            <div className="table-responsive">
+              <table className="um-table">
+                <thead>
+                  <tr>
+                    <th>Village Name</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoadingVillagesList ? (
+                    <tr><td colSpan={4}><Spinner text="Loading villages..." /></td></tr>
+                  ) : villagesList.length > 0 ? (
+                    villagesList.map((v) => (
+                      <tr key={v.id}>
+                        <td className="um-username">{v.name}</td>
+                        <td>
+                          <span className={`um-status-dot ${v.is_active ? 'active' : 'inactive'}`}></span>
+                          {v.is_active ? 'Active' : 'Suspended'}
+                        </td>
+                        <td>{formatDate(v.created_at)}</td>
+                        <td>
+                          <div className="um-actions">
+                            <button className="um-icon-btn edit" onClick={() => openEditVillageModal(v)} title="แก้ไขชื่อหมู่บ้าน">
+                              <FaPen />
+                            </button>
+                            <button
+                              className={v.is_active ? 'um-icon-btn delete' : 'um-icon-btn reset'}
+                              onClick={() => handleToggleVillageActive(v)}
+                              title={v.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}
+                            >
+                              {v.is_active ? <FaToggleOn /> : <FaToggleOff />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4}>
+                        <EmptyState icon={<FaCity />} title="No villages found" description="ยังไม่มีหมู่บ้านในระบบ" />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal Add User */}
@@ -674,12 +834,12 @@ function UserManagement() {
         </div>
       )}
 
-      {/* Modal Add Village */}
+      {/* Modal Add/Edit Village */}
       {showVillageModal && (
         <div className="modal-overlay" onClick={() => !isSubmittingVillage && setShowVillageModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Add Village</h3>
+              <h3>{editingVillage ? 'Edit Village' : 'Add Village'}</h3>
               <button className="modal-close" onClick={() => setShowVillageModal(false)}><FaXmark /></button>
             </div>
             <form className="um-form" onSubmit={handleVillageFormSubmit}>
@@ -687,10 +847,12 @@ function UserManagement() {
                 <label>ชื่อหมู่บ้าน</label>
                 <input type="text" name="name" placeholder="เช่น หมู่บ้านสวนทอง" value={villageFormData.name} onChange={handleVillageFormChange} />
               </div>
-              <div className="um-form-field">
-                <label>ที่อยู่ (ไม่บังคับ)</label>
-                <input type="text" name="address" placeholder="เช่น ต.บางแค อ.บางแค กทม." value={villageFormData.address} onChange={handleVillageFormChange} />
-              </div>
+              {!editingVillage && (
+                <div className="um-form-field">
+                  <label>ที่อยู่ (ไม่บังคับ)</label>
+                  <input type="text" name="address" placeholder="เช่น ต.บางแค อ.บางแค กทม." value={villageFormData.address} onChange={handleVillageFormChange} />
+                </div>
+              )}
               <div className="um-form-actions">
                 <button type="button" className="btn-cancel-um" onClick={() => setShowVillageModal(false)} disabled={isSubmittingVillage}>ยกเลิก</button>
                 <button type="submit" className="btn-confirm-um" disabled={isSubmittingVillage}>

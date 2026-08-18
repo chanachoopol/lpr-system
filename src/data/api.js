@@ -361,3 +361,13 @@ export async function createVillageAPI(name, address) {
   const response = await api.post('/api/villages', { name, address })
   return response.data
 }
+// แก้ไขหมู่บ้าน (PATCH) — ใช้ทั้งเปลี่ยนชื่อ และ suspend/activate
+// ส่งเฉพาะ field ที่จะอัปเดต ตาม schema { name?, is_active? }
+export async function updateVillageAPI(villageId, { name, isActive } = {}) {
+  const payload = {}
+  if (name !== undefined) payload.name = name
+  if (isActive !== undefined) payload.is_active = isActive
+
+  const response = await api.patch(`/api/villages/${villageId}`, payload)
+  return response.data
+}

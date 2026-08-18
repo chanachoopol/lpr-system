@@ -11,8 +11,8 @@ const useVillageStore = create((set, get) => ({
 
   // เรียกครั้งเดียวหลัง login/โหลดแอป — ใช้ได้ทั้ง superadmin (ทำ dropdown)
   // และ admin/user (lookup ชื่อหมู่บ้านตัวเองมาโชว์)
-  fetchVillages: async () => {
-    if (get().hasFetched) return // กันยิงซ้ำเวลาเปลี่ยนหน้าไปมา
+  fetchVillages: async (force = false) => {
+  if (get().hasFetched && !force) return
     set({ isLoadingVillages: true })
     try {
       const data = await getVillagesAPI({ isActive: true, pageSize: 100 })
