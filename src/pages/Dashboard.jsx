@@ -1,16 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import Layout from '../components/Layout'
-import { mockDashboardHistory } from '../data/mockData'
-import '../styles/Dashboard.css'
 import MapView from '../components/Map'
-import { getReportDailyAPI, getDetectionsAPI } from '../data/api'
+import { getReportDailyAPI, getDetectionsAPI, getCameraListAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import { FaCar } from 'react-icons/fa'
+import '../styles/Dashboard.css'
 
-const RECENT_HISTORY_LIMIT = 5
+const RECENT_HISTORY_LIMIT = 10
 
 // แปลง Date object เป็น YYYY-MM-DD ตามที่ backend ต้องการ
 // (ใช้ logic เดียวกับ Report.jsx — ไม่ใช้ toISOString() เพราะจะเพี้ยน timezone)
@@ -39,15 +38,8 @@ function Dashboard() {
   const [dailyData, setDailyData] = useState(null)
   const [isLoadingStats, setIsLoadingStats] = useState(true)
 
-  // TODO: ยังไม่มี field จาก backend สำหรับจำนวนป้ายทะเบียนไม่ซ้ำ
-  // ต้องขอทีม backend เพิ่ม field เช่น "unique_plates_today" ใน /api/reports/daily
-  const [uniquePlatesToday] = useState(0)
-
-  // TODO: รอหน้า Whitelist (ยังไม่ได้ทำ) — mock ไว้ก่อน
-  const [whitelistToday] = useState(0)
-
   const fetchStats = useCallback(async () => {
-    if (!user) return // ห้ามเช็ค village_id ตรงๆ เพราะ superadmin ไม่มี village_id
+    if (!user) return
     setIsLoadingStats(true)
     try {
       const data = await getReportDailyAPI({
@@ -65,6 +57,31 @@ function Dashboard() {
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
+
+  // ---------- Camera Map ----------
+  const [cameras, setCameras] = useState([])
+  const [isLoadingCameras, setIsLoadingCameras] = useState(true)
+
+  const fetchCameras = useCallback(async () => {
+    if (!user) return
+    setIsLoadingCameras(true)
+    try {
+      const data = await getCameraListAPI({
+        villageId: selectedVillageId || undefined,
+        page: 1,
+        pageSize: 100
+      })
+      setCameras(data.items)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsLoadingCameras(false)
+    }
+  }, [user, selectedVillageId])
+
+  useEffect(() => {
+    fetchCameras()
+  }, [fetchCameras])
 
   // ---------- Recent History ----------
   const [history, setHistory] = useState([])
@@ -98,7 +115,7 @@ function Dashboard() {
         {/* การ์ดสถิติแถวบน */}
         <div className="stat-row">
           <div className="stat-card">
-            <p className="stat-label">Vehicles In Today</p>
+            <p className="stat-label">จำนวนรถที่เข้ามาทั้งหมด</p>
             <h2 className="stat-val blue">
               {isLoadingStats ? '—' : (dailyData?.total_detections ?? 0).toLocaleString()}
             </h2>
@@ -106,13 +123,13 @@ function Dashboard() {
           <div className="stat-card">
             <p className="stat-label">จำนวนป้ายทะเบียนไม่ซ้ำกัน</p>
             <h2 className="stat-val green">
-              {isLoadingStats ? '—' : uniquePlatesToday.toLocaleString()}
+              {isLoadingStats ? '—' : (dailyData?.unique_plates ?? 0).toLocaleString()}
             </h2>
           </div>
           <div className="stat-card">
             <p className="stat-label">Whitelist Today</p>
             <h2 className="stat-val green">
-              {isLoadingStats ? '—' : whitelistToday.toLocaleString()}
+              {isLoadingStats ? '—' : (dailyData?.whitelist_detections ?? 0).toLocaleString()}
             </h2>
           </div>
           <div className="stat-card">
@@ -127,7 +144,13 @@ function Dashboard() {
         <div className="bottom-row">
           <div className="content-card">
             <h3 className="card-title">LPR Camera Map</h3>
-            <MapView />
+            {isLoadingCameras ? (
+              <div className="video-skeleton" style={{ height: '300px', borderRadius: '16px' }}>
+                <Spinner text="กำลังโหลดตำแหน่งกล้อง..." />
+              </div>
+            ) : (
+              <MapView cameras={cameras} />
+            )}
           </div>
 
           <div className="content-card">

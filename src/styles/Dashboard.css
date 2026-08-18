@@ -47,6 +47,12 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+  align-items: stretch;
+}
+.bottom-row .content-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* กัน overflow ตอนเนื้อหาข้างในยาวเกิน */
 }
 
 .map-placeholder {
