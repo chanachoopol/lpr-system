@@ -237,7 +237,7 @@ function Report() {
 
         {/* Top Visitors Table */}
         <div className="content-card">
-          <h3 className="card-title">Top 5 Frequent Visitors Today</h3>
+          <h3 className="card-title">Top 5 Frequent Visitors (Last 30 Days)</h3>
           <table className="report-table">
             <thead>
               <tr>

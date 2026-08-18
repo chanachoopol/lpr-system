@@ -45,13 +45,11 @@ function getActionMeta(action) {
   return ACTION_META[action] || { label: formatActionLabel(action), tone: 'gray' }
 }
 
-// backend ยังไม่ join ตาราง users มาให้ใน audit log (มีแค่ user_id เป็น UUID)
-// เลยลองแกะ username จาก detail ก่อน (ตอน login/logout มักมีข้อความ "username: xxx" อยู่แล้ว)
-// ถ้าแกะไม่ได้ ก็ fallback ไปโชว์ UUID แบบย่อแทน
-// TODO: คุยกับทีม backend ให้เพิ่ม field username/actor ใน response จะได้ไม่ต้องเดางี้
+// backend ส่ง username มาให้ตรงๆ ใน audit log แล้ว (join ตาราง users มาให้แล้ว)
+// ถ้าไม่มี user_id เลย แปลว่าเป็น action ที่ระบบทำเอง (System)
+// ถ้ามี user_id แต่ไม่มี username (เช่น user ถูกลบไปแล้ว) ก็ fallback ไปโชว์ UUID แบบย่อ
 function extractDisplayUser(log) {
-  const match = log.detail?.match(/username:\s*([^\s,]+)/i)
-  if (match) return { label: match[1], isGuess: true }
+  if (log.username) return { label: log.username, isGuess: false }
   if (!log.user_id) return { label: 'System', isGuess: false }
   return { label: `${log.user_id.slice(0, 8)}…`, isGuess: false }
 }
@@ -369,6 +367,10 @@ function AuditLog() {
                 <span>{formatDateTime(selectedLog.created_at)}</span>
               </div>
               <div className="al-modal-row">
+                <span className="info-label">User</span>
+                <span>{extractDisplayUser(selectedLog).label}</span>
+              </div>
+              <div className="al-modal-row">
                 <span className="info-label">Action</span>
                 <span className={`al-action-badge ${getActionMeta(selectedLog.action).tone}`}>
                   {getActionMeta(selectedLog.action).label}
@@ -383,8 +385,8 @@ function AuditLog() {
                 <span className="al-mono">{selectedLog.user_id || '-'}</span>
               </div>
               <div className="al-modal-row">
-                <span className="info-label">Village ID</span>
-                <span className="al-mono">{selectedLog.village_id || '-'}</span>
+                <span className="info-label">Village</span>
+                <span>{selectedLog.village_name || selectedLog.village_id || '-'}</span>
               </div>
               <div className="al-modal-row">
                 <span className="info-label">IP Address</span>
