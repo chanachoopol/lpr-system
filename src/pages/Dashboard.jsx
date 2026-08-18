@@ -4,6 +4,7 @@ import MapView from '../components/Map'
 import { getReportDailyAPI, getDetectionsAPI, getCameraListAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import useNotificationStore from '../store/notificationStore'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import { FaCar } from 'react-icons/fa'
@@ -11,8 +12,6 @@ import '../styles/Dashboard.css'
 
 const RECENT_HISTORY_LIMIT = 10
 
-// แปลง Date object เป็น YYYY-MM-DD ตามที่ backend ต้องการ
-// (ใช้ logic เดียวกับ Report.jsx — ไม่ใช้ toISOString() เพราะจะเพี้ยน timezone)
 function toDateParam(date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -20,7 +19,6 @@ function toDateParam(date) {
   return `${y}-${m}-${d}`
 }
 
-// แปลง ISO timestamp เป็นเวลาแบบไทย
 function formatTime(isoString) {
   if (!isoString) return '-'
   return new Date(isoString).toLocaleTimeString('th-TH', {
@@ -32,7 +30,8 @@ function formatTime(isoString) {
 
 function Dashboard() {
   const { user } = useAuthStore()
-  const { selectedVillageId } = useVillageStore() // หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
+  const { selectedVillageId } = useVillageStore()
+  const latestDetection = useNotificationStore((state) => state.latestDetection)
 
   // ---------- Stat Cards ----------
   const [dailyData, setDailyData] = useState(null)
@@ -108,6 +107,29 @@ function Dashboard() {
     fetchRecentHistory()
   }, [fetchRecentHistory])
 
+  // bump รถที่ตรวจจับล่าสุดขึ้นบนสุดตาราง แบบ real-time ผ่าน SSE
+  useEffect(() => {
+    if (!latestDetection) return
+
+    // superadmin scope global ได้ทุกหมู่บ้าน — ถ้ากำลังเลือกดูหมู่บ้านเดียวอยู่ ให้กรองให้ตรง
+    if (selectedVillageId && latestDetection.camera?.village_id
+        && latestDetection.camera.village_id !== selectedVillageId) {
+      return
+    }
+
+    setHistory((prev) => {
+      if (prev.some((item) => item.id === latestDetection.detection_id)) return prev // กันซ้ำตอน reconnect
+      const newItem = {
+        id: latestDetection.detection_id,
+        time_detect: latestDetection.time_detect,
+        license_plate: latestDetection.license_plate,
+        province: latestDetection.province,
+        color: latestDetection.color
+      }
+      return [newItem, ...prev].slice(0, RECENT_HISTORY_LIMIT)
+    })
+  }, [latestDetection, selectedVillageId])
+
   return (
     <Layout title="Dashboard">
       <div className="dashboard-wrapper">
@@ -115,7 +137,7 @@ function Dashboard() {
         {/* การ์ดสถิติแถวบน */}
         <div className="stat-row">
           <div className="stat-card">
-            <p className="stat-label">จำนวนรถที่เข้ามาทั้งหมด</p>
+            <p className="stat-label">Vehicles In Today</p>
             <h2 className="stat-val blue">
               {isLoadingStats ? '—' : (dailyData?.total_detections ?? 0).toLocaleString()}
             </h2>
@@ -145,7 +167,7 @@ function Dashboard() {
           <div className="content-card">
             <h3 className="card-title">LPR Camera Map</h3>
             {isLoadingCameras ? (
-              <div className="video-skeleton" style={{ height: '300px', borderRadius: '16px' }}>
+              <div className="video-skeleton" style={{ height: '100%', minHeight: '300px', borderRadius: '16px' }}>
                 <Spinner text="กำลังโหลดตำแหน่งกล้อง..." />
               </div>
             ) : (

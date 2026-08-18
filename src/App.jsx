@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
+import { Toaster } from 'react-hot-toast'
 import { useThemeStore } from './store/themeStore'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import useAuthStore from './store/authStore'
+import useNotificationStore from './store/notificationStore'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
@@ -75,13 +77,22 @@ function AnimatedRoutes() {
 
 function App() {
   const theme = useThemeStore((state) => state.theme)
-  const { loadFromStorage } = useAuthStore()
+  const { loadFromStorage, isLoggedIn } = useAuthStore()
+  const { connect, disconnect } = useNotificationStore()
 
   // อ่าน cookie และ restore สถานะ login ทันทีตอน app เริ่มต้น
-  // ป้องกัน sidebar/layout หาย ตอนกด refresh หรือ Vite hot reload
   useEffect(() => {
     loadFromStorage()
   }, [])
+
+  // เปิด SSE ทันทีที่ login (รวมถึงตอน restore session จาก cookie), ปิดตอน logout
+  useEffect(() => {
+    if (isLoggedIn) {
+      connect()
+    } else {
+      disconnect()
+    }
+  }, [isLoggedIn])
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -93,6 +104,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
       <AnimatedRoutes />
     </BrowserRouter>
   )

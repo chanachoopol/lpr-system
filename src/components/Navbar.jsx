@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars, FaSignOutAlt } from 'react-icons/fa'
+import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars, FaSignOutAlt, FaCheck } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
-import { mockNotifications } from '../data/mockData'
+import useNotificationStore from '../store/notificationStore'
 import { useThemeStore } from '../store/themeStore'
 import VillageSelector from './VillageSelector'
 import Swal from 'sweetalert2'
@@ -14,7 +14,7 @@ function Navbar({ title, onToggle }) {
   const [time, setTime] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications, setNotifications] = useState(mockNotifications)
+  const { notifications, markAllRead, markRead } = useNotificationStore()
   const dropdownRef = useRef(null)
   const notifRef = useRef(null)
   const { theme, toggleTheme } = useThemeStore()
@@ -50,45 +50,38 @@ function Navbar({ title, onToggle }) {
   }, [])
 
  function handleToggleMode() {
-    toggleTheme() // สั่งเปลี่ยนค่าแสงในสมองกล
-    setShowDropdown(false) // ปิดเมนู Dropdown
-    // (เราไม่ต้องสั่งแก้ document.body ตรงนี้แล้ว เพราะ App.jsx คอยจัดการให้แบบอัตโนมัติแล้วครับ!)
+    toggleTheme()
+    setShowDropdown(false)
   }
 
   async function handleLogout() {
-  const result = await Swal.fire({
-    icon: 'question',
-    title: 'ยืนยันการออกจากระบบ?',
-    text: 'คุณต้องการออกจากระบบใช่หรือไม่',
-    showCancelButton: true,
-    confirmButtonText: 'ออกจากระบบ',
-    cancelButtonText: 'ยกเลิก',
-    confirmButtonColor: 'rgb(220, 38, 38)',
-    cancelButtonColor: 'var(--sidebar-bg)'
-  })
+    const result = await Swal.fire({
+      icon: 'question',
+      title: 'ยืนยันการออกจากระบบ?',
+      text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+      showCancelButton: true,
+      confirmButtonText: 'ออกจากระบบ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'rgb(220, 38, 38)',
+      cancelButtonColor: 'var(--sidebar-bg)'
+    })
 
-  if (!result.isConfirmed) return
+    if (!result.isConfirmed) return
 
-  await logout()
-  navigate('/')
-}
-
-  function markAllRead() {
-    setNotifications(notifications.map(n => ({ ...n, read: true })))
+    await logout()
+    navigate('/')
   }
 
   function handleNotifClick(notif) {
-  setNotifications(notifications.map(n =>
-    n.id === notif.id ? { ...n, read: true } : n
-  ))
-  setShowNotifications(false)
+    markRead(notif.id)
+    setShowNotifications(false)
 
-  if (notif.type === 'blacklist') {
-    navigate('/blacklist')
-  } else if (notif.type === 'camera') {
-    navigate('/monitor')
+    if (notif.type === 'blacklist' || notif.type === 'whitelist') {
+      navigate('/blacklist')
+    } else if (notif.type === 'camera') {
+      navigate('/cameras')
+    }
   }
-}
 
   return (
     <header className="navbar">
@@ -115,7 +108,6 @@ function Navbar({ title, onToggle }) {
             )}
           </button>
 
-          {/* Notification Panel */}
           {showNotifications && (
             <div className="notif-panel">
               <div className="notif-header">
@@ -138,6 +130,8 @@ function Navbar({ title, onToggle }) {
                       <div className={`notif-icon ${notif.type}`}>
                         {notif.type === 'blacklist'
                           ? <FaTriangleExclamation />
+                          : notif.type === 'whitelist'
+                          ? <FaCheck />
                           : <FaVideo />
                         }
                       </div>

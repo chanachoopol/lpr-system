@@ -6,15 +6,14 @@ import '../styles/Monitor.css'
 import { getCamerasAPI, getCameraLiveAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import useNotificationStore from '../store/notificationStore'
 import { useSearchParams } from 'react-router-dom'
 import Hls from 'hls.js'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 
-// ดึงข้อมูล detection ใหม่ทุกๆ กี่มิลลิวินาที (ปรับตัวเลขนี้ได้ตามต้องการ)
 const POLLING_INTERVAL_MS = 5000
 
-// แปลง ISO timestamp จาก backend เป็นเวลาแบบ HH:MM:SS โซนไทย
 function formatTime(isoString) {
   if (!isoString) return '-'
   return new Date(isoString).toLocaleTimeString('th-TH', {
@@ -27,7 +26,8 @@ function formatTime(isoString) {
 
 function Monitor() {
   const { user } = useAuthStore()
-  const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
+  const { selectedVillageId } = useVillageStore()
+  const latestDetection = useNotificationStore((state) => state.latestDetection)
   const [cameras, setCameras] = useState([])
   const [isLoadingCameras, setIsLoadingCameras] = useState(true)
   const [selectedCamera, setSelectedCamera] = useState('')
@@ -36,21 +36,15 @@ function Monitor() {
   const [isVideoLoading, setIsVideoLoading] = useState(true)
   const [hasStreamError, setHasStreamError] = useState(false)
 
-  // ข้อมูล detection ล่าสุดจาก /api/detections/live
   const [latestCaptures, setLatestCaptures] = useState([])
   const [isLoadingDetections, setIsLoadingDetections] = useState(true)
 
-  // ดึงรายการกล้องจาก backend ตอนเปิดหน้า
-  // ยึดตาม selectedVillageId (หมู่บ้านที่กำลังดูอยู่) ไม่ใช่ user.village_id ตรงๆ
-  // เพราะ superadmin สลับหมู่บ้านผ่าน dropdown ใน Navbar ได้
   useEffect(() => {
     async function fetchCameras() {
-      if (!user) return   // รอแค่ login เสร็จ ไม่ใช่รอ village_id
+      if (!user) return
 
       setIsLoadingCameras(true)
       try {
-        // ส่ง selectedVillageId ไปถ้ามี (admin ถูกล็อกไว้ / superadmin เลือกจาก dropdown)
-        // ไม่ส่ง (null) ถ้า superadmin เลือก "ทุกหมู่บ้าน" → ได้ทุกหมู่บ้าน
         const data = await getCamerasAPI(selectedVillageId)
         setCameras(data)
 
@@ -78,12 +72,10 @@ function Monitor() {
 
   const currentCameraData = cameras.find((cam) => cam.id === selectedCamera)
 
-  // Reset loading ทุกครั้งที่เปลี่ยนกล้อง
   useEffect(() => {
     setIsVideoLoading(true)
   }, [selectedCamera])
 
-  // โหลดวิดีโอ HLS
   useEffect(() => {
     const video = videoRef.current
     const streamUrl = currentCameraData?.stream_url
@@ -128,7 +120,7 @@ function Monitor() {
     }
   }, [currentCameraData?.stream_url])
 
-  // Polling ดึง latest detection ทุกๆ POLLING_INTERVAL_MS วินาที
+  // Polling ดึง latest detection ทุกๆ POLLING_INTERVAL_MS วินาที (fallback สำรอง คู่กับ SSE ด้านล่าง)
   useEffect(() => {
     if (!selectedCamera) return
 
@@ -142,14 +134,13 @@ function Monitor() {
         }
       } catch (error) {
         console.error(error)
-        // ไม่ต้องเด้ง alert ทุกครั้งที่ polling พลาด กันรบกวนผู้ใช้ถี่เกินไป
       } finally {
         if (!isCancelled) setIsLoadingDetections(false)
       }
     }
 
     setIsLoadingDetections(true)
-    fetchLive() // ดึงทันทีครั้งแรกตอนเปลี่ยนกล้อง ไม่ต้องรอ interval รอบแรก
+    fetchLive()
 
     const interval = setInterval(fetchLive, POLLING_INTERVAL_MS)
 
@@ -159,13 +150,29 @@ function Monitor() {
     }
   }, [selectedCamera])
 
+  // bump แบบ real-time ผ่าน SSE เฉพาะกล้องที่กำลังเลือกดูอยู่
+  useEffect(() => {
+    if (!latestDetection || latestDetection.camera?.id !== selectedCamera) return
+
+    setLatestCaptures((prev) => {
+      if (prev.some((item) => item.id === latestDetection.detection_id)) return prev
+      const newItem = {
+        id: latestDetection.detection_id,
+        time_detect: latestDetection.time_detect,
+        license_plate: latestDetection.license_plate,
+        province: latestDetection.province,
+        color: latestDetection.color
+      }
+      return [newItem, ...prev].slice(0, 5)
+    })
+  }, [latestDetection, selectedCamera])
+
   const latestCapture = latestCaptures[0] || null
 
   return (
     <Layout title="Monitor">
       <div className="monitor-wrapper">
 
-        {/* แถบเลือกกล้อง */}
         <div className="camera-bar content-card">
           <FaVideo className="camera-icon" />
           <label htmlFor="cameraSelect">Select Camera:</label>
@@ -192,7 +199,6 @@ function Monitor() {
 
         <div className="monitor-content">
 
-          {/* ฝั่งซ้าย: วิดีโอ */}
           <div className="monitor-left content-card">
             <div className="video-wrapper">
 
@@ -242,7 +248,6 @@ function Monitor() {
             </div>
           </div>
 
-          {/* ฝั่งขวา: ข้อมูล */}
           <div className="monitor-right content-card">
             <h3 className="card-title">Latest Capture</h3>
 
@@ -254,7 +259,6 @@ function Monitor() {
                 <p className="plate-province">
                   {latestCapture ? latestCapture.province : 'ยังไม่มีข้อมูล'}
                 </p>
-                
               </div>
             </div>
 

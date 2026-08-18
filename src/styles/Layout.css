@@ -521,6 +521,10 @@
   background: rgba(234, 88, 12, 0.1);
   color: rgb(234, 88, 12);
 }
+.notif-icon.whitelist {
+  background: rgba(22, 163, 74, 0.1);
+  color: rgb(22, 163, 74);
+}
 
 .notif-content {
   flex: 1;
