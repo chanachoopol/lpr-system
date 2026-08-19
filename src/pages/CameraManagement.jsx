@@ -15,7 +15,8 @@ import {
   updateCameraAPI,
   deleteCameraAPI,
   resyncAllCamerasAPI,
-  resyncCameraAiVisionAPI
+  resyncCameraAiVisionAPI,
+  getCameraStatusAPI
 } from '../data/api'
 
 // หมายเหตุ field ของ backend: lat/long (ไม่ใช่ lon), ไม่มี status online/offline
@@ -32,6 +33,37 @@ function formatSyncedAt(isoString) {
   })
 }
 
+// map verification_status (เชื่อมต่อกับ AI Vision) + syncWarning เป็น badge เดียวที่โชว์ในตาราง
+function getSyncStatusBadge(camera) {
+  const status = camera.verification_status
+  const aiVisionStuck = camera.syncWarning?.failedServices?.includes('ai_vision')
+
+  if (status === 'pending' && aiVisionStuck) {
+    return { label: 'AI Vision ค้างการยืนยัน — กดรีซิงค์ใหม่', tone: 'stuck', clickable: true }
+  }
+  if (status === 'pending') {
+    return { label: 'กำลังเชื่อมต่อ AI Vision...', tone: 'pending', clickable: false }
+  }
+  if (status === 'verified') {
+    return { label: 'เชื่อมต่อ AI Vision สำเร็จ', tone: 'verified', clickable: false }
+  }
+  if (status === 'failed') {
+    return { label: 'AI Vision ปฏิเสธการเชื่อมต่อ — ส่งอีกครั้ง', tone: 'failed', clickable: true }
+  }
+  return { label: '-', tone: 'unknown', clickable: false }
+}
+
+// map stream_online (จาก GET /api/cameras/{id}/status) เป็น badge สำหรับคอลัมน์ Streaming Status (MediaMTX)
+function getStreamingStatusBadge(camera) {
+  if (camera.stream_online === undefined) {
+    return { label: 'กำลังตรวจสอบ...', tone: 'unknown' }
+  }
+  if (camera.stream_online === true) {
+    return { label: 'สตรีมมิ่งออนไลน์', tone: 'online' }
+  }
+  return { label: 'สตรีมมิ่งออฟไลน์', tone: 'offline' }
+}
+
 function CameraManagement() {
   const { user } = useAuthStore()
   const { selectedVillageId, getVillageName } = useVillageStore()
@@ -45,7 +77,6 @@ function CameraManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResyncingAll, setIsResyncingAll] = useState(false)
-  const [resyncingId, setResyncingId] = useState(null)
 
   const latestCameraEvent = useNotificationStore((state) => state.latestCameraEvent)
 
@@ -86,26 +117,6 @@ function CameraManagement() {
     }))
   }, [latestCameraEvent])
 
-  // map verification_status + syncWarning เป็น badge เดียวที่โชว์ในตาราง
-  function getSyncStatusBadge(camera) {
-    const status = camera.verification_status
-    const aiVisionStuck = camera.syncWarning?.failedServices?.includes('ai_vision')
-
-    if (status === 'pending' && aiVisionStuck) {
-      return { label: 'ค้างการยืนยัน — กดรีซิงค์ใหม่', tone: 'stuck', clickable: true }
-    }
-    if (status === 'pending') {
-      return { label: 'Verifying...', tone: 'pending', clickable: false }
-    }
-    if (status === 'verified') {
-      return { label: 'Verified', tone: 'verified', clickable: false }
-    }
-    if (status === 'failed') {
-      return { label: 'ถูกปฏิเสธ ส่งอีกครั้ง', tone: 'failed', clickable: true }
-    }
-    return { label: '-', tone: 'unknown', clickable: false }
-  }
-
   // ดึงรายการกล้องจาก backend จริง — ยึดตาม selectedVillageId (หมู่บ้านที่กำลังดูอยู่)
   // superadmin เลือก "ทุกหมู่บ้าน" (null) → ไม่ส่ง village_id ได้ทุกหมู่บ้าน
   const fetchCameras = useCallback(async () => {
@@ -118,6 +129,23 @@ function CameraManagement() {
       })
       setCameras(data.items)
       setTotal(data.total)
+      setIsLoading(false)
+
+      // ดึงสถานะ MediaMTX (stream_online) ของแต่ละกล้องแบบขนาน — ไม่มี endpoint แบบ bulk
+      // ไม่บล็อกการแสดงตารางหลัก ถ้ากล้องไหน error ก็ไม่ล้มทั้งหน้า แค่ badge กล้องนั้นจะโชว์ "กำลังตรวจสอบ..."
+      const statusResults = await Promise.allSettled(
+        data.items.map((c) => getCameraStatusAPI(c.id))
+      )
+
+      setCameras((prev) =>
+        prev.map((c, index) => {
+          const result = statusResults[index]
+          if (result?.status === 'fulfilled') {
+            return { ...c, stream_online: result.value.stream_online }
+          }
+          return c
+        })
+      )
     } catch (error) {
       console.error(error)
       Swal.fire({
@@ -126,7 +154,6 @@ function CameraManagement() {
         text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
-    } finally {
       setIsLoading(false)
     }
   }, [selectedVillageId])
@@ -294,7 +321,6 @@ function CameraManagement() {
   }
 
   async function handleResyncOne(camera) {
-    setResyncingId(camera.id)
     try {
       await resyncCameraAiVisionAPI(camera.id)
       Swal.fire({
@@ -312,8 +338,6 @@ function CameraManagement() {
         text: 'เกิดข้อผิดพลาด กรุณาลองใหม่',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
-    } finally {
-      setResyncingId(null)
     }
   }
 
@@ -398,15 +422,16 @@ function CameraManagement() {
                   <th>Camera Name</th>
                   {showVillageColumn && <th>Village</th>}
                   <th>Location (lat, long)</th>
-                  <th>Status</th>
-                  <th>AI Vision Synced</th>
+                  <th>Power Status</th>
+                  <th>AI Vision Status</th>
+                  <th>Streaming Status</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={showVillageColumn ? 6 : 5}>
+                    <td colSpan={showVillageColumn ? 7 : 6}>
                       <Spinner text="Loading cameras..." />
                     </td>
                   </tr>
@@ -449,17 +474,19 @@ function CameraManagement() {
                         })()}
                       </td>
                       <td>
+                        {(() => {
+                          const streamBadge = getStreamingStatusBadge(c)
+                          return (
+                            <span className={`cm-status-badge ${streamBadge.tone}`}>
+                              {streamBadge.label}
+                            </span>
+                          )
+                        })()}
+                      </td>
+                      <td>
                         <div className="cm-actions">
                           <button className="cm-icon-btn edit" onClick={() => openEditModal(c)}>
                             <FaPen />
-                          </button>
-                          <button
-                            className="cm-icon-btn edit"
-                            onClick={() => handleResyncOne(c)}
-                            disabled={resyncingId === c.id}
-                            title="Resync AI Vision"
-                          >
-                            <FaRotate />
                           </button>
                           <button className="cm-icon-btn delete" onClick={() => handleDelete(c)}>
                             <FaTrashCan />
@@ -470,7 +497,7 @@ function CameraManagement() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={showVillageColumn ? 6 : 5}>
+                    <td colSpan={showVillageColumn ? 7 : 6}>
                       <EmptyState
                         icon={<FaVideo />}
                         title="No cameras found"

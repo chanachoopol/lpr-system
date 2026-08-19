@@ -243,7 +243,11 @@ export async function resyncCameraAiVisionAPI(cameraId) {
   const response = await api.post(`/api/cameras/${cameraId}/resync-ai-vision`)
   return response.data
 }
-
+// ==================== Camera Status (MediaMTX) API ====================
+export async function getCameraStatusAPI(cameraId) {
+  const response = await api.get(`/api/cameras/${cameraId}/status`)
+  return response.data // { id, is_active, verification_status, stream_online }
+}
 // ==================== Detections (History) API ====================
 export async function getDetectionsAPI(params) {
   const response = await api.get('/api/detections', { params })
