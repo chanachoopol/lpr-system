@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FaVideo, FaSearch } from 'react-icons/fa'
-import { FaCirclePlus, FaPen, FaTrashCan, FaXmark, FaRotate } from 'react-icons/fa6'
+import { FaCirclePlus, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/CameraManagement.css'
@@ -8,6 +8,7 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import useNotificationStore from '../store/notificationStore'
 import {
   getCameraListAPI,
   createCameraAPI,
@@ -45,6 +46,65 @@ function CameraManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResyncingAll, setIsResyncingAll] = useState(false)
   const [resyncingId, setResyncingId] = useState(null)
+
+  const latestCameraEvent = useNotificationStore((state) => state.latestCameraEvent)
+
+  // merge SSE event เข้า state คล้าย pattern latestDetection ใน Dashboard.jsx
+  // syncWarning เป็น session-only field ไม่มีใน API — หายไปเมื่อ refresh หน้า (ตามที่ตกลงไว้)
+  useEffect(() => {
+    if (!latestCameraEvent) return
+    const { type, camera_id } = latestCameraEvent
+
+    setCameras((prev) => prev.map((c) => {
+      if (c.id !== camera_id) return c
+
+      if (type === 'verified') {
+        return {
+          ...c,
+          verification_status: 'verified',
+          is_active: latestCameraEvent.is_active ?? c.is_active,
+          syncWarning: null
+        }
+      }
+      if (type === 'verification_failed') {
+        // backend ปิดกล้องอัตโนมัติตอน verify failed → ต้อง sync is_active ด้วย ไม่ใช่แค่ badge
+        return {
+          ...c,
+          verification_status: 'failed',
+          is_active: latestCameraEvent.is_active ?? false,
+          syncWarning: null
+        }
+      }
+      if (type === 'sync_failed') {
+        // ไม่แตะ verification_status/is_active เลย เป็นแค่ warning ซ้อน
+        return {
+          ...c,
+          syncWarning: { failedServices: latestCameraEvent.failed_services, at: new Date() }
+        }
+      }
+      return c
+    }))
+  }, [latestCameraEvent])
+
+  // map verification_status + syncWarning เป็น badge เดียวที่โชว์ในตาราง
+  function getSyncStatusBadge(camera) {
+    const status = camera.verification_status
+    const aiVisionStuck = camera.syncWarning?.failedServices?.includes('ai_vision')
+
+    if (status === 'pending' && aiVisionStuck) {
+      return { label: 'ค้างการยืนยัน — กดรีซิงค์ใหม่', tone: 'stuck', clickable: true }
+    }
+    if (status === 'pending') {
+      return { label: 'Verifying...', tone: 'pending', clickable: false }
+    }
+    if (status === 'verified') {
+      return { label: 'Verified', tone: 'verified', clickable: false }
+    }
+    if (status === 'failed') {
+      return { label: 'ถูกปฏิเสธ ส่งอีกครั้ง', tone: 'failed', clickable: true }
+    }
+    return { label: '-', tone: 'unknown', clickable: false }
+  }
 
   // ดึงรายการกล้องจาก backend จริง — ยึดตาม selectedVillageId (หมู่บ้านที่กำลังดูอยู่)
   // superadmin เลือก "ทุกหมู่บ้าน" (null) → ไม่ส่ง village_id ได้ทุกหมู่บ้าน
@@ -363,7 +423,31 @@ function CameraManagement() {
                           {c.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="cm-location">{formatSyncedAt(c.ai_vision_synced_at)}</td>
+                      <td className="cm-sync-cell">
+                        {(() => {
+                          const badge = getSyncStatusBadge(c)
+                          return (
+                            <>
+                              <span
+                                className={`cm-sync-badge ${badge.tone}`}
+                                onClick={badge.clickable ? () => handleResyncOne(c) : undefined}
+                                title={badge.clickable ? 'คลิกเพื่อส่งคำขอซิงค์ใหม่' : undefined}
+                              >
+                                {badge.label}
+                              </span>
+                              {c.syncWarning && (
+                                <span
+                                  className="cm-sync-warning-icon"
+                                  title={`Sync error: ${c.syncWarning.failedServices?.join(', ') || 'unknown'}`}
+                                >
+                                  <FaTriangleExclamation />
+                                </span>
+                              )}
+                              <p className="cm-sync-time">{formatSyncedAt(c.ai_vision_synced_at)}</p>
+                            </>
+                          )
+                        })()}
+                      </td>
                       <td>
                         <div className="cm-actions">
                           <button className="cm-icon-btn edit" onClick={() => openEditModal(c)}>
