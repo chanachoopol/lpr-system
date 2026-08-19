@@ -376,6 +376,15 @@ export async function resendInviteAPI(userId) {
   const response = await api.post(`/api/users/${userId}/resend-invite`)
   return response.data
 }
+export async function getLockedAccountsAPI() {
+  const response = await api.get('/api/users/locked-accounts')
+  return response.data
+}
+
+export async function unlockUserAccountAPI(userId) {
+  const response = await api.post(`/api/users/${userId}/unlock-account`)
+  return response.data
+}
 
 // ==================== Village Management ====================
 export async function createVillageAPI(name, address) {

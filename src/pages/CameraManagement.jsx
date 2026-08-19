@@ -216,7 +216,7 @@ function CameraManagement() {
       await resyncAllCamerasAPI()
       Swal.fire({
         icon: 'success',
-        title: 'สั่งซิงค์กล้องทั้งหมดกับ AI Vision แล้ว',
+        title: 'สั่งซิงค์กล้องทั้งหมดกับ Streaming แล้ว',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       fetchCameras()

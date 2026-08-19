@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { FaUsers, FaUserPlus, FaUserShield, FaSearch } from 'react-icons/fa'
-import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaToggleOn, FaToggleOff, FaPaperPlane, FaCircleCheck, FaCircleXmark, FaPen } from 'react-icons/fa6'
+import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaToggleOn, FaToggleOff, FaPaperPlane, FaCircleCheck, FaCircleXmark, FaPen, FaLockOpen, FaLock } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
@@ -12,6 +12,8 @@ import {
   deleteUserAPI,
   resetUserPasswordAPI,
   resendInviteAPI,
+  getLockedAccountsAPI,
+  unlockUserAccountAPI,
   createContactAPI,
   createVillageAPI,
   getVillagesAPI,
@@ -84,6 +86,11 @@ function UserManagement() {
   const [totalUsers, setTotalUsers] = useState(0)
   const [activeUsers, setActiveUsers] = useState(0)
 
+  // บัญชีที่กำลังโดน rate-limit ล็อคอยู่ตอนนี้ — ดึงแยก endpoint แล้ว cross-reference กับตาราง user หลักด้วย user_id
+  // backend กรองตาม village ให้แล้ว (admin เห็นเฉพาะหมู่บ้านตัวเอง, superadmin เห็นทุกหมู่บ้าน)
+  const [lockedAccounts, setLockedAccounts] = useState([])
+  const [isLoadingLocked, setIsLoadingLocked] = useState(true)
+
   useEffect(() => {
     if (!currentUser) return
     fetchVillages()
@@ -144,6 +151,32 @@ function UserManagement() {
     }
     fetchKpis()
   }, [currentUser, selectedVillageId])
+
+  // ดึงรายชื่อบัญชีที่กำลังโดนล็อคอยู่ — backend scope ตาม village ให้แล้ว ไม่ต้อง filter ซ้ำฝั่งนี้
+  const fetchLockedAccounts = useCallback(async () => {
+    if (!currentUser) return
+    setIsLoadingLocked(true)
+    try {
+      const data = await getLockedAccountsAPI()
+      setLockedAccounts(data)
+    } catch (error) {
+      console.error(error)
+      // ไม่ต้อง alert แจ้งเตือน กันรบกวน — ถ้าพลาดแค่ badge/ปุ่มปลดล็อคจะไม่โชว์ ไม่กระทบการทำงานหลักของหน้า
+    } finally {
+      setIsLoadingLocked(false)
+    }
+  }, [currentUser])
+
+  useEffect(() => {
+    fetchLockedAccounts()
+  }, [fetchLockedAccounts])
+
+  // map user_id -> unlocked_at (เวลาที่จะปลดล็อคอัตโนมัติ) เพื่อ lookup เร็วๆ ตอน render ตาราง
+  const lockedMap = useMemo(() => {
+    const map = new Map()
+    lockedAccounts.forEach((entry) => map.set(entry.user_id, entry.unlocked_at))
+    return map
+  }, [lockedAccounts])
 
   // ดึงหมู่บ้านทั้งหมด (รวม inactive) — เฉพาะ superadmin เท่านั้นที่เห็นตารางนี้
   // แยกจาก useVillageStore เพราะ store นั้นดึงมาแค่ active สำหรับ dropdown เลือกหมู่บ้าน
@@ -355,6 +388,42 @@ function UserManagement() {
         icon: 'error',
         title: 'ส่งคำเชิญไม่สำเร็จ',
         text: 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    }
+  }
+
+  // ปลดล็อคบัญชีที่โดน rate-limit บล็อคจาก login ผิดเกิน 5 ครั้งติดกัน
+  async function handleUnlockAccount(targetUser) {
+    const result = await Swal.fire({
+      icon: 'question',
+      title: 'ปลดล็อคบัญชีนี้?',
+      text: `บัญชี "${targetUser.username}" จะสามารถเข้าสู่ระบบได้ทันที โดยไม่ต้องรอเวลาบล็อค`,
+      showCancelButton: true,
+      confirmButtonText: 'ปลดล็อค',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'rgb(37, 99, 235)',
+      cancelButtonColor: 'var(--sidebar-bg)'
+    })
+    if (!result.isConfirmed) return
+
+    try {
+      await unlockUserAccountAPI(targetUser.id)
+      Swal.fire({
+        icon: 'success',
+        title: 'ปลดล็อคบัญชีแล้ว',
+        text: `"${targetUser.username}" สามารถเข้าสู่ระบบได้ทันที`,
+        showConfirmButton: false,
+        timer: 1500
+      })
+      fetchLockedAccounts() // ปลดแล้วต้อง refresh ลิสต์ล็อค ไม่งั้นปุ่ม/badge จะค้าง
+    } catch (error) {
+      console.error(error)
+      const backendMessage = error.response?.data?.detail
+      Swal.fire({
+        icon: 'error',
+        title: 'ปลดล็อคไม่สำเร็จ',
+        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     }
@@ -627,6 +696,18 @@ function UserManagement() {
                       <td>
                         <span className={`um-status-dot ${u.is_active ? 'active' : 'inactive'}`}></span>
                         {u.is_active ? 'Active' : 'Inactive'}
+                        {lockedMap.has(u.id) && (
+                          <span
+                            className="um-locked-badge"
+                            title={
+                              lockedMap.get(u.id)
+                                ? `ปลดล็อคอัตโนมัติ: ${new Date(lockedMap.get(u.id)).toLocaleTimeString('th-TH')}`
+                                : undefined
+                            }
+                          >
+                            <FaLock /> Locked
+                          </span>
+                        )}
                       </td>
                       <td>
                         {u.is_verify
@@ -643,6 +724,15 @@ function UserManagement() {
                           >
                             {u.is_active ? <FaToggleOn /> : <FaToggleOff />}
                           </button>
+                          {lockedMap.has(u.id) && (
+                            <button
+                              className="um-icon-btn unlock"
+                              onClick={() => handleUnlockAccount(u)}
+                              title="ปลดล็อคบัญชี (โดน rate-limit บล็อค)"
+                            >
+                              <FaLockOpen />
+                            </button>
+                          )}
                           {!u.is_verify && (
                             <button className="um-icon-btn reset" onClick={() => handleResendInvite(u)} title="ส่งคำเชิญอีกครั้ง">
                               <FaPaperPlane />
