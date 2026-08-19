@@ -22,7 +22,7 @@ import {
 // หมายเหตุ field ของ backend: lat/long (ไม่ใช่ lon), ไม่มี status online/offline
 // มีแค่ is_active (เปิด/ปิดใช้งานกล้อง)
 // stream_ai = แหล่งสตรีมที่ป้อนเข้า (RTSP) — ส่วน stream_url เป็นค่าที่ backend generate ให้เอง ห้ามส่งตอน create/update
-const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', isActive: true }
+const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', isActive: true, villageId: '' }
 
 // แปลง ISO timestamp เป็นวันที่ + เวลาแบบไทย (ใช้กับ ai_vision_synced_at)
 function formatSyncedAt(isoString) {
@@ -66,7 +66,7 @@ function getStreamingStatusBadge(camera) {
 
 function CameraManagement() {
   const { user } = useAuthStore()
-  const { selectedVillageId, getVillageName } = useVillageStore()
+  const { selectedVillageId, getVillageName, villages } = useVillageStore()
 
   const [cameras, setCameras] = useState([])
   const [total, setTotal] = useState(0)
@@ -172,7 +172,11 @@ function CameraManagement() {
 
   function openAddModal() {
     setEditingCamera(null)
-    setFormData(EMPTY_FORM)
+    setFormData({
+      ...EMPTY_FORM,
+      // admin ล็อกไว้ที่หมู่บ้านตัวเอง, superadmin default ตามหมู่บ้านที่กำลังดูอยู่ (เลือกใหม่ได้)
+      villageId: user?.role === 'admin' ? user.village_id : (selectedVillageId || '')
+    })
     setShowFormModal(true)
   }
 
@@ -183,7 +187,8 @@ function CameraManagement() {
       lat: camera.lat,
       long: camera.long,
       streamAi: camera.stream_ai || '',
-      isActive: camera.is_active
+      isActive: camera.is_active,
+      villageId: camera.village_id || ''
     })
     setShowFormModal(true)
   }
@@ -222,19 +227,19 @@ function CameraManagement() {
           confirmButtonColor: 'var(--sidebar-bg)'
         })
       } else {
-        // superadmin เลือก "ทุกหมู่บ้าน" อยู่ (selectedVillageId เป็น null) → ไม่รู้จะเพิ่มเข้าหมู่บ้านไหน
-        if (!selectedVillageId) {
+        // ใช้หมู่บ้านจากฟอร์ม (superadmin เลือกเอง / admin ถูกล็อกไว้แล้วตอน openAddModal)
+        if (!formData.villageId) {
           Swal.fire({
             icon: 'warning',
             title: 'กรุณาเลือกหมู่บ้าน',
-            text: 'โปรดเลือกหมู่บ้านที่ต้องการเพิ่มกล้องจากเมนูด้านบนก่อน',
+            text: 'โปรดเลือกหมู่บ้านที่ต้องการเพิ่มกล้องก่อนบันทึก',
             confirmButtonColor: 'var(--sidebar-bg)'
           })
           setIsSubmitting(false)
           return
         }
         await createCameraAPI(
-          selectedVillageId,
+          formData.villageId,
           formData.name.trim(),
           parseFloat(formData.lat),
           parseFloat(formData.long),
@@ -524,12 +529,24 @@ function CameraManagement() {
             </div>
             <form className="cm-form" onSubmit={handleFormSubmit}>
               {!editingCamera && (
-                <p className="cm-description" style={{ margin: 0 }}>
-                  จะเพิ่มกล้องเข้าหมู่บ้าน:{' '}
-                  <strong>
-                    {selectedVillageId ? getVillageName(selectedVillageId) : 'ยังไม่ได้เลือกหมู่บ้าน — กรุณาเลือกจากเมนูด้านบน'}
-                  </strong>
-                </p>
+                <div className="cm-form-field">
+                  <label>หมู่บ้าน</label>
+                  {user?.role === 'superadmin' ? (
+                    <select name="villageId" value={formData.villageId} onChange={handleFormChange}>
+                      <option value="">-- เลือกหมู่บ้าน --</option>
+                      {villages.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type="text" value={getVillageName(user?.village_id)} disabled />
+                  )}
+                  <p className="cm-description" style={{ margin: '4px 0 0' }}>
+                    {user?.role === 'superadmin'
+                      ? 'เลือกหมู่บ้านที่ต้องการเพิ่มกล้องเข้าไป'
+                      : 'ล็อกไว้ที่หมู่บ้านของคุณ เนื่องจาก Admin เพิ่มกล้องได้เฉพาะหมู่บ้านตัวเอง'}
+                  </p>
+                </div>
               )}
 
               <div className="cm-form-field">

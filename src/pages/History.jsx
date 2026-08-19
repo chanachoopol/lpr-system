@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
-import { FaXmark } from 'react-icons/fa6'
+import { FaXmark, FaPalette } from 'react-icons/fa6'
 import Layout from '../components/Layout'
 import { getDetectionsAPI, getCamerasAPI, getAuthedImageURL } from '../data/api'
 import useAuthStore from '../store/authStore'
@@ -54,6 +54,8 @@ function History() {
   const [cameras, setCameras] = useState([])
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [colorInput, setColorInput] = useState('') // 👈 ช่องค้นหาด้วยสีรถ — backend รองรับ query param "color" ตรงๆ (ยืนยันจาก Swagger แล้ว)
+  const [debouncedColor, setDebouncedColor] = useState('')
   const [selectedCamera, setSelectedCamera] = useState('all')
   const [selectedDate, setSelectedDate] = useState(null)
 
@@ -74,6 +76,12 @@ function History() {
     const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [searchInput])
+
+  // Debounce ช่องค้นหาสี — ใช้ delay เดียวกับช่องค้นหาป้ายทะเบียน
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedColor(colorInput.trim()), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [colorInput])
 
   // รับค่า search จาก URL (มาจาก Navbar search) ตอนเปิดหน้าครั้งแรก
   useEffect(() => {
@@ -113,6 +121,7 @@ function History() {
 
         if (selectedVillageId) params.village_id = selectedVillageId
         if (debouncedSearch) params.license_plate = debouncedSearch
+        if (debouncedColor) params.color = debouncedColor
         if (selectedCamera !== 'all') params.camera_id = selectedCamera
 
         if (selectedDate) {
@@ -135,15 +144,16 @@ function History() {
     }
 
     fetchHistory()
-  }, [user, debouncedSearch, selectedCamera, selectedDate, currentPage, selectedVillageId])
+  }, [user, debouncedSearch, debouncedColor, selectedCamera, selectedDate, currentPage, selectedVillageId])
 
   // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearch, selectedCamera, selectedDate])
+  }, [debouncedSearch, debouncedColor, selectedCamera, selectedDate])
 
   function handleReset() {
     setSearchInput('')
+    setColorInput('')
     setSelectedCamera('all')
     setSelectedDate(null)
   }
@@ -212,6 +222,19 @@ function History() {
                 placeholder="Type to search..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="filter-group">
+            <label>Search Color</label>
+            <div className="filter-input-wrap">
+              <FaPalette className="filter-icon" />
+              <input
+                type="text"
+                placeholder="เช่น White, Black..."
+                value={colorInput}
+                onChange={(e) => setColorInput(e.target.value)}
               />
             </div>
           </div>

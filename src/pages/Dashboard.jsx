@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import Layout from '../components/Layout'
 import MapView from '../components/Map'
-import { getReportDailyAPI, getDetectionsAPI, getCameraListAPI } from '../data/api'
+import { getReportDailyAPI, getDetectionsAPI, getCameraListAPI, getAuthedImageURL } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import useNotificationStore from '../store/notificationStore'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
-import { FaCar } from 'react-icons/fa'
+import { FaCar, FaEye } from 'react-icons/fa'
+import { FaXmark } from 'react-icons/fa6'
 import '../styles/Dashboard.css'
+import '../styles/History.css' // 👈 ใช้ style ของ modal ดูรูป (modal-img-section, image-fullscreen-overlay ฯลฯ) ร่วมกับหน้า History
 
 const RECENT_HISTORY_LIMIT = 10
 
@@ -26,6 +28,12 @@ function formatTime(isoString) {
     minute: '2-digit',
     second: '2-digit'
   })
+}
+
+// เพิ่มเข้ามาให้ตรงกับหน้า History.jsx (แสดงวันที่แยกจากเวลา)
+function formatDate(isoString) {
+  if (!isoString) return '-'
+  return new Date(isoString).toLocaleDateString('th-TH')
 }
 
 function Dashboard() {
@@ -82,6 +90,12 @@ function Dashboard() {
     fetchCameras()
   }, [fetchCameras])
 
+  // หาชื่อกล้องจาก camera_id — reuse "cameras" ที่ดึงมาแสดงบนแผนที่อยู่แล้ว (เหมือน pattern ใน History.jsx)
+  function getCameraName(cameraId) {
+    const cam = cameras.find((c) => c.id === cameraId)
+    return cam ? cam.name : '-'
+  }
+
   // ---------- Recent History ----------
   const [history, setHistory] = useState([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
@@ -130,6 +144,51 @@ function Dashboard() {
     })
   }, [latestDetection, selectedVillageId])
 
+  // ---------- Modal ดูรายละเอียด/รูปภาพ (pattern เดียวกับ History.jsx) ----------
+  const [selectedItem, setSelectedItem] = useState(null)
+  const [modalImages, setModalImages] = useState({ crop: null, full: null })
+  const [isLoadingImages, setIsLoadingImages] = useState(false)
+  const [fullscreenImage, setFullscreenImage] = useState(null)
+
+  useEffect(() => {
+    if (!selectedItem) {
+      setModalImages({ crop: null, full: null })
+      return
+    }
+
+    let isCancelled = false
+    setIsLoadingImages(true)
+
+    async function loadImages() {
+      try {
+        const [cropURL, fullURL] = await Promise.all([
+          selectedItem.image_crop ? getAuthedImageURL(selectedItem.image_crop) : null,
+          selectedItem.image_full ? getAuthedImageURL(selectedItem.image_full) : null
+        ])
+        if (!isCancelled) {
+          setModalImages({ crop: cropURL, full: fullURL })
+        }
+      } catch (error) {
+        console.error(error)
+      } finally {
+        if (!isCancelled) setIsLoadingImages(false)
+      }
+    }
+
+    loadImages()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [selectedItem])
+
+  function closeModal() {
+    // คืนหน่วยความจำ blob URL ทิ้งตอนปิด modal กัน memory leak
+    if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
+    if (modalImages.full) URL.revokeObjectURL(modalImages.full)
+    setSelectedItem(null)
+  }
+
   return (
     <Layout title="Dashboard">
       <div className="dashboard-wrapper">
@@ -137,7 +196,7 @@ function Dashboard() {
         {/* การ์ดสถิติแถวบน */}
         <div className="stat-row">
           <div className="stat-card">
-            <p className="stat-label">Vehicles In Today</p>
+            <p className="stat-label">จำนวนรถที่เข้าวันนี้</p>
             <h2 className="stat-val blue">
               {isLoadingStats ? '—' : (dailyData?.total_detections ?? 0).toLocaleString()}
             </h2>
@@ -177,44 +236,129 @@ function Dashboard() {
 
           <div className="content-card">
             <h3 className="card-title">Recent History</h3>
-            <table className="history-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>License Plate</th>
-                  <th>Province</th>
-                  <th>Color</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoadingHistory ? (
+            <div className="table-responsive">
+              <table className="history-table">
+                <thead>
                   <tr>
-                    <td colSpan="4">
-                      <Spinner text="กำลังโหลด..." />
-                    </td>
+                    <th>#</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>License Plate</th>
+                    <th>Province</th>
+                    <th>Color</th>
+                    <th>Camera</th>
+                    <th>Action</th>
                   </tr>
-                ) : history.length > 0 ? (
-                  history.map((item) => (
-                    <tr key={item.id}>
-                      <td>{formatTime(item.time_detect)}</td>
-                      <td className="plate-text">{item.license_plate}</td>
-                      <td>{item.province}</td>
-                      <td>{item.color}</td>
+                </thead>
+                <tbody>
+                  {isLoadingHistory ? (
+                    <tr>
+                      <td colSpan="8">
+                        <Spinner text="กำลังโหลด..." />
+                      </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="4">
-                      <EmptyState icon={<FaCar />} title="No data available" />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  ) : history.length > 0 ? (
+                    history.map((item, index) => (
+                      <tr key={item.id}>
+                        <td>{index + 1}</td>
+                        <td>{formatDate(item.time_detect)}</td>
+                        <td>{formatTime(item.time_detect)}</td>
+                        <td className="plate-text">{item.license_plate}</td>
+                        <td>{item.province}</td>
+                        <td>{item.color}</td>
+                        <td>{getCameraName(item.camera_id)}</td>
+                        <td>
+                          <button className="btn-view" onClick={() => setSelectedItem(item)}>
+                            <FaEye /> View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="8">
+                        <EmptyState icon={<FaCar />} title="No data available" />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
       </div>
+
+      {/* Modal รายละเอียด — เหมือนหน้า History.jsx ทุกประการ */}
+      {selectedItem && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Vehicle Detail</h3>
+              <button className="modal-close" onClick={closeModal}>
+                <FaXmark />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="modal-img-section">
+                <div className="modal-img-placeholder">
+                  {isLoadingImages ? (
+                    <Spinner text="กำลังโหลดรูป..." />
+                  ) : modalImages.full ? (
+                    <img
+                      src={modalImages.full}
+                      alt="Full capture"
+                      onClick={() => setFullscreenImage(modalImages.full)}
+                      style={{ cursor: 'zoom-in' }}
+                    />
+                  ) : (
+                    <p>ไม่มีรูปภาพ</p>
+                  )}
+                </div>
+                <div className="modal-img-placeholder small">
+                  {isLoadingImages ? (
+                    <Spinner text="" />
+                  ) : modalImages.crop ? (
+                    <img
+                      src={modalImages.crop}
+                      alt="Plate crop"
+                      onClick={() => setFullscreenImage(modalImages.crop)}
+                      style={{ cursor: 'zoom-in' }}
+                    />
+                  ) : (
+                    <p>ไม่มีรูปป้าย</p>
+                  )}
+                </div>
+              </div>
+              <div className="modal-info">
+                <div className="modal-info-row">
+                  <span className="info-label">License Plate</span>
+                  <span className="plate-text">{selectedItem.license_plate}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="info-label">Province</span>
+                  <span>{selectedItem.province}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="info-label">Time</span>
+                  <span>{formatDate(selectedItem.time_detect)} {formatTime(selectedItem.time_detect)}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="info-label">Camera</span>
+                  <span>{getCameraName(selectedItem.camera_id)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* รูปเต็มจอ — คลิกรูปใน modal แล้วมาโผล่ตรงนี้ */}
+      {fullscreenImage && (
+        <div className="image-fullscreen-overlay" onClick={() => setFullscreenImage(null)}>
+          <img src={fullscreenImage} alt="Full size" />
+        </div>
+      )}
     </Layout>
   )
 }
