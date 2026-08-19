@@ -525,6 +525,15 @@
   background: rgba(22, 163, 74, 0.1);
   color: rgb(22, 163, 74);
 }
+.notif-icon.security {
+  background: rgba(220, 38, 38, 0.1);
+  color: rgb(220, 38, 38);
+}
+
+.notif-icon.general {
+  background: rgba(100, 116, 139, 0.1);
+  color: rgb(100, 116, 139);
+}
 
 .notif-content {
   flex: 1;

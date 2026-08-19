@@ -411,3 +411,26 @@ export async function getSSEAlertsTicketAPI() {
   const response = await api.post('/api/sse/ticket')
   return response.data // { ticket }
 }
+// ==================== Notifications APIs ====================
+export async function getNotificationsAPI({ isRead, page = 1, pageSize = 20 } = {}) {
+  const params = { page, page_size: pageSize }
+  if (isRead !== undefined) params.is_read = isRead
+
+  const response = await api.get('/api/notifications', { params })
+  return response.data
+}
+
+export async function getUnreadNotificationCountAPI() {
+  const response = await api.get('/api/notifications/unread-count')
+  return response.data
+}
+
+export async function markNotificationReadAPI(notificationId) {
+  const response = await api.post(`/api/notifications/${notificationId}/read`)
+  return response.data
+}
+
+export async function markAllNotificationsReadAPI() {
+  const response = await api.post('/api/notifications/read-all')
+  return response.data
+}

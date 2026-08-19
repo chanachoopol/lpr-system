@@ -6,7 +6,8 @@ import useNotificationStore from '../store/notificationStore'
 import { useThemeStore } from '../store/themeStore'
 import VillageSelector from './VillageSelector'
 import Swal from 'sweetalert2'
-import { FaTriangleExclamation, FaVideo, FaArrowRight, FaKey, FaIdCard } from 'react-icons/fa6'
+import { FaTriangleExclamation, FaVideo, FaArrowRight, FaKey, FaIdCard, FaLock } from 'react-icons/fa6'
+
 
 function Navbar({ title, onToggle }) {
   const { user, logout } = useAuthStore()
@@ -14,12 +15,10 @@ function Navbar({ title, onToggle }) {
   const [time, setTime] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
-  const { notifications, markAllRead, markRead } = useNotificationStore()
+  const { notifications, unreadCount, markAllRead, markRead, fetchNotifications } = useNotificationStore()
   const dropdownRef = useRef(null)
   const notifRef = useRef(null)
   const { theme, toggleTheme } = useThemeStore()
-
-  const unreadCount = notifications.filter(n => !n.read).length
 
   useEffect(() => {
     function updateClock() {
@@ -73,15 +72,17 @@ function Navbar({ title, onToggle }) {
   }
 
   function handleNotifClick(notif) {
-    markRead(notif.id)
-    setShowNotifications(false)
+  markRead(notif.id)
+  setShowNotifications(false)
 
-    if (notif.type === 'blacklist' || notif.type === 'whitelist') {
-      navigate('/blacklist')
-    } else if (notif.type === 'camera') {
-      navigate('/cameras')
-    }
+  if (notif.type === 'blacklist' || notif.type === 'whitelist') {
+    navigate('/blacklist')
+  } else if (notif.type === 'camera') {
+    navigate('/cameras')
+  } else if (notif.type === 'security') {
+    navigate('/audit-logs')
   }
+}
 
   return (
     <header className="navbar">
@@ -100,7 +101,11 @@ function Navbar({ title, onToggle }) {
         <div className="nb-bell-wrap" ref={notifRef}>
           <button
             className="nb-bell"
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={() => {
+              const next = !showNotifications
+              setShowNotifications(next)
+              if (next) fetchNotifications()
+            }}
           >
             <FaBell />
             {unreadCount > 0 && (
@@ -132,7 +137,11 @@ function Navbar({ title, onToggle }) {
                           ? <FaTriangleExclamation />
                           : notif.type === 'whitelist'
                           ? <FaCheck />
-                          : <FaVideo />
+                          : notif.type === 'camera'
+                          ? <FaVideo />
+                          : notif.type === 'security'
+                          ? <FaLock />
+                          : <FaBell />
                         }
                       </div>
                       <div className="notif-content">
@@ -141,7 +150,7 @@ function Navbar({ title, onToggle }) {
                           <p className="notif-plate">{notif.plate}</p>
                         )}
                         <p className="notif-location">
-                          {notif.location} • {notif.time}
+                          {notif.location ? `${notif.location} • ${notif.time}` : `${notif.detail || ''}${notif.detail ? ' • ' : ''}${notif.time}`}
                         </p>
                       </div>
                       {!notif.read && <span className="notif-dot"></span>}
