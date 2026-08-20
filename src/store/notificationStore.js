@@ -26,6 +26,9 @@ function formatAlertTime(isoString) {
 // action ไหนไม่รู้จัก จะ fallback ไป format string ให้อ่านง่าย (เหมือน pattern ใน Auditlog.jsx)
 const NOTIF_META = {
   blacklist_alert:            { icon: 'blacklist', title: 'Blacklist Detected' },
+  // ⚠️ ASSUMPTION: สมมติว่า field "action" ที่ backend เก็บลง notification ใช้ชื่อเดียวกับ event name ของ SSE
+  // (ตรงกับ pattern ของ 3 ตัวล่างที่เหลือ) รอ backend ยืนยัน field จริงจาก endpoint /api/notifications อีกที
+  camera_verified:            { icon: 'camera',    title: 'Camera Sync Success' },
   camera_verification_failed: { icon: 'camera',    title: 'Camera Verification Failed' },
   camera_sync_failed:         { icon: 'camera',    title: 'Camera Sync Failed' },
   login_bruteforce_detected:  { icon: 'security',  title: 'Login Blocked (Brute-force)' }
@@ -121,6 +124,20 @@ const useNotificationStore = create((set, get) => ({
           toast.error(`Blacklist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`)
         } catch (err) {
           console.error('parse blacklist_alert error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
+        }
+      })
+
+      // sync/verify กล้องสำเร็จ — คู่กับ camera_verification_failed ด้านล่าง
+      es.addEventListener('camera_verified', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          toast.success(`Camera Synced${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+        } catch (err) {
+          console.error('parse camera_verified error:', err)
+          toast.success('Camera Synced')
         } finally {
           get().fetchNotifications()
           get().fetchUnreadCount()

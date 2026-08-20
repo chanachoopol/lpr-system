@@ -15,6 +15,7 @@ import '../styles/Report.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import useVillageStore from '../store/villageStore'
+import { generateReportPdf } from '../utils/generateReportPdf'
 
 // จำนวนวันย้อนหลังสำหรับตาราง Top Frequent Visitors
 // backend รองรับสูงสุด 60 วัน (ดู max ที่ /api/reports/summary)
@@ -61,7 +62,7 @@ function formatHourlyDataForChart(hourlyBuckets) {
 
 function Report() {
   const { user } = useAuthStore()
-  const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
+  const { selectedVillageId, getVillageName } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
   const [selectedDate, setSelectedDate] = useState(new Date())
 
   const [dailyData, setDailyData] = useState(null)
@@ -69,6 +70,8 @@ function Report() {
 
   const [summaryData, setSummaryData] = useState(null)
   const [isLoadingSummary, setIsLoadingSummary] = useState(true)
+
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   // ดึงข้อมูลรายวัน — โหลดใหม่ทุกครั้งที่เปลี่ยนวันที่จาก DatePicker หรือหมู่บ้านที่เลือก
   const fetchDaily = useCallback(async () => {
@@ -118,13 +121,56 @@ function Report() {
     fetchSummary()
   }, [user, selectedVillageId])
 
-  function handlePrint() {
-    window.print()
-  }
-
   const chartData = formatHourlyDataForChart(dailyData?.hourly_buckets)
   const peakHour = computePeakHour(dailyData?.hourly_buckets)
   const topVisitors = summaryData?.top_repeated_plates || []
+
+  // หาชื่อหมู่บ้านสำหรับใส่ในหัวรายงาน PDF
+  // superadmin: ตาม selectedVillageId (null = ทุกหมู่บ้าน) / admin-user: ใช้หมู่บ้านตัวเองเสมอ
+  function resolveVillageNameForPdf() {
+    if (user?.role === 'superadmin') {
+      return selectedVillageId ? getVillageName(selectedVillageId) : 'ทุกหมู่บ้าน'
+    }
+    return getVillageName(user?.village_id) || '-'
+  }
+
+  // สร้างไฟล์ PDF จริงจากข้อมูล report ปัจจุบัน (ไม่ใช่ print หน้าจอ) — ต้องรอทั้ง daily และ summary โหลดเสร็จก่อน
+  async function handleDownloadPdf() {
+    if (isLoadingDaily || isLoadingSummary) {
+      Swal.fire({
+        icon: 'info',
+        title: 'กำลังโหลดข้อมูล',
+        text: 'กรุณารอข้อมูลรายงานโหลดให้เสร็จก่อนสร้าง PDF',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    setIsGeneratingPdf(true)
+    try {
+      generateReportPdf({
+        selectedDate,
+        dateLabel: formatDateThai(selectedDate),
+        villageName: resolveVillageNameForPdf(),
+        totalVehicles: dailyData?.total_detections ?? 0,
+        peakHour,
+        blacklistAlerts: dailyData?.blacklist_detections ?? 0,
+        chartData,
+        topVisitors,
+        topVisitorsDays: TOP_VISITORS_DAYS
+      })
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        icon: 'error',
+        title: 'สร้าง PDF ไม่สำเร็จ',
+        text: 'เกิดข้อผิดพลาดระหว่างสร้างไฟล์ กรุณาลองใหม่อีกครั้ง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
 
   return (
     <Layout title="Report">
@@ -149,8 +195,8 @@ function Report() {
               </span>
             </div>
           </div>
-          <button className="btn-pdf" onClick={handlePrint}>
-            <FaFilePdf /> Save as PDF
+          <button className="btn-pdf" onClick={handleDownloadPdf} disabled={isGeneratingPdf}>
+            <FaFilePdf /> {isGeneratingPdf ? 'กำลังสร้าง PDF...' : 'Save as PDF'}
           </button>
         </div>
 

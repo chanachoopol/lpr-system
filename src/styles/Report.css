@@ -45,9 +45,15 @@
   transition: all 0.2s ease;
 }
 
-.btn-pdf:hover {
+.btn-pdf:hover:not(:disabled) {
   background: rgb(185, 28, 28);
   transform: translateY(-1px);
+}
+
+.btn-pdf:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* ---------- Date Picker ---------- */
@@ -85,11 +91,6 @@
 .report-date-display {
   font-size: 14px;
   color: rgb(142, 154, 171);
-}
-
-/* กล่องนี้โผล่เฉพาะตอน print (ดู @media print ด้านล่าง) */
-.report-date-print {
-  display: none;
 }
 
 /* ---------- KPI Cards ---------- */
@@ -238,7 +239,7 @@
 }
 
 /* ============================================
-   RESPONSIVE (จอปกติ)
+   RESPONSIVE
    ============================================ */
 @media (max-width: 1024px) {
   .report-kpi-row {
@@ -258,115 +259,7 @@
   }
 }
 
-/* ============================================
-   PRINT (รวมเป็นบล็อกเดียว — ห้ามแยกอีก)
-   ============================================ */
-@media print {
-  @page {
-    size: A4 portrait;
-    margin: 12mm;
-  }
-
-  /* ซ่อนส่วนที่ไม่ต้องการ */
-  .sidebar,
-  .navbar,
-  .btn-pdf,
-  .report-date-picker {
-    display: none !important;
-  }
-
-  /* โชว์วันที่แบบ text เฉพาะตอน print */
-  .report-date-print {
-    display: block !important;
-    font-size: 12px;
-    color: rgb(100, 116, 139);
-    margin-top: 4px;
-  }
-
-  body {
-    background: rgb(255, 255, 255) !important;
-  }
-
-  /* ⭐ สำคัญที่สุด: ตัด transform/opacity ของ framer-motion
-     (Layout.jsx ห่อทุกหน้าด้วย motion.div ที่มี transform ค้างอยู่
-     ทำให้ browser คำนวณการตัดหน้ากระดาษผิด เกิดซ้อนทับ) */
-  .layout-content > div {
-    transform: none !important;
-    opacity: 1 !important;
-  }
-
-  /* คืนค่า layout container ให้ไหลตามความสูงจริง ไม่ล็อกเท่าจอ */
-  .layout {
-    padding: 0 !important;
-    gap: 0 !important;
-    min-height: auto !important;
-    display: block !important;
-  }
-
-  .layout-main {
-    gap: 0 !important;
-  }
-
-  .layout-content {
-    padding: 0 !important;
-    overflow: visible !important;
-    height: auto !important;
-    margin-top: 0 !important;
-  }
-
-  .report-wrapper {
-    gap: 8px !important;
-    padding-bottom: 0 !important;
-  }
-
-  /* การ์ด */
-  .content-card,
-  .report-kpi-card {
-    box-shadow: none !important;
-    border: 1px solid rgb(200, 210, 220) !important;
-    break-inside: avoid !important;
-    padding: 12px !important;
-  }
-
-  /* Header */
-  .report-title { font-size: 18px !important; }
-  .report-date { font-size: 11px !important; }
-
-  /* KPI */
-  .report-kpi-row {
-    gap: 8px !important;
-    margin-bottom: 0 !important;
-  }
-
-  .report-kpi-icon {
-    width: 36px !important;
-    height: 36px !important;
-    font-size: 16px !important;
-  }
-
-  .report-kpi-label { font-size: 9px !important; }
-  .report-kpi-val { font-size: 18px !important; }
-
-  /* Chart — ล็อกความสูงตายตัวกัน Recharts ResponsiveContainer เพี้ยนตอน print */
-  .chart-wrapper {
-    height: 180px !important;
-    break-inside: avoid !important;
-  }
-
-  .card-title {
-    font-size: 13px !important;
-    margin-bottom: 8px !important;
-  }
-
-  /* Table */
-  .report-table th,
-  .report-table td {
-    padding: 8px 10px !important;
-    font-size: 11px !important;
-  }
-
-  /* กันแถวตารางขาดครึ่งข้ามหน้า */
-  .report-table tr {
-    break-inside: avoid !important;
-  }
-}
+/* หมายเหตุ: เอาบล็อก @media print ออกแล้ว
+   เพราะปุ่ม Download PDF ตอนนี้ generate ไฟล์ PDF เองด้วย pdfmake
+   ไม่ได้พึ่ง window.print() ของเบราว์เซอร์อีกต่อไป
+   (ดู src/utils/generateReportPdf.js) */

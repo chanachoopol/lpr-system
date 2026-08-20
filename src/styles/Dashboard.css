@@ -137,3 +137,66 @@
   font-weight: 600;
   color: var(--text-main);
 }
+.map-hover-card {
+  position: absolute;
+  z-index: 50;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 30px rgba(27, 42, 71, 0.18);
+  pointer-events: none; /* กันการ์ดบัง mouseout ของหมุด */
+  animation: mapCardFadeIn 0.15s ease;
+}
+
+@keyframes mapCardFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.map-hover-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.map-hover-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-hover-card-title {
+  font-size: 14px;
+  color: #1b2a47;
+  line-height: 1.3;
+}
+
+.map-hover-card-coord {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-hover-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.map-hover-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
