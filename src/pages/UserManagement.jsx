@@ -5,6 +5,7 @@ import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import usePresenceStore from '../store/presenceStore'
 import {
   getUsersAPI,
   createUserAPI,
@@ -47,6 +48,11 @@ function formatDate(isoString) {
 function UserManagement() {
   const { user: currentUser } = useAuthStore()
   const { villages, selectedVillageId, fetchVillages, getVillageName } = useVillageStore()
+
+  // สถานะ Online/Offline — แยกจาก is_active (Active/Inactive) โดยสิ้นเชิง
+  // is_active มาจาก DB (ปิด/เปิดใช้งานบัญชีผ่านปุ่ม toggle) ส่วน online มาจาก SSE presence stream แบบ real-time
+  // เปิด connection เฉพาะตอนอยู่หน้านี้เท่านั้น (ดู useEffect ด้านล่าง) ไม่ผูกกับ login/logout เหมือน alert SSE
+  const { onlineUserIds } = usePresenceStore()
 
   const isSuperadmin = currentUser?.role === 'superadmin'
   const isAdmin = currentUser?.role === 'admin'
@@ -95,6 +101,10 @@ function UserManagement() {
     if (!currentUser) return
     fetchVillages()
   }, [currentUser, fetchVillages])
+
+  // เปิด presence connection ตอนเข้าหน้านี้ ปิดทันทีตอนออกจากหน้า
+  // (ต่างจาก alert SSE ที่เปิดค้างทั้งแอปตอน login — presence ใช้เฉพาะหน้านี้ ไม่กินคอนเนกชันฟรีๆ ตอนอยู่หน้าอื่น)
+
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), SEARCH_DEBOUNCE_MS)
@@ -599,6 +609,14 @@ function UserManagement() {
               <h2 className="um-kpi-val">{kpiLoading ? '—' : activeUsers.toLocaleString()}</h2>
             </div>
           </div>
+          {/* KPI ใหม่ — จำนวนคนออนไลน์อยู่ตอนนี้ ดึงจาก presence stream (SSE) ไม่ได้ยิง API เพิ่ม */}
+          <div className="um-kpi-card">
+            <div className="um-kpi-icon green"><FaCircleCheck /></div>
+            <div className="um-kpi-info">
+              <p className="um-kpi-label">Online Now</p>
+              <h2 className="um-kpi-val">{onlineUserIds.size.toLocaleString()}</h2>
+            </div>
+          </div>
           <div className="um-kpi-card">
             <div className="um-kpi-icon orange"><FaCity /></div>
             <div className="um-kpi-info">
@@ -675,6 +693,7 @@ function UserManagement() {
                   <th>Username</th>
                   <th>Role</th>
                   <th>Status</th>
+                  <th>Online</th>
                   <th>Verified</th>
                   <th>Created At</th>
                   <th>Action</th>
@@ -682,7 +701,7 @@ function UserManagement() {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={6}><Spinner text="Loading users..." /></td></tr>
+                  <tr><td colSpan={7}><Spinner text="Loading users..." /></td></tr>
                 ) : users.length > 0 ? (
                   users.map((u) => (
                     <tr key={u.id}>
@@ -708,6 +727,12 @@ function UserManagement() {
                             <FaLock /> Locked
                           </span>
                         )}
+                      </td>
+                      <td>
+                        {/* สถานะ Online/Offline — แยกจากคอลัมน์ Status ข้างบนโดยสิ้นเชิง มาจาก presence SSE แบบ real-time
+                            ไม่เกี่ยวกับ is_active เลย: ปิดบัญชี (Inactive) แต่ยังเปิดแท็บค้างอยู่ก็ยังโชว์ Online ได้ */}
+                        <span className={`um-status-dot ${onlineUserIds.has(u.id) ? 'active' : 'inactive'}`}></span>
+                        {onlineUserIds.has(u.id) ? 'Online' : 'Offline'}
                       </td>
                       <td>
                         {u.is_verify
@@ -750,7 +775,7 @@ function UserManagement() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <EmptyState icon={<FaUsers />} title="No users found" description="Try changing the filter or search keyword" />
                     </td>
                   </tr>

@@ -19,6 +19,7 @@ import AuditLog from './pages/AuditLog'
 import ResetPassword from './pages/ResetPassword'
 import ChangePassword from './pages/ChangePassword'
 import Profile from './pages/Profile'
+import usePresenceStore from './store/presenceStore'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -79,6 +80,7 @@ function App() {
   const theme = useThemeStore((state) => state.theme)
   const { loadFromStorage, isLoggedIn } = useAuthStore()
   const { connect, disconnect } = useNotificationStore()
+  const { connect: connectPresence, disconnect: disconnectPresence } = usePresenceStore() // 👈 เพิ่ม
 
   // อ่าน cookie และ restore สถานะ login ทันทีตอน app เริ่มต้น
   useEffect(() => {
@@ -89,8 +91,10 @@ function App() {
   useEffect(() => {
     if (isLoggedIn) {
       connect()
+      connectPresence() // 👈 เพิ่ม — เปิดพร้อมกับ alert SSE
     } else {
       disconnect()
+      disconnectPresence() // 👈 เพิ่ม
     }
   }, [isLoggedIn])
 

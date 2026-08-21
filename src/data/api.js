@@ -434,3 +434,12 @@ export async function markAllNotificationsReadAPI() {
   const response = await api.post('/api/notifications/read-all')
   return response.data
 }
+// ==================== SSE Presence ====================
+// ticket สำหรับ presence stream (online/offline) แยกจาก ticket ของ alert (getSSEAlertsTicketAPI)
+// ตามข้อตกลง: ไม่ส่ง village_id เลยไม่ว่า role ไหน
+// - user/admin ห้ามส่งอยู่แล้ว (backend คืนหมู่บ้านตัวเองให้อัตโนมัติ)
+// - superadmin เลือกไม่ส่งเพื่อความง่าย (ได้ snapshot ทุกหมู่บ้านในคอนเนกชันเดียว ไม่ต้อง reconnect ตอนสลับหมู่บ้าน)
+export async function getSSEPresenceTicketAPI() {
+  const response = await api.post('/api/sse/presence/ticket')
+  return response.data // { ticket }
+}
