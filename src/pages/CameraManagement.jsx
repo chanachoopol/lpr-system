@@ -22,7 +22,12 @@ import {
 // หมายเหตุ field ของ backend: lat/long (ไม่ใช่ lon), ไม่มี status online/offline
 // มีแค่ is_active (เปิด/ปิดใช้งานกล้อง)
 // stream_ai = แหล่งสตรีมที่ป้อนเข้า (RTSP) — ส่วน stream_url เป็นค่าที่ backend generate ให้เอง ห้ามส่งตอน create/update
-const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', isActive: true, villageId: '' }
+// direction = ทิศทางกล้อง (ยืนยันจาก Swagger: enum "entry" | "exit" เท่านั้น)
+const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', direction: 'entry', isActive: true, villageId: '' }
+const DIRECTION_LABELS = {
+  entry: 'ขาเข้า',
+  exit: 'ขาออก'
+}
 
 // แปลง ISO timestamp เป็นวันที่ + เวลาแบบไทย (ใช้กับ ai_vision_synced_at)
 function formatSyncedAt(isoString) {
@@ -187,6 +192,7 @@ function CameraManagement() {
       lat: camera.lat,
       long: camera.long,
       streamAi: camera.stream_ai || '',
+      direction: camera.direction || 'entry', // fallback 'entry' เผื่อกล้องเก่าไม่มี field นี้
       isActive: camera.is_active,
       villageId: camera.village_id || ''
     })
@@ -219,6 +225,7 @@ function CameraManagement() {
           lat: parseFloat(formData.lat),
           long: parseFloat(formData.long),
           stream_ai: formData.streamAi.trim(),
+          direction: formData.direction,
           is_active: formData.isActive
         })
         Swal.fire({
@@ -243,7 +250,8 @@ function CameraManagement() {
           formData.name.trim(),
           parseFloat(formData.lat),
           parseFloat(formData.long),
-          formData.streamAi.trim()
+          formData.streamAi.trim(),
+          formData.direction
         )
         Swal.fire({
           icon: 'success',
@@ -427,6 +435,7 @@ function CameraManagement() {
                   <th>Camera Name</th>
                   {showVillageColumn && <th>Village</th>}
                   <th>Location (lat, long)</th>
+                  <th>Direction</th>
                   <th>Power Status</th>
                   <th>AI Vision Status</th>
                   <th>Streaming Status</th>
@@ -436,7 +445,7 @@ function CameraManagement() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={showVillageColumn ? 7 : 6}>
+                    <td colSpan={showVillageColumn ? 8 : 7}>
                       <Spinner text="Loading cameras..." />
                     </td>
                   </tr>
@@ -447,6 +456,11 @@ function CameraManagement() {
                       {showVillageColumn && <td>{getVillageName(c.village_id)}</td>}
                       <td className="cm-location">
                         {Number(c.lat).toFixed(6)}, {Number(c.long).toFixed(6)}
+                      </td>
+                      <td>
+                        <span className={`cm-direction-badge ${c.direction || 'entry'}`}>
+                          {DIRECTION_LABELS[c.direction] || '-'}
+                        </span>
                       </td>
                       <td>
                         <span className={`cm-status-badge ${c.is_active ? 'online' : 'offline'}`}>
@@ -502,7 +516,7 @@ function CameraManagement() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={showVillageColumn ? 7 : 6}>
+                    <td colSpan={showVillageColumn ? 8 : 7}>
                       <EmptyState
                         icon={<FaVideo />}
                         title="No cameras found"
@@ -592,6 +606,13 @@ function CameraManagement() {
                   value={formData.streamAi}
                   onChange={handleFormChange}
                 />
+              </div>
+              <div className="cm-form-field">
+                <label>Direction (ทิศทาง)</label>
+                <select name="direction" value={formData.direction} onChange={handleFormChange}>
+                  <option value="entry">ขาเข้า (Entry)</option>
+                  <option value="exit">ขาออก (Exit)</option>
+                </select>
               </div>
               {editingCamera && (
                 <div className="cm-form-field">

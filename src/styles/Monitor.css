@@ -189,3 +189,37 @@
     height: 400px;
   }
 }
+/* ==================== Grid View (All Cameras) ==================== */
+
+.camera-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.grid-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.grid-tile-name {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grid-tile-video {
+  border-width: 3px; /* กรอบบางลงเล็กน้อยเทียบกับ single view เพื่อไม่ให้ดูหนักตากรณีกล้องเยอะ */
+}
+
+@media (max-width: 768px) {
+  .camera-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -213,13 +213,14 @@ export async function getCameraByIdAPI(cameraId) {
   return response.data
 }
 
-export async function createCameraAPI(villageId, name, lat, long, streamAi) {
+export async function createCameraAPI(villageId, name, lat, long, streamAi, direction) {
   const response = await api.post('/api/cameras', {
     village_id: villageId,
     name,
     lat,
     long,
-    stream_ai: streamAi
+    stream_ai: streamAi,
+    direction
   })
   return response.data
 }
@@ -442,4 +443,43 @@ export async function markAllNotificationsReadAPI() {
 export async function getSSEPresenceTicketAPI() {
   const response = await api.post('/api/sse/presence/ticket')
   return response.data // { ticket }
+}
+// ==================== Route Tracking API ====================
+
+// ==================== Route Tracking API ====================
+export async function getRouteTrackingAPI({
+  licensePlate,
+  province,
+  color,
+  direction,
+  villageId,
+  dateFrom,
+  dateTo,
+  page = 1,
+  pageSize = 20
+} = {}) {
+  const params = {
+    license_plate: licensePlate,
+    date_from: dateFrom,
+    date_to: dateTo,
+    page,
+    page_size: pageSize
+  }
+
+  if (province) params.province = province
+  if (color) params.color = color
+  if (direction) params.direction = direction
+  if (villageId) params.village_id = villageId
+
+  try {
+    const response = await api.get('/api/detections/route-tracking', {
+      params
+    })
+
+    return response.data
+  } catch (error) {
+    console.log('Route Tracking 422 DETAIL:', error.response?.data)
+    console.log('Route Tracking REQUEST:', error.config?.url)
+    throw error
+  }
 }
