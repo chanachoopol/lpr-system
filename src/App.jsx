@@ -20,7 +20,7 @@ import ResetPassword from './pages/ResetPassword'
 import ChangePassword from './pages/ChangePassword'
 import Profile from './pages/Profile'
 import usePresenceStore from './store/presenceStore'
-
+import RouteTracking from './pages/RouteTracking'
 function AnimatedRoutes() {
   const location = useLocation()
 
@@ -44,6 +44,9 @@ function AnimatedRoutes() {
         } />
         <Route path="/blacklist" element={
           <ProtectedRoute><Blacklist /></ProtectedRoute>
+        } />
+        <Route path="/route-tracking" element={
+          <ProtectedRoute><RouteTracking /></ProtectedRoute>
         } />
         <Route path="/report" element={
           <ProtectedRoute><Report /></ProtectedRoute>

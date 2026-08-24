@@ -20,20 +20,7 @@ function Navbar({ title, onToggle }) {
   const notifRef = useRef(null)
   const { theme, toggleTheme } = useThemeStore()
 
-  useEffect(() => {
-    function updateClock() {
-      const now = new Date()
-      setTime(now.toLocaleTimeString('th-TH', {
-        timeZone: 'Asia/Bangkok',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }))
-    }
-    updateClock()
-    const interval = setInterval(updateClock, 1000)
-    return () => clearInterval(interval)
-  }, [])
+  
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -94,8 +81,6 @@ function Navbar({ title, onToggle }) {
 
       <div className="nb-right">
         <VillageSelector />
-
-        <div className="nb-time">{time}</div>
 
         {/* Notification Bell */}
         <div className="nb-bell-wrap" ref={notifRef}>

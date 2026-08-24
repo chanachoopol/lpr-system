@@ -3,6 +3,7 @@ import { FaHome, FaDesktop, FaHistory, FaExclamationTriangle, FaChartBar, FaUser
 import useAuthStore from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import Swal from 'sweetalert2'
+import { FaRoute } from 'react-icons/fa6'
 
 // แต่ละเมนูมี roles กำกับว่า role ไหนเห็นได้บ้าง
 // เมนูเดิมเปิดให้ทุก role เห็นเหมือนเดิม ไม่กระทบของเดิม
@@ -11,6 +12,7 @@ const menuItems = [
   { path: '/monitor', icon: <FaDesktop />, label: 'Monitor', roles: ['user', 'admin', 'superadmin'] },
   { path: '/history', icon: <FaHistory />, label: 'History', roles: ['user', 'admin', 'superadmin'] },
   { path: '/blacklist', icon: <FaExclamationTriangle />, label: 'Blacklist & Whitelist', roles: ['user', 'admin', 'superadmin'] },
+  { path: '/route-tracking', icon: <FaRoute />, label: 'Route Tracking', roles: ['user', 'admin', 'superadmin'] },
   { path: '/report', icon: <FaChartBar />, label: 'Report', roles: ['user', 'admin', 'superadmin'] },
   { path: '/users', icon: <FaUsers />, label: 'User Management', roles: ['admin', 'superadmin'] },
   { path: '/cameras', icon: <FaVideo />, label: 'Camera Management', roles: ['admin', 'superadmin'] },
