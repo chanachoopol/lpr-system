@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { FaUsers, FaUserPlus, FaUserShield, FaSearch } from 'react-icons/fa'
+import { FaUsers, FaUserPlus, FaUserShield, FaSearch, FaIdCard } from 'react-icons/fa'
 import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaToggleOn, FaToggleOff, FaPaperPlane, FaCircleCheck, FaCircleXmark, FaPen, FaLockOpen, FaLock } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
@@ -23,6 +23,9 @@ import {
 import '../styles/UserManagement.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
+import UserProfileModal from '../components/UserProfileModal'
+import ActionMenu from '../components/ActionMenu'
+import { filterVisibleUsers } from '../utils/permissions'
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
@@ -87,6 +90,9 @@ function UserManagement() {
   const [resetForm, setResetForm] = useState(EMPTY_RESET_FORM)
   const [isResetting, setIsResetting] = useState(false)
 
+  // View Profile modal — โชว์ข้อมูลติดต่อ (เบอร์โทร/อีเมล) ของ user ที่กด
+  const [profileUser, setProfileUser] = useState(null)
+
   // KPI
   const [kpiLoading, setKpiLoading] = useState(true)
   const [totalUsers, setTotalUsers] = useState(0)
@@ -123,7 +129,10 @@ function UserManagement() {
         page: 1,
         pageSize: PAGE_SIZE
       })
-      setUsers(data.items)
+      // filterVisibleUsers เป็นแค่เกราะกันชั้นสอง — ตัวกรองหลักคือ selectedVillageId
+      // ที่ส่งไปกับ request แล้ว (ผูกกับหมู่บ้านของ admin อัตโนมัติ)
+      // เผื่อ backend มี edge case ที่ยัง enforce ไม่ครบ (known issue ที่คุยกันไว้)
+      setUsers(filterVisibleUsers(currentUser, data.items))
       setTotal(data.total)
     } catch (error) {
       console.error(error)
@@ -741,35 +750,49 @@ function UserManagement() {
                       </td>
                       <td>{formatDate(u.created_at)}</td>
                       <td>
-                        <div className="um-actions">
-                          <button
-                            className="um-icon-btn edit"
-                            onClick={() => handleToggleActive(u)}
-                            title={u.is_active ? 'ปิดใช้งานบัญชี' : 'เปิดใช้งานบัญชี'}
-                          >
-                            {u.is_active ? <FaToggleOn /> : <FaToggleOff />}
-                          </button>
-                          {lockedMap.has(u.id) && (
-                            <button
-                              className="um-icon-btn unlock"
-                              onClick={() => handleUnlockAccount(u)}
-                              title="ปลดล็อคบัญชี (โดน rate-limit บล็อค)"
-                            >
-                              <FaLockOpen />
-                            </button>
-                          )}
-                          {!u.is_verify && (
-                            <button className="um-icon-btn reset" onClick={() => handleResendInvite(u)} title="ส่งคำเชิญอีกครั้ง">
-                              <FaPaperPlane />
-                            </button>
-                          )}
-                          <button className="um-icon-btn reset" onClick={() => openResetModal(u)} title="Reset Password">
-                            <FaKey />
-                          </button>
-                          <button className="um-icon-btn delete" onClick={() => handleDelete(u)} title="ลบผู้ใช้">
-                            <FaTrashCan />
-                          </button>
-                        </div>
+                        <ActionMenu
+                          items={[
+                            {
+                              key: 'view-profile',
+                              label: 'ดูโปรไฟล์',
+                              icon: <FaIdCard />,
+                              onClick: () => setProfileUser(u)
+                            },
+                            {
+                              key: 'toggle-active',
+                              label: u.is_active ? 'ปิดใช้งานบัญชี' : 'เปิดใช้งานบัญชี',
+                              icon: u.is_active ? <FaToggleOff /> : <FaToggleOn />,
+                              onClick: () => handleToggleActive(u)
+                            },
+                            {
+                              key: 'unlock',
+                              label: 'ปลดล็อคบัญชี',
+                              icon: <FaLockOpen />,
+                              hidden: !lockedMap.has(u.id),
+                              onClick: () => handleUnlockAccount(u)
+                            },
+                            {
+                              key: 'resend-invite',
+                              label: 'ส่งคำเชิญอีกครั้ง',
+                              icon: <FaPaperPlane />,
+                              hidden: u.is_verify,
+                              onClick: () => handleResendInvite(u)
+                            },
+                            {
+                              key: 'reset-password',
+                              label: 'Reset Password',
+                              icon: <FaKey />,
+                              onClick: () => openResetModal(u)
+                            },
+                            {
+                              key: 'delete',
+                              label: 'ลบผู้ใช้',
+                              icon: <FaTrashCan />,
+                              danger: true,
+                              onClick: () => handleDelete(u)
+                            }
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))
@@ -977,6 +1000,10 @@ function UserManagement() {
             </form>
           </div>
         </div>
+      )}
+      {/* Modal View Profile */}
+      {profileUser && (
+        <UserProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
       )}
     </Layout>
   )

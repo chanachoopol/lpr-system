@@ -191,11 +191,11 @@ export async function getCamerasAPI(villageId) {
   return response.data.items
 }
 
-export async function getCameraLiveAPI(cameraId, limit = 5) {
-  const response = await api.get('/api/detections/live', {
+export async function getCameraLiveAPI(cameraId, limit) {
+  const res = await api.get('/api/detections/live', {
     params: { camera_id: cameraId, limit }
   })
-  return response.data
+  return res.data
 }
 
 // ==================== Camera Management APIs ====================
@@ -482,4 +482,21 @@ export async function getRouteTrackingAPI({
     console.log('Route Tracking REQUEST:', error.config?.url)
     throw error
   }
+}
+export async function getContactsListAPI({ village_id, search, page = 1, page_size = 20 } = {}) {
+  const params = { page, page_size }
+  if (village_id) params.village_id = village_id
+  if (search) params.search = search
+
+  const response = await api.get('/api/contacts', { params })
+  return response.data // { items, total, page, page_size }
+}
+
+export async function getUserContactsDetailAPI(userId) {
+  const response = await api.get(`/api/contacts/users/${userId}`)
+  return response.data // { user_id, username, fullname, village_id, village_name, contacts: [] }
+}
+export async function getCameraStreamTokenAPI(cameraId) {
+  const res = await api.get(`/api/cameras/${cameraId}/stream-token`)
+  return res.data
 }

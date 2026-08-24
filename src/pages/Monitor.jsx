@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { FaVideo, FaThLarge } from 'react-icons/fa'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
@@ -8,10 +8,10 @@ import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import useNotificationStore from '../store/notificationStore'
 import { useSearchParams } from 'react-router-dom'
-import Hls from 'hls.js'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import CameraGridTile from '../components/CameraGridTile'
+import useCameraStream from '../hooks/useCameraStream'
 
 const POLLING_INTERVAL_MS = 5000
 const GRID_VIEW_VALUE = 'all' // 👈 ค่าพิเศษของ selectedCamera สำหรับโหมด Grid View
@@ -34,9 +34,6 @@ function Monitor() {
   const [isLoadingCameras, setIsLoadingCameras] = useState(true)
   const [selectedCamera, setSelectedCamera] = useState('')
   const [searchParams] = useSearchParams()
-  const videoRef = useRef(null)
-  const [isVideoLoading, setIsVideoLoading] = useState(true)
-  const [hasStreamError, setHasStreamError] = useState(false)
 
   const [latestCaptures, setLatestCaptures] = useState([])
   const [isLoadingDetections, setIsLoadingDetections] = useState(true)
@@ -44,11 +41,22 @@ function Monitor() {
   // 👇 Grid View — true เมื่อเลือก "ทุกกล้อง"
   const isGridMode = selectedCamera === GRID_VIEW_VALUE
 
+  // 👇 ดึง stream token + วน refresh JWT ก่อนหมดอายุ ผ่าน endpoint ใหม่จาก backend
+  // (GET /api/cameras/{id}/stream-token) แทนของเดิมที่ refetch รายการกล้องทั้งหมดทุก 3 นาที
+  // ปิดการทำงานตอนอยู่ Grid Mode ด้วยการส่ง cameraId เป็น null (ไม่ mount video เดี่ยวฝั่งซ้ายแล้ว)
+  const {
+    videoRef,
+    isVideoLoading,
+    hasStreamError,
+    isDisabled: isCameraDisabled
+  } = useCameraStream(isGridMode ? null : selectedCamera)
+
   useEffect(() => {
     async function fetchCameras() {
       if (!user) return
 
       setIsLoadingCameras(true)
+
       try {
         const data = await getCamerasAPI(selectedVillageId)
         setCameras(data)
@@ -73,60 +81,7 @@ function Monitor() {
     }
 
     fetchCameras()
-  }, [user, selectedVillageId])
-
-  const currentCameraData = cameras.find((cam) => cam.id === selectedCamera)
-
-  useEffect(() => {
-    setIsVideoLoading(true)
-  }, [selectedCamera])
-
-  // 👇 HLS ของ single-camera view — ข้ามการทำงานถ้าอยู่ใน Grid Mode (แต่ละ tile จัดการ HLS เอง)
-  useEffect(() => {
-    if (isGridMode) return
-
-    const video = videoRef.current
-    const streamUrl = currentCameraData?.stream_url
-
-    setHasStreamError(false)
-
-    if (!video || !streamUrl) {
-      setIsVideoLoading(false)
-      return
-    }
-
-    let hls
-
-    if (Hls.isSupported()) {
-      hls = new Hls()
-      hls.loadSource(streamUrl)
-      hls.attachMedia(video)
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsVideoLoading(false)
-        video.play().catch((err) => console.log("รอผู้ใช้กด Play:", err))
-      })
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
-          setIsVideoLoading(false)
-          setHasStreamError(true)
-        }
-      })
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = streamUrl
-      video.addEventListener('loadedmetadata', () => {
-        setIsVideoLoading(false)
-        video.play().catch((err) => console.log("รอผู้ใช้กด Play:", err))
-      })
-      video.addEventListener('error', () => {
-        setIsVideoLoading(false)
-        setHasStreamError(true)
-      })
-    }
-
-    return () => {
-      if (hls) hls.destroy()
-    }
-  }, [currentCameraData?.stream_url, isGridMode])
+  }, [user, selectedVillageId, searchParams])
 
   // Polling ดึง latest detection — ปิดเมื่ออยู่ Grid Mode (ไม่ mount panel ฝั่งขวาแล้ว ไม่ต้อง poll)
   useEffect(() => {
@@ -223,7 +178,7 @@ function Monitor() {
             </div>
           </div>
         ) : (
-          /* ---------- Single Camera View (เดิม) ---------- */
+          /* ---------- Single Camera View ---------- */
           <div className="monitor-content">
 
             <div className="monitor-left content-card">
@@ -239,6 +194,14 @@ function Monitor() {
                       icon={<FaVideo />}
                       title="ไม่พบกล้องในระบบ"
                       description="กรุณาเพิ่มกล้องในหน้า Camera Management ก่อน"
+                    />
+                  </div>
+                ) : isCameraDisabled ? (
+                  <div className="video-skeleton">
+                    <EmptyState
+                      icon={<FaVideo />}
+                      title="กล้องนี้ถูกปิดใช้งาน"
+                      description="กล้องนี้ถูกปิดใช้งานอยู่ในขณะนี้ กรุณาติดต่อผู้ดูแลระบบ"
                     />
                   </div>
                 ) : hasStreamError ? (

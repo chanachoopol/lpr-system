@@ -20,13 +20,7 @@ const JOIN_PAGE_SIZE = 100
 const JOIN_MAX_PAGES = 10 // safety cap กันลูปไม่รู้จบถ้าข้อมูลเยอะผิดปกติ
 
 const EMPTY_BLACKLIST_FORM = { plate: '', province: '', reason: '' }
-const EMPTY_WHITELIST_FORM = { category: 'resident', name: '', plate: '', province: '', note: '' }
-
-const CATEGORY_LABELS = {
-  resident: 'ผู้พักอาศัย',
-  regular: 'ขาประจำ',
-  guest: 'แขก'
-}
+const EMPTY_WHITELIST_FORM = { name: '', plate: '', province: '', note: '' }
 
 function formatDate(isoString) {
   if (!isoString) return '-'
@@ -415,7 +409,6 @@ function Blacklist() {
                     <th>License Plate</th>
                     <th>Province</th>
                     <th>Name</th>
-                    <th>Category</th>
                     <th>Note</th>
                     <th>Date Added</th>
                     {canManage && <th>Action</th>}
@@ -447,7 +440,7 @@ function Blacklist() {
                         <td><span className="bl-plate-badge whitelist">{item.license_plate}</span></td>
                         <td>{item.province}</td>
                         <td>{item.name}</td>
-                        <td><span className="bl-category-badge">{CATEGORY_LABELS[item.category] || item.category}</span></td>
+            
                         <td>{item.note || '-'}</td>
                         <td>{formatDate(item.created_at)}</td>
                         {canManage && (
@@ -522,16 +515,6 @@ function Blacklist() {
               </button>
             </div>
             <form className="bl-add-form" onSubmit={handleFormSubmit}>
-              {!isBlacklistTab && (
-                <div className="bl-add-field">
-                  <label>Category</label>
-                  <select name="category" value={formData.category} onChange={handleFormChange}>
-                    <option value="resident">ผู้พักอาศัย (Resident)</option>
-                    <option value="regular">ขาประจำ (Regular)</option>
-                    <option value="guest">แขก (Guest)</option>
-                  </select>
-                </div>
-              )}
 
               {!isBlacklistTab && (
                 <div className="bl-add-field">

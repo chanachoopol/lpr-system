@@ -1,66 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
 import { FaVideo } from 'react-icons/fa'
-import Hls from 'hls.js'
 import Spinner from './Spinner'
 import EmptyState from './EmptyState'
+import useCameraStream from '../hooks/useCameraStream'
 
-// Tile กล้องเดี่ยวสำหรับ Grid View — มี HLS instance และ state ของตัวเอง
-// แยกอิสระจากกล้องอื่นในกริด กล้องนึงล่มไม่กระทบตัวอื่น
+// Tile กล้องเดี่ยวสำหรับ Grid View — ใช้ useCameraStream hook เดียวกับ Monitor.jsx
+// แต่ละ tile มี HLS instance + refresh timer ของตัวเอง ผ่าน stream-token endpoint
+// แยกอิสระจากกล้องอื่นในกริด กล้องนึงล่ม/ถูกปิดใช้งาน ไม่กระทบตัวอื่น
 function CameraGridTile({ camera }) {
-  const videoRef = useRef(null)
-  const [isVideoLoading, setIsVideoLoading] = useState(true)
-  const [hasStreamError, setHasStreamError] = useState(false)
-
-  useEffect(() => {
-    const video = videoRef.current
-    const streamUrl = camera?.stream_url
-
-    setIsVideoLoading(true)
-    setHasStreamError(false)
-
-    if (!video || !streamUrl) {
-      setIsVideoLoading(false)
-      return
-    }
-
-    let hls
-
-    if (Hls.isSupported()) {
-      hls = new Hls()
-      hls.loadSource(streamUrl)
-      hls.attachMedia(video)
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsVideoLoading(false)
-        video.play().catch((err) => console.log('รอผู้ใช้กด Play:', err))
-      })
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
-          setIsVideoLoading(false)
-          setHasStreamError(true)
-        }
-      })
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = streamUrl
-      video.addEventListener('loadedmetadata', () => {
-        setIsVideoLoading(false)
-        video.play().catch((err) => console.log('รอผู้ใช้กด Play:', err))
-      })
-      video.addEventListener('error', () => {
-        setIsVideoLoading(false)
-        setHasStreamError(true)
-      })
-    }
-
-    return () => {
-      if (hls) hls.destroy()
-    }
-  }, [camera?.stream_url])
+  const { videoRef, isVideoLoading, hasStreamError, isDisabled } = useCameraStream(camera?.id)
 
   return (
     <div className="grid-tile">
       <p className="grid-tile-name">{camera.name}</p>
       <div className="video-wrapper grid-tile-video">
-        {hasStreamError ? (
+        {isDisabled ? (
+          <div className="video-skeleton">
+            <EmptyState
+              icon={<FaVideo />}
+              title="กล้องถูกปิดใช้งาน"
+            />
+          </div>
+        ) : hasStreamError ? (
           <div className="video-skeleton">
             <EmptyState
               icon={<FaVideo />}
