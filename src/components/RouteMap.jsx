@@ -1,14 +1,110 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
+import Spinner from './Spinner';
 
 const LONGDO_API_KEY = '77b3dd6ca1af611860ee1d100bc5d530';
 const CARD_WIDTH = 260;
 const CARD_GAP = 12;
 const FOCUS_ANIMATION_DELAY_MS = 350; // เผื่อเวลา map.location/zoom animate เสร็จก่อนคำนวณตำแหน่งการ์ด
 
+// พิกัดถือว่า "ซ้ำกัน" (กล้องเดียวกันจับซ้ำ) ถ้าต่างกันน้อยกว่านี้ — กันปัญหา floating point เทียบเป๊ะไม่เจอ
+const SAME_LOCATION_EPSILON = 0.00001;
+
+function isSameLocation(a, b) {
+  return (
+    Math.abs(a.long - b.long) < SAME_LOCATION_EPSILON &&
+    Math.abs(a.lat - b.lat) < SAME_LOCATION_EPSILON
+  );
+}
+
+function isValidLatLong(lat, long) {
+  return (
+    typeof lat === 'number' && typeof long === 'number' &&
+    Number.isFinite(lat) && Number.isFinite(long)
+  );
+}
+
+// ยิง Longdo Route Service (GeoJSON) หาเส้นทางจริงระหว่าง 2 จุด
+// คืน array ของ {lon, lat} เรียงตามเส้นทาง หรือ null ถ้าหาไม่เจอ/error
+async function fetchRoadPath(fromPoint, toPoint) {
+  const url = `https://api.longdo.com/RouteService/geojson/route?flon=${fromPoint.long}&flat=${fromPoint.lat}&tlon=${toPoint.long}&tlat=${toPoint.lat}&locale=th&key=${LONGDO_API_KEY}`;
+
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (data.message || !data.features || data.features.length === 0) {
+    return null;
+  }
+
+  const coords = [];
+  data.features.forEach((feature) => {
+    const geomType = feature.geometry?.type;
+    if (geomType === 'LineString') {
+      feature.geometry.coordinates.forEach((c) => coords.push({ lon: c[0], lat: c[1] }));
+    } else if (geomType === 'MultiLineString') {
+      feature.geometry.coordinates.forEach((line) => {
+        line.forEach((c) => coords.push({ lon: c[0], lat: c[1] }));
+      });
+    }
+  });
+
+  // กรองพิกัดที่ไม่ถูกต้องออกก่อนคืนค่า — กัน response จาก Longdo เพี้ยนบางจุด (null/NaN)
+  const validCoords = coords.filter((c) => isValidLatLong(c.lat, c.lon));
+
+  return validCoords.length >= 2 ? validCoords : null;
+}
+
+// จัดมุมมองแผนที่ให้ครอบคลุมทุกจุด — ไม่พึ่ง map.bound() ด้วย array ของจุดดิบ
+// เพราะ Longdo SDK เวอร์ชันนี้ไม่รับ format นั้น (โยน "Invalid location" ทุกครั้งแม้พิกัดถูกต้อง)
+// ลอง longdo.Bounds ก่อนถ้า SDK รองรับ ไม่งั้น fallback คำนวณ center + ประมาณ zoom เอง
+function fitMapToPoints(map, points) {
+  if (!map || points.length === 0) return;
+
+  if (points.length === 1) {
+    map.location({ lon: points[0].long, lat: points[0].lat }, true);
+    map.zoom(17, true);
+    return;
+  }
+
+  const lons = points.map((p) => p.long);
+  const lats = points.map((p) => p.lat);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+
+  if (window.longdo?.Bounds) {
+    try {
+      const bounds = new window.longdo.Bounds(minLon, minLat, maxLon, maxLat);
+      map.bound(bounds, true);
+      return;
+    } catch (error) {
+      console.warn('longdo.Bounds ใช้ไม่ได้ใน SDK นี้ fallback เป็นคำนวณ zoom เอง:', error);
+    }
+  }
+
+  // Fallback: คำนวณจุดกึ่งกลาง + ประมาณ zoom level หยาบ ๆ จากระยะห่างพิกัด (องศา)
+  const centerLon = (minLon + maxLon) / 2;
+  const centerLat = (minLat + maxLat) / 2;
+  const maxSpan = Math.max(maxLon - minLon, maxLat - minLat);
+
+  let zoom = 17;
+  if (maxSpan > 0.5) zoom = 9;
+  else if (maxSpan > 0.2) zoom = 11;
+  else if (maxSpan > 0.08) zoom = 12;
+  else if (maxSpan > 0.04) zoom = 13;
+  else if (maxSpan > 0.02) zoom = 14;
+  else if (maxSpan > 0.01) zoom = 15;
+  else if (maxSpan > 0.005) zoom = 16;
+
+  map.location({ lon: centerLon, lat: centerLat }, true);
+  map.zoom(zoom, true);
+}
+
 const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
 
   // hoveredPoint = { point, style: {top, left}, pinned? } | null
   const [hoveredPoint, setHoveredPoint] = useState(null);
@@ -25,7 +121,6 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
       if (isCancelled || !mapRef.current || mapInstanceRef.current) {
         return;
       }
-
       if (!window.longdo || typeof window.longdo.Map !== 'function') {
         return;
       }
@@ -54,7 +149,6 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
         setIsMapReady(true);
       });
 
-      // ปิดการ์ด (ทั้ง hover และ pinned) ตอน pan/zoom ด้วยมือ — เหมือน Map.jsx
       try {
         map.Event.bind('location', () => setHoveredPoint(null));
         map.Event.bind('zoom', () => setHoveredPoint(null));
@@ -92,7 +186,6 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
     };
   }, []);
 
-  // คำนวณตำแหน่งการ์ด — ลอยไปทาง "บน-ขวา" ของหมุด พร้อม clamp กันล้นกรอบ container
   const computeCardPosition = useCallback((pinEl) => {
     const container = mapRef.current;
     if (!container || !pinEl) return null;
@@ -125,7 +218,8 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
       const point = routePoints.find(
         (p) => String(p.id ?? p.detectionId) === String(pointId)
       );
-      if (!point) return;
+      // กันพิกัดไม่ถูกต้อง (NaN/undefined) หลุดเข้า map.location() แล้วโดน "Invalid location"
+      if (!point || !isValidLatLong(point.lat, point.long)) return;
 
       map.location({ lon: point.long, lat: point.lat }, true);
       map.zoom(18, true);
@@ -180,92 +274,152 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
 
   /*
    * ============================
-   * Draw Route
+   * Draw Markers ทันที (ไม่รอ routing เสร็จ) + วาดเส้นทางจริงแบบ sequential
    * ============================
    */
   useEffect(() => {
     const map = mapInstanceRef.current;
+    if (!map || !isMapReady) return;
 
-    if (!map || !isMapReady) {
-      return;
-    }
+    let isCancelled = false;
 
-    try {
-      map.Overlays.clear();
-      setHoveredPoint(null);
+    async function drawEverything() {
+      try {
+        map.Overlays.clear();
+        setHoveredPoint(null);
 
-      if (routePoints.length === 0) {
-        return;
-      }
+        if (routePoints.length === 0) return;
 
-      if (routePoints.length > 1) {
-        const line = new window.longdo.Polyline(
-          routePoints.map((point) => ({
-            lon: point.long,
-            lat: point.lat
-          })),
-          {
-            lineWidth: 4,
-            lineColor: 'rgba(37, 99, 235, 0.85)'
+        // ---------- วาด Marker ก่อนเลย ให้ผู้ใช้เห็นหมุดทันที ไม่ต้องรอ routing ----------
+        // เก็บว่าจุดไหนวาดสำเร็จบ้าง (พิกัดถูกต้อง + สร้าง Marker ไม่ error) ไว้ใช้คำนวณ bound ต่อ
+        const drawnPoints = [];
+
+        routePoints.forEach((point) => {
+          if (!isValidLatLong(point.lat, point.long)) {
+            console.warn(`ข้ามจุดที่ ${point.order} (id: ${point.id ?? point.detectionId}) เพราะพิกัดไม่ถูกต้อง:`, point.lat, point.long);
+            return;
           }
-        );
 
-        map.Overlays.add(line);
-      }
+          const isFirst = point.order === 1;
+          const isLast = point.order === routePoints.length;
+          const pinColor = isLast ? '#dc2626' : isFirst ? '#16a34a' : '#2563eb';
+          const pointId = point.id ?? point.detectionId;
 
-      routePoints.forEach((point) => {
-        const isFirst = point.order === 1;
-        const isLast = point.order === routePoints.length;
-        const pinColor = isLast ? '#dc2626' : isFirst ? '#16a34a' : '#2563eb';
-        const pointId = point.id ?? point.detectionId;
+          try {
+            const marker = new window.longdo.Marker(
+              { lon: point.long, lat: point.lat },
+              {
+                clickable: true,
+                icon: {
+                  offset: { x: 16, y: 32 },
+                  html: `
+                    <div data-route-point-id="${pointId}" style="
+                      width: 32px;
+                      height: 32px;
+                      border-radius: 50% 50% 50% 0;
+                      background: ${pinColor};
+                      transform: rotate(-45deg);
+                      border: 2px solid #fff;
+                      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      cursor: pointer;
+                    ">
+                      <span style="
+                        transform: rotate(45deg);
+                        color: #ffffff;
+                        font-family: 'DM Sans', sans-serif;
+                        font-weight: 700;
+                        font-size: 13px;
+                      ">
+                        ${point.order}
+                      </span>
+                    </div>
+                  `
+                }
+              }
+            );
 
-        const marker = new window.longdo.Marker(
-          { lon: point.long, lat: point.lat },
-          {
-            clickable: true,
-            icon: {
-              offset: { x: 16, y: 32 },
-              html: `
-                <div data-route-point-id="${pointId}" style="
-                  width: 32px;
-                  height: 32px;
-                  border-radius: 50% 50% 50% 0;
-                  background: ${pinColor};
-                  transform: rotate(-45deg);
-                  border: 2px solid #fff;
-                  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  cursor: pointer;
-                ">
-                  <span style="
-                    transform: rotate(45deg);
-                    color: #ffffff;
-                    font-family: 'DM Sans', sans-serif;
-                    font-weight: 700;
-                    font-size: 13px;
-                  ">
-                    ${point.order}
-                  </span>
-                </div>
-              `
+            map.Overlays.add(marker);
+            drawnPoints.push(point);
+          } catch (error) {
+            // จุดนี้พิกัดผ่าน isValidLatLong แล้วแต่ Longdo ยังปฏิเสธ (เช่น lat/long เกินขอบเขตโลกจริง)
+            console.warn(`สร้าง Marker จุดที่ ${point.order} ไม่สำเร็จ (พิกัด: ${point.lat}, ${point.long}):`, error);
+          }
+        });
+
+        // ไม่มีจุดไหนวาดได้เลย — ไม่ต้องพยายาม bound/route ต่อ
+        if (drawnPoints.length === 0) return;
+
+        // จัดมุมมองแผนที่ให้ครอบคลุมทุกจุดที่วาดได้จริง — ดูฟังก์ชัน fitMapToPoints() ด้านบน
+        fitMapToPoints(map, drawnPoints);
+
+        // เหลือแค่จุดเดียวที่วาดได้จริง (ไม่ว่าเพราะข้อมูลมีจุดเดียวจริง หรือจุดอื่นพิกัดเสียหมด)
+        // ไม่มีคู่ไหนให้คำนวณเส้นทางต่อ
+        if (drawnPoints.length === 1) return;
+
+        // ---------- คำนวณเส้นทางจริงทีละคู่ (sequential) ----------
+        setIsLoadingRoute(true);
+
+        for (let i = 0; i < routePoints.length - 1; i++) {
+          if (isCancelled) return;
+
+          const from = routePoints[i];
+          const to = routePoints[i + 1];
+
+          // ข้ามคู่ที่มีพิกัดไม่ถูกต้องไปเลย ไม่ยิง request ไม่วาดเส้น
+          if (!isValidLatLong(from.lat, from.long) || !isValidLatLong(to.lat, to.long)) {
+            console.warn(`ข้ามช่วงจุดที่ ${from.order}-${to.order} เพราะพิกัดไม่ถูกต้อง`);
+            continue;
+          }
+
+          if (isSameLocation(from, to)) continue;
+
+          let segmentCoords = null;
+          try {
+            segmentCoords = await fetchRoadPath(from, to);
+          } catch (error) {
+            console.warn(`หาเส้นทางจริงช่วงจุดที่ ${from.order}-${to.order} ไม่สำเร็จ:`, error);
+          }
+
+          if (isCancelled) return;
+
+          try {
+            if (segmentCoords) {
+              const polyline = new window.longdo.Polyline(segmentCoords, {
+                lineWidth: 4,
+                lineColor: 'rgba(37, 99, 235, 0.85)'
+              });
+              map.Overlays.add(polyline);
+            } else {
+              const fallbackLine = new window.longdo.Polyline(
+                [{ lon: from.long, lat: from.lat }, { lon: to.long, lat: to.lat }],
+                {
+                  lineWidth: 3,
+                  lineColor: 'rgba(148, 163, 184, 0.9)',
+                  lineStyle: window.longdo.LineStyle?.Dashed ?? undefined
+                }
+              );
+              map.Overlays.add(fallbackLine);
             }
+          } catch (error) {
+            // ไม่ปล่อยให้เส้นช่วงเดียวพัง ทำให้ทั้ง loop หยุดกลางคัน — log ไว้แล้วไปวาดช่วงถัดไปต่อ
+            console.warn(`วาดเส้นช่วงจุดที่ ${from.order}-${to.order} ไม่สำเร็จ:`, error);
           }
-        );
-
-        map.Overlays.add(marker);
-      });
-
-      if (routePoints.length === 1) {
-        map.location({ lon: routePoints[0].long, lat: routePoints[0].lat }, true);
-        map.zoom(17, true);
-      } else {
-        map.bound(routePoints.map((point) => ({ lon: point.long, lat: point.lat })));
+        }
+      } catch (error) {
+        console.error('เกิดข้อผิดพลาดตอนวาดเส้นทาง:', error);
+      } finally {
+        if (!isCancelled) setIsLoadingRoute(false);
       }
-    } catch (error) {
-      console.error('เกิดข้อผิดพลาดตอนวาดเส้นทาง:', error);
     }
+
+    drawEverything();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [routePoints, isMapReady]);
 
   return (
@@ -274,6 +428,12 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
         ref={mapRef}
         style={{ width: '100%', height: '100%', borderRadius: '16px', overflow: 'hidden' }}
       />
+
+      {isLoadingRoute && (
+        <div className="rt-map-loading-overlay">
+          <Spinner text="กำลังคำนวณเส้นทางจริง..." />
+        </div>
+      )}
 
       {hoveredPoint && (
         <div

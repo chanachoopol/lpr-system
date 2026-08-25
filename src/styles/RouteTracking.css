@@ -598,3 +598,25 @@
 .rt-map-hover-card.pinned {
   border: 2px solid rgb(37, 99, 235);
 }
+.rt-map-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  border-radius: 16px;
+}
+.rt-map-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 40;
+  border-radius: 16px;
+  pointer-events: none;
+}
