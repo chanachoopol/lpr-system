@@ -510,3 +510,15 @@ export async function getTodayDashboardAPI({ villageId, latestLimit = 10 } = {})
   const response = await api.get('/api/detections/dashboard/today', { params })
   return response.data
 }
+// ==================== ONVIF Probe API ====================
+// ใช้ช่วยหา RTSP URI จากกล้องที่รองรับ ONVIF — ไม่ได้ถูกเก็บเป็น field แยกใน backend
+// ผลลัพธ์ (rtsp_uri ของ profile ที่เลือก) จะถูกเอาไปใส่ใน stream_ai ตอน create/update camera ตามปกติ
+export async function probeOnvifCameraAPI({ host, port, username, password }) {
+  const response = await api.post('/api/cameras/onvif/probe', {
+    host,
+    port,
+    username,
+    password
+  })
+  return response.data // { device_manufacturer, device_model, profiles: [{ profile_token, name, encoding, width, height, rtsp_uri }] }
+}

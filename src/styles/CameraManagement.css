@@ -492,3 +492,96 @@
   background: rgba(234, 88, 12, 0.1);
   color: rgb(234, 88, 12);
 }
+.cm-onvif-link-wrap {
+  font-size: 12.5px;
+  color: rgb(100, 116, 139);
+  margin: -6px 0 12px;
+}
+.cm-onvif-link {
+  color: rgb(37, 99, 235);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+.cm-onvif-link:hover {
+  color: rgb(29, 78, 216);
+}
+.cm-onvif-toggle {
+  margin: 4px 0 12px;
+}
+.btn-onvif-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 1px dashed var(--sidebar-bg);
+  color: var(--sidebar-bg);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+}
+.cm-onvif-panel {
+  background: rgba(37, 99, 235, 0.04);
+  border: 1px solid rgba(37, 99, 235, 0.15);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.cm-onvif-hint {
+  font-size: 12.5px;
+  color: rgb(100, 116, 139);
+  margin: 0 0 10px;
+}
+.btn-onvif-probe {
+  background: rgb(37, 99, 235);
+  color: #fff;
+  border: none;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 10px; /* 👈 เพิ่มบรรทัดนี้ เว้นจากฟอร์ม username/password ด้านบน */
+}
+.btn-onvif-probe:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.cm-onvif-device-info {
+  font-size: 12.5px;
+  color: rgb(22, 163, 74);
+  margin: 10px 0 0;
+}
+.cm-onvif-profile-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cm-onvif-profile-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+}
+.cm-onvif-profile-item:has(input:checked) {
+  border-color: rgb(37, 99, 235);
+  background: rgba(37, 99, 235, 0.06);
+}
+.cm-onvif-profile-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cm-onvif-profile-meta {
+  display: block;
+  font-size: 11.5px;
+  color: rgb(148, 163, 184);
+}
