@@ -25,7 +25,7 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import UserProfileModal from '../components/UserProfileModal'
 import ActionMenu from '../components/ActionMenu'
-import { filterVisibleUsers } from '../utils/permissions'
+import { filterVisibleUsers } from '../utils/Permissions'
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
@@ -132,6 +132,7 @@ function UserManagement() {
       // filterVisibleUsers เป็นแค่เกราะกันชั้นสอง — ตัวกรองหลักคือ selectedVillageId
       // ที่ส่งไปกับ request แล้ว (ผูกกับหมู่บ้านของ admin อัตโนมัติ)
       // เผื่อ backend มี edge case ที่ยัง enforce ไม่ครบ (known issue ที่คุยกันไว้)
+      console.log('[DEBUG] raw data.items[0]:', data.items[0])
       setUsers(filterVisibleUsers(currentUser, data.items))
       setTotal(data.total)
     } catch (error) {

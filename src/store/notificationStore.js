@@ -1,33 +1,132 @@
 import { create } from 'zustand'
 import toast from 'react-hot-toast'
+import Swal from 'sweetalert2'
 import {
   getSSEAlertsTicketAPI,
   BASE_URL,
   getNotificationsAPI,
   getUnreadNotificationCountAPI,
   markNotificationReadAPI,
-  markAllNotificationsReadAPI
+  markAllNotificationsReadAPI,
+  getAuthedImageURL,
+  getDetectionsAPI,
+  getCameraByIdAPI
 } from '../data/api'
 
 const RECONNECT_DELAY_MS = 3000
 const NOTIF_PAGE_SIZE = 20
+const MAX_BLACKLIST_QUEUE = 20 // กันคิวบวมไม่รู้จบถ้าเจอรัวๆ ผิดปกติ (เช่น backend ยิงซ้ำ)
+const BLACKLIST_LOOKUP_WINDOW_MS = 5 * 60 * 1000 // ขอบเขตย้อนหลังตอนหา detection จริงที่ตรงกับ alert (5 นาที)
 
 let eventSource = null
 let reconnectTimer = null
 let isManuallyClosed = false
 
-// แปลง ISO timestamp เป็นเวลาแบบไทย HH:MM
+// ---------- คิวของ Blacklist Alert (module-level เพราะต้อง persist ข้ามการ re-render ของทุก component) ----------
+let blacklistAlertQueue = []
+let isBlacklistAlertShowing = false
+
+function formatAlertDateTime(isoString) {
+  if (!isoString) return '-'
+  return new Date(isoString).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' })
+}
+
+// ดึงรายละเอียด detection ตัวจริงจาก backend (รูปภาพ/กล้อง/เวลา) แทนพึ่ง field ที่อาจไม่มีใน payload
+// ของ event "blacklist_alert" เอง — ใช้วิธีเดียวกับหน้า History.jsx คือกรองด้วยป้ายทะเบียน เอาผลล่าสุดมาใช้
+// ⚠️ ASSUMPTION: backend คืนผลเรียงจากใหม่ไปเก่า (สมมติฐานเดียวกับที่ Dashboard.jsx ใช้อยู่แล้วตอนดึง Recent History)
+async function fetchBlacklistDetectionDetail(alertData) {
+  try {
+    const params = {
+      license_plate: alertData.license_plate,
+      time_detect_from: new Date(Date.now() - BLACKLIST_LOOKUP_WINDOW_MS).toISOString(),
+      page: 1,
+      page_size: 1
+    }
+    if (alertData.village_id) params.village_id = alertData.village_id
+
+    const data = await getDetectionsAPI(params)
+    const detection = data.items?.[0]
+    if (!detection) return null
+
+    let cameraName = null
+    if (detection.camera_id) {
+      try {
+        const camera = await getCameraByIdAPI(detection.camera_id)
+        cameraName = camera?.name || null
+      } catch (error) {
+        console.error('โหลดชื่อกล้องสำหรับ blacklist alert ไม่สำเร็จ:', error)
+      }
+    }
+
+    return { ...detection, camera_name: cameraName }
+  } catch (error) {
+    console.error('ดึงรายละเอียด detection สำหรับ blacklist alert ไม่สำเร็จ:', error)
+    return null
+  }
+}
+
+// แสดง Blacklist Alert ทีละอันจากคิว — modal นี้ตั้งใจปิดไม่ได้ด้วยการคลิกนอกกรอบ/กด Esc
+// ต้องกด "รับทราบ" เท่านั้น เพราะเป็นการแจ้งเตือนอันตรายตามที่ตกลงกันไว้
+async function showNextBlacklistAlert() {
+  if (isBlacklistAlertShowing) return
+  const next = blacklistAlertQueue.shift()
+  if (!next) return
+
+  isBlacklistAlertShowing = true
+
+  // ไปขอรายละเอียด detection จริงจาก backend มาเสริม (รูป/ชื่อกล้อง) — ถ้าหาไม่เจอ/พลาด
+  // ก็ fallback ไปใช้ field เท่าที่ alert payload มีมาให้ (license_plate ยืนยันแล้วว่ามีแน่นอน)
+  const detail = await fetchBlacklistDetectionDetail(next)
+  const merged = { ...next, ...detail }
+
+  let imageUrl = null
+  const imageSource = merged.image_full || merged.image_crop
+  if (imageSource) {
+    try {
+      imageUrl = await getAuthedImageURL(imageSource)
+    } catch (error) {
+      console.error('โหลดรูปภาพ blacklist alert ไม่สำเร็จ:', error)
+    }
+  }
+
+  const imageHtml = imageUrl
+    ? `<img src="${imageUrl}" alt="ภาพรถที่ตรวจจับได้" style="width:100%; max-height:220px; object-fit:cover; border-radius:12px; margin-bottom:14px; border:1px solid rgba(220,38,38,0.2);" />`
+    : `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:rgba(220,38,38,0.06); border-radius:12px; margin-bottom:14px; color:rgb(148,163,184); font-size:13px;">ไม่มีรูปภาพ</div>`
+
+  Swal.fire({
+    icon: 'error',
+    title: 'พบรถต้องสงสัย (Blacklist)',
+    html: `
+      <div style="text-align:left; font-family:'DM Sans', sans-serif; font-size:14px; line-height:1.8;">
+        ${imageHtml}
+        <p><strong>ป้ายทะเบียน:</strong> ${merged.license_plate || '-'}</p>
+        <p><strong>จังหวัด:</strong> ${merged.province || '-'}</p>
+        <p><strong>กล้อง:</strong> ${merged.camera_name || '-'}</p>
+        <p><strong>เวลา:</strong> ${formatAlertDateTime(merged.time_detect)}</p>
+        ${next.reason ? `<p><strong>เหตุผล:</strong> ${next.reason}</p>` : ''}
+      </div>
+    `,
+    confirmButtonText: 'รับทราบ',
+    confirmButtonColor: 'rgb(220, 38, 38)',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showCloseButton: false,
+    width: 460,
+    customClass: { popup: 'blacklist-alert-popup' }
+  }).then(() => {
+    if (imageUrl) URL.revokeObjectURL(imageUrl)
+    isBlacklistAlertShowing = false
+    showNextBlacklistAlert()
+  })
+}
+
 function formatAlertTime(isoString) {
   if (!isoString) return '-'
   return new Date(isoString).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
 }
 
-// map action ที่ backend ส่งมา -> ไอคอน/หัวข้อที่ใช้แสดงผลในกระดิ่ง
-// action ไหนไม่รู้จัก จะ fallback ไป format string ให้อ่านง่าย (เหมือน pattern ใน Auditlog.jsx)
 const NOTIF_META = {
   blacklist_alert:            { icon: 'blacklist', title: 'Blacklist Detected' },
-  // ⚠️ ASSUMPTION: สมมติว่า field "action" ที่ backend เก็บลง notification ใช้ชื่อเดียวกับ event name ของ SSE
-  // (ตรงกับ pattern ของ 3 ตัวล่างที่เหลือ) รอ backend ยืนยัน field จริงจาก endpoint /api/notifications อีกที
   camera_verified:            { icon: 'camera',    title: 'Camera Sync Success' },
   camera_verification_failed: { icon: 'camera',    title: 'Camera Verification Failed' },
   camera_sync_failed:         { icon: 'camera',    title: 'Camera Sync Failed' },
@@ -39,8 +138,6 @@ function formatActionTitle(action) {
   return action.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 }
 
-// แปลง notification object จาก backend ให้เป็น shape ที่ Navbar ใช้แสดงผล
-// payload ยังไม่ทราบ schema แน่ชัด (ตัวอย่างที่ได้มาเป็น null) — เผื่อไว้เผื่อ backend ใส่ license_plate/camera_name มาทีหลัง
 function mapNotification(n) {
   const meta = NOTIF_META[n.action] || { icon: 'general', title: formatActionTitle(n.action) }
   return {
@@ -59,10 +156,9 @@ const useNotificationStore = create((set, get) => ({
   notifications: [],
   unreadCount: 0,
   isLoadingNotifications: false,
-  latestDetection: null, // ใช้ bump ตาราง Dashboard/Monitor แบบ real-time — ไม่เข้ากระดิ่ง
+  latestDetection: null,
   isConnected: false,
 
-  // โหลดรายการแจ้งเตือนหน้าแรกจาก backend (ของจริง มี persistence แล้ว)
   fetchNotifications: async () => {
     set({ isLoadingNotifications: true })
     try {
@@ -85,10 +181,9 @@ const useNotificationStore = create((set, get) => ({
   },
 
   connect: async () => {
-    if (eventSource) return // ต่ออยู่แล้ว ไม่ต้องเปิดซ้ำ
+    if (eventSource) return
     isManuallyClosed = false
 
-    // โหลดของเดิมที่มีอยู่แล้วใน backend ก่อน (กันกระดิ่งว่างตอนเพิ่ง login/refresh)
     get().fetchNotifications()
     get().fetchUnreadCount()
 
@@ -97,18 +192,18 @@ const useNotificationStore = create((set, get) => ({
       const es = new EventSource(`${BASE_URL}/api/sse/alerts?ticket=${ticket}`)
       eventSource = es
 
-      es.addEventListener('ping', () => {
-        // keep-alive event ทุก 15 วิ ไม่ต้องทำอะไร แค่กัน error handler ไม่ตีความผิด
-      })
+      es.addEventListener('ping', () => {})
 
-      // รถถูกตรวจจับใหม่ — bump ตารางเสมอ, whitelist ค่อย toast + refetch กระดิ่ง
       es.addEventListener('detection_created', (e) => {
         try {
           const data = JSON.parse(e.data)
           set({ latestDetection: data })
 
           if (data.is_whitelist) {
-            toast.success(`Whitelist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`)
+            toast.success(
+              `Whitelist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`,
+              { icon: '🏠', duration: 6000 }
+            )
             get().fetchNotifications()
             get().fetchUnreadCount()
           }
@@ -117,11 +212,16 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
-      // ตรงกับ blacklist — toast ทันที แล้ว refetch จาก backend (แหล่งข้อมูลจริงตอนนี้)
+      // Blacklist — toast แจ้งเตือนแบบเดิม + modal บล็อกหน้าจอพร้อมรูปถ่าย (ดึงจาก getDetectionsAPI จริง)
       es.addEventListener('blacklist_alert', (e) => {
         try {
           const data = JSON.parse(e.data)
           toast.error(`Blacklist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`)
+
+          if (blacklistAlertQueue.length < MAX_BLACKLIST_QUEUE) {
+            blacklistAlertQueue.push(data)
+            showNextBlacklistAlert()
+          }
         } catch (err) {
           console.error('parse blacklist_alert error:', err)
         } finally {
@@ -130,7 +230,6 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
-      // sync/verify กล้องสำเร็จ — คู่กับ camera_verification_failed ด้านล่าง
       es.addEventListener('camera_verified', (e) => {
         try {
           const data = JSON.parse(e.data)
@@ -162,7 +261,6 @@ const useNotificationStore = create((set, get) => ({
         set({ isConnected: false })
         es.close()
         eventSource = null
-        // reconnect เองถ้าไม่ได้ถูกสั่งปิดตรงๆ (เช่น logout) — ticket ใช้ครั้งเดียว ต้องขอใหม่ทุกครั้งที่ reconnect
         if (!isManuallyClosed) {
           reconnectTimer = setTimeout(() => get().connect(), RECONNECT_DELAY_MS)
         }
@@ -185,7 +283,6 @@ const useNotificationStore = create((set, get) => ({
     set({ isConnected: false })
   },
 
-  // optimistic update ก่อน แล้วค่อยยิง API จริง — กด UI ตอบสนองทันที
   markAllRead: async () => {
     set((state) => ({
       notifications: state.notifications.map((n) => ({ ...n, read: true })),
@@ -211,9 +308,10 @@ const useNotificationStore = create((set, get) => ({
     }
   },
 
-  // เรียกตอน logout — เคลียร์ notification ของ user เก่า กัน user คนถัดไปเห็นข้อมูลค้าง
   reset: () => {
     get().disconnect()
+    blacklistAlertQueue = []
+    isBlacklistAlertShowing = false
     set({ notifications: [], unreadCount: 0, latestDetection: null })
   }
 }))

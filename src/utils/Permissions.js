@@ -7,18 +7,13 @@
 export function canViewUserProfile(currentUser, targetUser) {
   if (!currentUser || !targetUser) return false
 
-  // currentUser มาจาก authStore (login response) → key เป็น 'id' เสมอ
-  // targetUser มาจาก /api/contacts (list หรือ detail) → key เป็น 'user_id'
   const targetId = targetUser.user_id ?? targetUser.id
 
-  // ดูของตัวเองได้เสมอ ไม่ว่า role ไหน
   if (currentUser.id === targetId) return true
 
   if (currentUser.role === 'superadmin') return true
 
   if (currentUser.role === 'admin') {
-    // village_id เป็น null ได้ (เช่น superadmin ไม่สังกัดหมู่บ้าน)
-    // admin ปกติต้องมี village_id เสมอ แต่กันไว้เผื่อ data ผิดปกติ
     return (
       currentUser.village_id !== null &&
       currentUser.village_id === targetUser.village_id
@@ -28,21 +23,28 @@ export function canViewUserProfile(currentUser, targetUser) {
   return false
 }
 
-// ใช้กรอง list ก่อน render ตาราง — เป็นการป้องกันชั้น frontend
-// (ชั่วคราว จนกว่า backend จะ enforce village_id filtering ที่ endpoint จริง)
-// ⚠️ นี่คือ UI-level protection เท่านั้น ไม่ใช่ security fix จริง
-// เพราะคนที่เปิด devtools เรียก API ตรงๆ ยังเห็นข้อมูลได้ถ้า backend ไม่กรอง
+// ⚠️ TEMPORARY FIX (2026-08-25):
+// GET /api/users ไม่ส่ง field village_id กลับมาใน response ของแต่ละ user object
+// (ยืนยันจาก DevTools — response มีแค่ id, username, role, is_active, is_verify, created_at)
+// ทำให้ filter เดิม (เทียบ u.village_id === currentUser.village_id) กรองทุกคนออกหมด
+// เพราะ u.village_id เป็น undefined เสมอ
+//
+// เนื่องจาก fetchUsers() ใน UserManagement.jsx ส่ง villageId: selectedVillageId
+// ไปให้ backend กรองอยู่แล้วตอนเรียก getUsersAPI(...) จึงเชื่อใจ backend ไปก่อน
+// และข้าม frontend-level filter ชั่วคราว จนกว่า backend จะเพิ่ม village_id
+// ใน response ของ /api/users แล้วค่อยเปิด filter นี้กลับมาใช้
+//
+// TODO: แจ้ง backend ให้เพิ่ม village_id ใน response ของ GET /api/users
+//       แล้ว revert filter ด้านล่างกลับไปเป็นแบบเดิม (เทียบ village_id ตรงๆ)
 export function filterVisibleUsers(currentUser, userList) {
   if (!currentUser || !Array.isArray(userList)) return []
 
   if (currentUser.role === 'superadmin') return userList
 
   if (currentUser.role === 'admin') {
-    return userList.filter(
-      (u) => currentUser.village_id !== null && u.village_id === currentUser.village_id
-    )
+    // เชื่อใจ backend ว่ากรองตาม villageId param ให้แล้ว — ไม่กรองซ้ำ
+    return userList
   }
 
-  // user ทั่วไปไม่ควรเห็นหน้านี้อยู่แล้ว (ควรกันด้วย route guard ต่างหาก)
   return userList.filter((u) => (u.user_id ?? u.id) === currentUser.id)
 }
