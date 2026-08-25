@@ -65,7 +65,7 @@ function RouteTracking() {
 
   const defaultDateFrom = useMemo(() => {
     const date = new Date(today);
-    date.setDate(date.getDate() - 30);
+    date.setDate(date.getDate() - 14);
     return date;
   }, [today]);
 

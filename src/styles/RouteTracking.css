@@ -490,3 +490,100 @@
   background: #f1f5f9;
   color: #64748b;
 }
+/* ---------- Hover Card บนแผนที่ (แทน popup ของ Longdo ที่ปิดไม่ได้) ---------- */
+.rt-map-hover-card {
+  position: absolute;
+  z-index: 50;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 30px rgba(27, 42, 71, 0.18);
+  pointer-events: none; /* กันการ์ดบัง mouseout ของหมุด */
+  animation: rtMapCardFadeIn 0.15s ease;
+}
+
+@keyframes rtMapCardFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rt-map-hover-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.rt-map-hover-card-order {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.1);
+  color: rgb(37, 99, 235);
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rt-map-hover-card-title {
+  font-size: 14px;
+  color: #1b2a47;
+  line-height: 1.3;
+}
+
+.rt-map-hover-card-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.rt-map-hover-card-row span:last-child {
+  color: #1b2a47;
+  font-weight: 500;
+  text-align: right;
+}
+
+.rt-map-hover-card-label {
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.rt-map-hover-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-top: 4px;
+}
+
+.rt-map-hover-card-badge.entry {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.rt-map-hover-card-badge.exit {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.rt-map-hover-card-badge.unknown {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.rt-map-hover-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
