@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
 
 const LONGDO_API_KEY = '77b3dd6ca1af611860ee1d100bc5d530';
 const CARD_WIDTH = 260;
-const CARD_GAP = 12; // ระยะห่างระหว่างหมุดกับการ์ด
+const CARD_GAP = 12;
+const FOCUS_ANIMATION_DELAY_MS = 350; // เผื่อเวลา map.location/zoom animate เสร็จก่อนคำนวณตำแหน่งการ์ด
 
-function RouteMap({ routePoints = [] }) {
+const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const [isMapReady, setIsMapReady] = useState(false);
 
-  // hoveredPoint = { point, style: {top, left} } | null
+  // hoveredPoint = { point, style: {top, left}, pinned? } | null
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
   /*
@@ -53,7 +54,7 @@ function RouteMap({ routePoints = [] }) {
         setIsMapReady(true);
       });
 
-      // ปิดการ์ด hover ตอน pan/zoom เหมือน Map.jsx
+      // ปิดการ์ด (ทั้ง hover และ pinned) ตอน pan/zoom ด้วยมือ — เหมือน Map.jsx
       try {
         map.Event.bind('location', () => setHoveredPoint(null));
         map.Event.bind('zoom', () => setHoveredPoint(null));
@@ -91,7 +92,7 @@ function RouteMap({ routePoints = [] }) {
     };
   }, []);
 
-  // คำนวณตำแหน่งการ์ด — ลอยไปทาง "บน-ขวา" ของหมุดที่ hover พร้อม clamp กันล้นกรอบ container
+  // คำนวณตำแหน่งการ์ด — ลอยไปทาง "บน-ขวา" ของหมุด พร้อม clamp กันล้นกรอบ container
   const computeCardPosition = useCallback((pinEl) => {
     const container = mapRef.current;
     if (!container || !pinEl) return null;
@@ -100,25 +101,50 @@ function RouteMap({ routePoints = [] }) {
     const pinRect = pinEl.getBoundingClientRect();
 
     let left = pinRect.right - containerRect.left + CARD_GAP;
-    let top = pinRect.top - containerRect.top - 8; // เยื้องขึ้นเล็กน้อยจากหัวหมุด
+    let top = pinRect.top - containerRect.top - 8;
 
-    // ถ้าล้นขอบขวา ให้สลับไปโผล่ทางซ้ายของหมุดแทน
     if (left + CARD_WIDTH > containerRect.width) {
       left = pinRect.left - containerRect.left - CARD_WIDTH - CARD_GAP;
     }
-    // กันหลุดขอบบน
     if (top < 8) top = 8;
-    // กันหลุดขอบล่าง (ประมาณความสูงการ์ด ~180px เพราะฟิลด์เยอะกว่า Dashboard)
     if (top + 180 > containerRect.height) {
       top = containerRect.height - 180 - 8;
     }
-    // กันหลุดขอบซ้ายกรณี container แคบมาก
     if (left < 8) left = 8;
 
     return { top, left };
   }, []);
 
-  // Event delegation: ผูกที่ container ครั้งเดียว แทนการพึ่ง popup ของ Longdo (ปิดไม่ได้ + คุมดีไซน์เองไม่ได้)
+  // เปิดเมธอด focusPoint ให้ RouteTracking.jsx สั่งจาก timeline ได้ — ไม่ใส่ dep array
+  // เพื่อให้ closure จับค่า routePoints ล่าสุดเสมอ (recreate ทุก render เหมือน useEffect ไม่มี deps)
+  useImperativeHandle(ref, () => ({
+    focusPoint(pointId) {
+      const map = mapInstanceRef.current;
+      if (!map) return;
+
+      const point = routePoints.find(
+        (p) => String(p.id ?? p.detectionId) === String(pointId)
+      );
+      if (!point) return;
+
+      map.location({ lon: point.long, lat: point.lat }, true);
+      map.zoom(18, true);
+
+      // รอ map animate เสร็จก่อน แล้วค่อยเปิดการ์ดค้างไว้ (pinned) ที่ตำแหน่งใหม่ของหมุด
+      setTimeout(() => {
+        const selector = `[data-route-point-id="${
+          window.CSS && CSS.escape ? CSS.escape(String(pointId)) : pointId
+        }"]`;
+        const pinEl = mapRef.current?.querySelector(selector);
+        if (!pinEl) return;
+
+        const style = computeCardPosition(pinEl);
+        if (style) setHoveredPoint({ point, style, pinned: true });
+      }, FOCUS_ANIMATION_DELAY_MS);
+    }
+  }));
+
+  // Event delegation: hover ปกติ — จะมาแทนที่การ์ด pinned ถ้ามีอยู่ก่อน
   useEffect(() => {
     const container = mapRef.current;
     if (!container) return;
@@ -139,7 +165,8 @@ function RouteMap({ routePoints = [] }) {
       const pinEl = e.target.closest('[data-route-point-id]');
       if (!pinEl) return;
       if (pinEl.contains(e.relatedTarget)) return;
-      setHoveredPoint(null);
+      // การ์ดที่ pinned ไว้จาก focusPoint ไม่ถูกปิดจาก mouseout ธรรมดา (ผู้ใช้ไม่ได้ hover มันอยู่)
+      setHoveredPoint((prev) => (prev?.pinned ? prev : null));
     }
 
     container.addEventListener('mouseover', handleMouseOver);
@@ -165,17 +192,12 @@ function RouteMap({ routePoints = [] }) {
 
     try {
       map.Overlays.clear();
-      setHoveredPoint(null); // เปลี่ยนชุดจุด → เคลียร์การ์ดค้าง
+      setHoveredPoint(null);
 
       if (routePoints.length === 0) {
         return;
       }
 
-      /*
-       * ============================
-       * Draw Line
-       * ============================
-       */
       if (routePoints.length > 1) {
         const line = new window.longdo.Polyline(
           routePoints.map((point) => ({
@@ -191,13 +213,6 @@ function RouteMap({ routePoints = [] }) {
         map.Overlays.add(line);
       }
 
-      /*
-       * ============================
-       * Draw Marker
-       * ============================
-       * ไม่ใส่ title / popup ให้ Longdo อีกต่อไป — ใช้ React overlay การ์ดของเราเองแทน
-       * (title เดิมทำให้เกิด native tooltip ซ้อนกับการ์ด, popup เดิมกดปิดไม่ได้)
-       */
       routePoints.forEach((point) => {
         const isFirst = point.order === 1;
         const isLast = point.order === routePoints.length;
@@ -242,11 +257,6 @@ function RouteMap({ routePoints = [] }) {
         map.Overlays.add(marker);
       });
 
-      /*
-       * ============================
-       * Fit Map
-       * ============================
-       */
       if (routePoints.length === 1) {
         map.location({ lon: routePoints[0].long, lat: routePoints[0].lat }, true);
         map.zoom(17, true);
@@ -267,7 +277,7 @@ function RouteMap({ routePoints = [] }) {
 
       {hoveredPoint && (
         <div
-          className="rt-map-hover-card"
+          className={`rt-map-hover-card ${hoveredPoint.pinned ? 'pinned' : ''}`}
           style={{ top: hoveredPoint.style.top, left: hoveredPoint.style.left, width: CARD_WIDTH }}
         >
           <div className="rt-map-hover-card-header">
@@ -310,6 +320,6 @@ function RouteMap({ routePoints = [] }) {
       )}
     </div>
   );
-}
+});
 
 export default RouteMap;

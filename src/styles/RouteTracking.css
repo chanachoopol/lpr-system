@@ -587,3 +587,14 @@
   border-radius: 50%;
   background: currentColor;
 }
+.rt-timeline-item {
+  cursor: pointer;
+}
+
+.rt-timeline-item:hover {
+  background: rgba(27, 42, 71, 0.03);
+}
+
+.rt-map-hover-card.pinned {
+  border: 2px solid rgb(37, 99, 235);
+}

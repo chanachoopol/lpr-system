@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams,useNavigate } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
-import { FaXmark, FaPalette } from 'react-icons/fa6'
+import { FaXmark, FaPalette, FaRoute } from 'react-icons/fa6'
 import Layout from '../components/Layout'
 import { getDetectionsAPI, getCamerasAPI, getAuthedImageURL } from '../data/api'
 import useAuthStore from '../store/authStore'
@@ -30,6 +30,13 @@ function formatTime(isoString) {
     second: '2-digit'
   })
 }
+// แปลง Date เป็น YYYY-MM-DD ตามเวลาท้องถิ่น (ไม่ใช้ toISOString เพราะจะเพี้ยน timezone — pattern เดียวกับ Dashboard.jsx/Report.jsx)
+function toDateParam(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
 
 // คำนวณว่าจะโชว์เลขหน้าไหนบ้าง (จำกัดไม่ให้ยาวเกินไปเวลามีหลายสิบหน้า)
 // เช่น อยู่หน้า 8 จาก 27 หน้า จะโชว์ [7, 8, 9, 10] แทนที่จะโชว์ 1-27 ทั้งหมด
@@ -50,6 +57,7 @@ function History() {
   const { user } = useAuthStore()
   const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const [cameras, setCameras] = useState([])
   const [searchInput, setSearchInput] = useState('')
@@ -205,6 +213,15 @@ function History() {
     if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
     if (modalImages.full) URL.revokeObjectURL(modalImages.full)
     setSelectedItem(null)
+  }
+  function handleGoToRouteTracking(item) {
+    if (!item) return
+    const params = new URLSearchParams({
+      plate: item.license_plate || '',
+      province: item.province || '',
+      date: toDateParam(new Date(item.time_detect))
+    })
+    navigate(`/route-tracking?${params.toString()}`)
   }
 
   return (
@@ -377,12 +394,22 @@ function History() {
       {selectedItem && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+            {/* ใหม่ */}
+          <div className="modal-header">
+            <div className="modal-header-left">
               <h3>Vehicle Detail</h3>
-              <button className="modal-close" onClick={closeModal}>
-                <FaXmark />
+              <button
+                type="button"
+                className="btn-route-tracking"
+                onClick={() => handleGoToRouteTracking(selectedItem)}
+              >
+                <FaRoute /> Route Tracking
               </button>
             </div>
+            <button className="modal-close" onClick={closeModal}>
+              <FaXmark />
+            </button>
+          </div>
             <div className="modal-body">
               <div className="modal-img-section">
                 <div className="modal-img-placeholder">

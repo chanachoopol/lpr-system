@@ -440,3 +440,81 @@
   max-height: 100%;
   object-fit: contain;
 }
+.modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-route-tracking {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  /* ใช้สีหลักแบบโปร่งใส (8%) เป็นพื้นหลังตอนปกติ */
+  background: rgba(27, 42, 71, 0.08); 
+  /* สีหลักที่คุณกำหนด */
+  color: rgb(27, 42, 71); 
+  border: none;
+  /* ลดความมนลง เปลี่ยนจากแคปซูลเป็นสี่เหลี่ยมขอบมน */
+  border-radius: 109px; 
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  
+  position: relative;
+  overflow: hidden;
+  /* ปรับ Transition ให้ช้าลงและนุ่มนวลขึ้น (0.4 วินาที) */
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* เอฟเฟกต์เมื่อเอาเมาส์ชี้ */
+.btn-route-tracking:hover {
+  /* เปลี่ยนพื้นหลังเป็นสีหลักทึบ */
+  background: rgb(27, 42, 71);
+  color: rgb(255, 255, 255);
+  transform: translateY(-2px);
+  /* เงาใช้โทนสีหลักให้เข้าชุดกัน */
+  box-shadow: 0 4px 12px rgba(27, 42, 71, 0.25);
+}
+
+/* เอฟเฟกต์เมื่อกดคลิก */
+.btn-route-tracking:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 4px rgba(27, 42, 71, 0.15);
+}
+
+/* แอนิเมชันแสงวิ่งพาดปุ่ม */
+.btn-route-tracking::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.15), 
+    transparent
+  );
+  /* ปรับให้แสงวิ่งช้าลง (0.7 วินาที) */
+  transition: all 0.9s ease-in-out;
+}
+
+.btn-route-tracking:hover::after {
+  left: 100%;
+}
+
+/* (ออปชันเสริม) ถ้ามี Icon ขยับช้าลงให้สัมพันธ์กับปุ่ม */
+.btn-route-tracking svg, 
+.btn-route-tracking i {
+  transition: transform 0.4s ease;
+}
+
+.btn-route-tracking:hover svg,
+.btn-route-tracking:hover i {
+  transform: translateX(2px) scale(1.1);
+}

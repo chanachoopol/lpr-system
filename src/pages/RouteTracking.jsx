@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo,useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FaSearch, FaCalendarAlt, FaArrowLeft } from 'react-icons/fa';
 import { FaCar, FaRoute, FaMapLocationDot } from 'react-icons/fa6';
@@ -78,6 +78,7 @@ function RouteTracking() {
 
   const [vehicleGroups, setVehicleGroups] = useState([]);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const routeMapRef = useRef(null);
 
   const runSearch = useCallback(
     async (queryValue, rangeFrom, rangeTo) => {
@@ -90,7 +91,7 @@ function RouteTracking() {
           text: 'ต้องระบุป้ายทะเบียนก่อนค้นหา',
           confirmButtonColor: 'var(--sidebar-bg)'
         });
-        return;
+        return [];
       }
 
       const from = rangeFrom !== undefined ? rangeFrom : dateFrom;
@@ -187,6 +188,7 @@ function RouteTracking() {
           });
 
         setVehicleGroups(groups);
+        return groups;
       } catch (error) {
         console.error('Route Tracking API Error:', error);
 
@@ -200,6 +202,7 @@ function RouteTracking() {
         });
 
         setVehicleGroups([]);
+        return [];
       } finally {
         setIsSearching(false);
       }
@@ -207,13 +210,54 @@ function RouteTracking() {
     [queryInput, dateFrom, dateTo, selectedVillageId]
   );
 
-  useEffect(() => {
+  // ใหม่
+useEffect(() => {
     const queryFromURL = searchParams.get('plate');
+    const provinceFromURL = searchParams.get('province');
+    const dateFromURL = searchParams.get('date'); // รูปแบบ YYYY-MM-DD
 
-    if (queryFromURL) {
-      setQueryInput(queryFromURL);
-      runSearch(queryFromURL, defaultDateFrom, today);
+    if (!queryFromURL) return;
+
+    setQueryInput(queryFromURL);
+
+    // มาจากปุ่ม "ดูเส้นทาง" ใน History พร้อม date — ปรับช่วงวันที่ให้ครอบคลุมวันนั้นแน่ๆ
+    // แทนที่จะพึ่ง default 14 วัน ซึ่งอาจไม่ครอบคลุมถ้า detection เก่ากว่านั้น
+    let searchFrom = defaultDateFrom;
+    let searchTo = today;
+
+    if (dateFromURL) {
+      const targetDate = new Date(`${dateFromURL}T00:00:00`);
+      searchFrom = new Date(targetDate);
+      searchFrom.setDate(searchFrom.getDate() - 3);
+      searchTo = new Date(targetDate);
+      searchTo.setDate(searchTo.getDate() + 3);
+      if (searchTo > today) searchTo = today;
+
+      setDateFrom(searchFrom);
+      setDateTo(searchTo);
     }
+
+    runSearch(queryFromURL, searchFrom, searchTo).then((groups) => {
+      if (!provinceFromURL || !dateFromURL) return; // ข้อมูลไม่พอจะ auto-select แค่โชว์ list ปกติ
+
+      // ⚠️ ASSUMPTION: group.date มาจาก dateKeyOf()/dateGroup.date ของ backend ซึ่งควรเป็น
+      // รูปแบบ YYYY-MM-DD เดียวกับที่ History.jsx ส่งมา (toDateParam) — ถ้า backend ส่งคนละ format
+      // ต้องปรับจุดนี้ให้ normalize ก่อนเทียบ
+      const matchedGroup = groups.find(
+        (g) => g.province === provinceFromURL && g.date === dateFromURL
+      );
+
+      if (matchedGroup) {
+        handleSelectVehicle(matchedGroup);
+      } else {
+        Swal.fire({
+          icon: 'info',
+          title: 'ไม่พบข้อมูลที่ตรงกัน',
+          text: 'กรุณาเลือกจากรายการด้านล่าง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        });
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -549,8 +593,8 @@ function RouteTracking() {
 
                 <div className="rt-map-wrap">
                   {routePoints.length > 0 ? (
-                    <RouteMap routePoints={routePoints} />
-                  ) : (
+                  <RouteMap ref={routeMapRef} routePoints={routePoints} />
+                ) : (
                     <EmptyState
                       icon={<FaRoute />}
                       title="ไม่มีข้อมูลตำแหน่งกล้อง"
@@ -620,7 +664,8 @@ function RouteTracking() {
                     const direction = item.direction;
 
                     return (
-                      <div key={item.detection_id} className="rt-timeline-item">
+                      <div key={item.detection_id} className="rt-timeline-item"
+                      onClick={() => routeMapRef.current?.focusPoint(item.detection_id)}>
                         <div className="rt-timeline-marker">{index + 1}</div>
 
                         <div
