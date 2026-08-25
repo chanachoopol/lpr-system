@@ -500,3 +500,13 @@ export async function getCameraStreamTokenAPI(cameraId) {
   const res = await api.get(`/api/cameras/${cameraId}/stream-token`)
   return res.data
 }
+// ==================== Dashboard Today API ====================
+// รวม stat + latest_detections ในเรียกเดียว — แทนที่ getReportDailyAPI + getDetectionsAPI
+// ที่หน้า Dashboard.jsx เคยยิงแยกกัน 2 รอบ
+export async function getTodayDashboardAPI({ villageId, latestLimit = 10 } = {}) {
+  const params = { latest_limit: latestLimit }
+  if (villageId) params.village_id = villageId
+
+  const response = await api.get('/api/detections/dashboard/today', { params })
+  return response.data
+}

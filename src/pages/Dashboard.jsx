@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Layout from '../components/Layout'
 import MapView from '../components/Map'
-import { getReportDailyAPI, getDetectionsAPI, getCameraListAPI, getAuthedImageURL } from '../data/api'
+import { getTodayDashboardAPI, getCameraListAPI, getAuthedImageURL } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import useNotificationStore from '../store/notificationStore'
@@ -41,29 +41,7 @@ function Dashboard() {
   const { selectedVillageId } = useVillageStore()
   const latestDetection = useNotificationStore((state) => state.latestDetection)
 
-  // ---------- Stat Cards ----------
-  const [dailyData, setDailyData] = useState(null)
-  const [isLoadingStats, setIsLoadingStats] = useState(true)
-
-  const fetchStats = useCallback(async () => {
-    if (!user) return
-    setIsLoadingStats(true)
-    try {
-      const data = await getReportDailyAPI({
-        villageId: selectedVillageId || undefined,
-        date: toDateParam(new Date())
-      })
-      setDailyData(data)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setIsLoadingStats(false)
-    }
-  }, [user, selectedVillageId])
-
-  useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+  
 
   // ---------- Camera Map ----------
   const [cameras, setCameras] = useState([])
@@ -96,31 +74,34 @@ function Dashboard() {
     return cam ? cam.name : '-'
   }
 
-  // ---------- Recent History ----------
-  const [history, setHistory] = useState([])
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  // ---------- Stat Cards + Recent History (endpoint เดียว) ----------
+const [dailyData, setDailyData] = useState(null)
+const [isLoadingStats, setIsLoadingStats] = useState(true)
+const [history, setHistory] = useState([])
+const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
-  const fetchRecentHistory = useCallback(async () => {
-    if (!user) return
-    setIsLoadingHistory(true)
-    try {
-      const data = await getDetectionsAPI({
-        village_id: selectedVillageId || undefined,
-        page: 1,
-        page_size: RECENT_HISTORY_LIMIT
-      })
-      setHistory(data.items)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setIsLoadingHistory(false)
-    }
-  }, [user, selectedVillageId])
+const fetchDashboard = useCallback(async () => {
+  if (!user) return
+  setIsLoadingStats(true)
+  setIsLoadingHistory(true)
+  try {
+    const data = await getTodayDashboardAPI({
+      villageId: selectedVillageId || undefined,
+      latestLimit: 10
+    })
+    setDailyData(data)
+    setHistory(data.latest_detections || [])
+  } catch (error) {
+    console.error(error)
+  } finally {
+    setIsLoadingStats(false)
+    setIsLoadingHistory(false)
+  }
+}, [user, selectedVillageId])
 
-  useEffect(() => {
-    fetchRecentHistory()
-  }, [fetchRecentHistory])
-
+useEffect(() => {
+  fetchDashboard()
+}, [fetchDashboard])
   // bump รถที่ตรวจจับล่าสุดขึ้นบนสุดตาราง แบบ real-time ผ่าน SSE
   useEffect(() => {
     if (!latestDetection) return
@@ -132,16 +113,16 @@ function Dashboard() {
     }
 
     setHistory((prev) => {
-      if (prev.some((item) => item.id === latestDetection.detection_id)) return prev // กันซ้ำตอน reconnect
-      const newItem = {
-        id: latestDetection.detection_id,
-        time_detect: latestDetection.time_detect,
-        license_plate: latestDetection.license_plate,
-        province: latestDetection.province,
-        color: latestDetection.color
-      }
-      return [newItem, ...prev].slice(0, RECENT_HISTORY_LIMIT)
-    })
+  if (prev.some((item) => item.id === latestDetection.detection_id)) return prev
+  const newItem = {
+    id: latestDetection.detection_id,
+    time_detect: latestDetection.time_detect,
+    license_plate: latestDetection.license_plate,
+    province: latestDetection.province,
+    color: latestDetection.color
+  }
+  return [newItem, ...prev].slice(0, 10) // 👈 เดิมใช้ RECENT_HISTORY_LIMIT ตอนนี้ hardcode ให้ตรงกับ latestLimit ที่ยิงไป
+})
   }, [latestDetection, selectedVillageId])
 
   // ---------- Modal ดูรายละเอียด/รูปภาพ (pattern เดียวกับ History.jsx) ----------
@@ -198,25 +179,25 @@ function Dashboard() {
           <div className="stat-card">
             <p className="stat-label">จำนวนรถที่เข้าวันนี้</p>
             <h2 className="stat-val blue">
-              {isLoadingStats ? '—' : (dailyData?.total_detections ?? 0).toLocaleString()}
+              {isLoadingStats ? '—' : (dailyData?.entry_detections_today ?? 0).toLocaleString()}
             </h2>
           </div>
           <div className="stat-card">
-            <p className="stat-label">จำนวนป้ายทะเบียนไม่ซ้ำกัน</p>
+            <p className="stat-label">จำนวนรถที่ออกวันนี้</p>
             <h2 className="stat-val green">
-              {isLoadingStats ? '—' : (dailyData?.unique_plates ?? 0).toLocaleString()}
+              {isLoadingStats ? '—' : (dailyData?.exit_detections_today ?? 0).toLocaleString()}
             </h2>
           </div>
           <div className="stat-card">
             <p className="stat-label">Whitelist Today</p>
             <h2 className="stat-val green">
-              {isLoadingStats ? '—' : (dailyData?.whitelist_detections ?? 0).toLocaleString()}
+              {isLoadingStats ? '—' : (dailyData?.whitelist_detections_today ?? 0).toLocaleString()}
             </h2>
           </div>
           <div className="stat-card">
             <p className="stat-label">Blacklist Today</p>
             <h2 className="stat-val red">
-              {isLoadingStats ? '—' : (dailyData?.blacklist_detections ?? 0).toLocaleString()}
+              {isLoadingStats ? '—' : (dailyData?.blacklist_detections_today ?? 0).toLocaleString()}
             </h2>
           </div>
         </div>
