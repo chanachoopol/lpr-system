@@ -13,6 +13,8 @@ import {
 import '../styles/Blacklist.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
+import ProvinceAutocomplete from '../components/ProvinceAutocomplete'
+import { isValidThaiProvince } from '../data/thaiProvinces'
 
 const MANAGE_ROLES = ['user', 'admin', 'superadmin']
 const SEARCH_DEBOUNCE_MS = 400
@@ -243,14 +245,25 @@ function Blacklist() {
 
     if (isBlacklistTab) {
       if (!formData.plate.trim() || !formData.province.trim() || !formData.reason.trim()) {
-        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Please fill in all fields.', confirmButtonColor: '#3b82f6' })
+        Swal.fire({ icon: 'error', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณากรอกป้ายทะเบียน, จังหวัด และเหตุผลให้ครบทุกช่อง', confirmButtonColor: '#3b82f6' })
         return
       }
     } else {
       if (!formData.plate.trim() || !formData.province.trim() || !formData.name.trim()) {
-        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'กรุณากรอกป้ายทะเบียน, จังหวัด และชื่อ', confirmButtonColor: '#3b82f6' })
+        Swal.fire({ icon: 'error', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณากรอกป้ายทะเบียน, จังหวัด และชื่อให้ครบทุกช่อง', confirmButtonColor: '#3b82f6' })
         return
       }
+    }
+
+    // บังคับเลือกจังหวัดจาก dropdown เท่านั้น กันผู้ใช้พิมพ์ชื่อจังหวัดผิดพลาด/สะกดผิด
+    if (!isValidThaiProvince(formData.province)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'จังหวัดไม่ถูกต้อง',
+        text: 'กรุณาเลือกจังหวัดจากรายการตัวเลือกที่มีให้เท่านั้น ไม่สามารถพิมพ์เองได้',
+        confirmButtonColor: '#3b82f6'
+      })
+      return
     }
 
     if (!editingEntry && !selectedVillageId) {
@@ -529,7 +542,12 @@ function Blacklist() {
               </div>
               <div className="bl-add-field">
                 <label>Province</label>
-                <input type="text" name="province" placeholder="เช่น นครปฐม" value={formData.province} onChange={handleFormChange} />
+                <ProvinceAutocomplete
+                  name="province"
+                  value={formData.province}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, province: value }))}
+                  placeholder="เช่น นครปฐม, เบตง"
+                />
               </div>
 
               {isBlacklistTab ? (

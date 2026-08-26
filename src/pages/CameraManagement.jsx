@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FaVideo, FaSearch } from 'react-icons/fa'
-import { FaCirclePlus, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation, FaWifi } from 'react-icons/fa6'
+import { FaCirclePlus, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/CameraManagement.css'
@@ -16,8 +16,7 @@ import {
   deleteCameraAPI,
   resyncAllCamerasAPI,
   resyncCameraAiVisionAPI,
-  getCameraStatusAPI,
-  probeOnvifCameraAPI
+  getCameraStatusAPI
 } from '../data/api'
 
 // หมายเหตุ field ของ backend: lat/long (ไม่ใช่ lon), ไม่มี status online/offline
@@ -29,9 +28,6 @@ const DIRECTION_LABELS = {
   entry: 'ขาเข้า',
   exit: 'ขาออก'
 }
-
-// ฟอร์ม ONVIF — เป็นแค่ตัวช่วยหา RTSP URI ไม่ใช่ field ที่ backend เก็บถาวร (session state เท่านั้น)
-const EMPTY_ONVIF_FORM = { host: '', port: 80, username: '', password: '' }
 
 // แปลง ISO timestamp เป็นวันที่ + เวลาแบบไทย (ใช้กับ ai_vision_synced_at)
 function formatSyncedAt(isoString) {
@@ -86,14 +82,6 @@ function CameraManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResyncingAll, setIsResyncingAll] = useState(false)
-
-  // ---------- ONVIF Probe (ตัวช่วยหา RTSP) ----------
-  const [showOnvifPanel, setShowOnvifPanel] = useState(false)
-  const [onvifForm, setOnvifForm] = useState(EMPTY_ONVIF_FORM)
-  const [isProbing, setIsProbing] = useState(false)
-  const [onvifProfiles, setOnvifProfiles] = useState([])
-  const [onvifDeviceInfo, setOnvifDeviceInfo] = useState(null)
-  const [selectedProfileToken, setSelectedProfileToken] = useState('')
 
   const latestCameraEvent = useNotificationStore((state) => state.latestCameraEvent)
 
@@ -187,78 +175,6 @@ function CameraManagement() {
     return keyword === '' || c.name.toLowerCase().includes(keyword)
   })
 
-  // ---------- ONVIF Panel Helpers ----------
-  function resetOnvifPanel() {
-    setShowOnvifPanel(false)
-    setOnvifForm(EMPTY_ONVIF_FORM)
-    setOnvifProfiles([])
-    setOnvifDeviceInfo(null)
-    setSelectedProfileToken('')
-    setIsProbing(false)
-  }
-
-  function handleOnvifFormChange(e) {
-    const { name, value } = e.target
-    setOnvifForm((prev) => ({ ...prev, [name]: name === 'port' ? value.replace(/\D/g, '') : value }))
-  }
-
-  async function handleProbeOnvif() {
-    if (!onvifForm.host.trim()) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'กรุณากรอก Host',
-        text: 'ต้องระบุ IP หรือ Host ของกล้องก่อนค้นหา',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    setIsProbing(true)
-    setOnvifProfiles([])
-    setOnvifDeviceInfo(null)
-    setSelectedProfileToken('')
-
-    try {
-      const data = await probeOnvifCameraAPI({
-        host: onvifForm.host.trim(),
-        port: onvifForm.port ? parseInt(onvifForm.port, 10) : 80,
-        username: onvifForm.username.trim(),
-        password: onvifForm.password
-      })
-      setOnvifDeviceInfo({
-        manufacturer: data.device_manufacturer,
-        model: data.device_model
-      })
-      setOnvifProfiles(data.profiles || [])
-
-      if (!data.profiles || data.profiles.length === 0) {
-        Swal.fire({
-          icon: 'info',
-          title: 'เชื่อมต่อสำเร็จ แต่ไม่พบ Stream Profile',
-          text: 'กล้องนี้ไม่มี profile ที่ใช้งานได้ กรุณากรอก RTSP เองแทน',
-          confirmButtonColor: 'var(--sidebar-bg)'
-        })
-      }
-    } catch (error) {
-      console.error(error)
-      const backendMessage = error.response?.data?.detail
-      Swal.fire({
-        icon: 'error',
-        title: 'เชื่อมต่อ ONVIF ไม่สำเร็จ',
-        text: typeof backendMessage === 'string' ? backendMessage : 'กล้องนี้ไม่รองรับ ONVIF หรือมีปัญหาในการเชื่อมต่อ',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-    } finally {
-      setIsProbing(false)
-    }
-  }
-
-  // เลือก profile → เอา rtsp_uri มาใส่ในช่อง Stream Source หลักทันที
-  function handleSelectOnvifProfile(profile) {
-    setSelectedProfileToken(profile.profile_token)
-    setFormData((prev) => ({ ...prev, streamAi: profile.rtsp_uri }))
-  }
-
   function openAddModal() {
     setEditingCamera(null)
     setFormData({
@@ -266,7 +182,6 @@ function CameraManagement() {
       // admin ล็อกไว้ที่หมู่บ้านตัวเอง, superadmin default ตามหมู่บ้านที่กำลังดูอยู่ (เลือกใหม่ได้)
       villageId: user?.role === 'admin' ? user.village_id : (selectedVillageId || '')
     })
-    resetOnvifPanel()
     setShowFormModal(true)
   }
 
@@ -281,13 +196,7 @@ function CameraManagement() {
       isActive: camera.is_active,
       villageId: camera.village_id || ''
     })
-    resetOnvifPanel()
     setShowFormModal(true)
-  }
-
-  function closeFormModal() {
-    setShowFormModal(false)
-    resetOnvifPanel()
   }
 
   function handleFormChange(e) {
@@ -351,7 +260,7 @@ function CameraManagement() {
         })
       }
 
-      closeFormModal()
+      setShowFormModal(false)
       fetchCameras()
     } catch (error) {
       console.error(error)
@@ -624,11 +533,11 @@ function CameraManagement() {
 
       {/* Modal Add/Edit Camera */}
       {showFormModal && (
-        <div className="modal-overlay" onClick={() => !isSubmitting && closeFormModal()}>
+        <div className="modal-overlay" onClick={() => !isSubmitting && setShowFormModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editingCamera ? 'Edit Camera' : 'Add New Camera'}</h3>
-              <button className="modal-close" onClick={closeFormModal} disabled={isSubmitting}>
+              <button className="modal-close" onClick={() => setShowFormModal(false)} disabled={isSubmitting}>
                 <FaXmark />
               </button>
             </div>
@@ -688,128 +597,22 @@ function CameraManagement() {
                   />
                 </div>
               </div>
-
               <div className="cm-form-field">
-                <label>Stream Source (RTSP)</label>
+                <label>Stream Source (RTSP / AI Input)</label>
                 <input
                   type="text"
                   name="streamAi"
-                  placeholder="rtsp://username:password@ip:port/path"
+                  placeholder="rtsp://..."
                   value={formData.streamAi}
                   onChange={handleFormChange}
+                  disabled={!!editingCamera}
                 />
-                <p className="cm-description" style={{ margin: '4px 0 0' }}>
-                  ถ้ามีลิงก์ RTSP ของกล้องอยู่แล้ว กรอกตรงนี้ได้เลย หรือใช้ตัวช่วยค้นหาด้านล่างถ้าไม่ทราบลิงก์
-                </p>
-              </div>
-
-              {/* ---------- ตัวช่วย ONVIF — ค้นหา RTSP ให้อัตโนมัติ ---------- */}
-              {/* ---------- ตัวช่วย ONVIF — เป็นแค่ helper หา RTSP ไม่ใช่ field บังคับ ---------- */}
-              <p className="cm-onvif-link-wrap">
-                ไม่ทราบลิงก์ RTSP ของกล้อง?{' '}
-                <span
-                  className="cm-onvif-link"
-                  onClick={() => setShowOnvifPanel((prev) => !prev)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === 'Enter' && setShowOnvifPanel((prev) => !prev)}
-                >
-                  {showOnvifPanel ? 'ซ่อนตัวช่วยค้นหา ONVIF' : 'ค้นหา RTSP ด้วย ONVIF'}
-                </span>
-              </p>
-
-              {showOnvifPanel && (
-                <div className="cm-onvif-panel">
-                  <p className="cm-onvif-hint">
-                    กรอกข้อมูลเข้าสู่ระบบของกล้อง (ONVIF) เพื่อให้ระบบดึงลิงก์ RTSP ให้อัตโนมัติ
+                {editingCamera && (
+                  <p className="cm-description" style={{ margin: '4px 0 0' }}>
+                    ไม่สามารถแก้ไขลิงก์สตรีมของกล้องที่เพิ่มไว้แล้วได้ หากต้องการเปลี่ยนแหล่งสตรีม กรุณาลบกล้องนี้แล้วเพิ่มใหม่
                   </p>
-
-                  <div className="cm-form-row">
-                    <div className="cm-form-field">
-                      <label>Host / IP กล้อง</label>
-                      <input
-                        type="text"
-                        name="host"
-                        placeholder="เช่น 192.168.1.64"
-                        value={onvifForm.host}
-                        onChange={handleOnvifFormChange}
-                      />
-                    </div>
-                    <div className="cm-form-field">
-                      <label>Port</label>
-                      <input
-                        type="text"
-                        name="port"
-                        placeholder="80"
-                        value={onvifForm.port}
-                        onChange={handleOnvifFormChange}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="cm-form-row">
-                    <div className="cm-form-field">
-                      <label>Username</label>
-                      <input
-                        type="text"
-                        name="username"
-                        placeholder="admin"
-                        value={onvifForm.username}
-                        onChange={handleOnvifFormChange}
-                      />
-                    </div>
-                    <div className="cm-form-field">
-                      <label>Password</label>
-                      <input
-                        type="password"
-                        name="password"
-                        value={onvifForm.password}
-                        onChange={handleOnvifFormChange}
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="btn-onvif-probe"
-                    onClick={handleProbeOnvif}
-                    disabled={isProbing}
-                  >
-                    {isProbing ? 'กำลังค้นหากล้อง...' : 'ทดสอบเชื่อมต่อ / ค้นหากล้อง'}
-                  </button>
-
-                  {onvifDeviceInfo && (
-                    <p className="cm-onvif-device-info">
-                      พบกล้อง: {onvifDeviceInfo.manufacturer || 'ไม่ทราบยี่ห้อ'} {onvifDeviceInfo.model || ''}
-                    </p>
-                  )}
-
-                  {onvifProfiles.length > 0 && (
-                    <div className="cm-onvif-profile-list">
-                      <p className="cm-onvif-hint" style={{ marginBottom: 8 }}>
-                        เลือก Stream Profile ที่ต้องการใช้:
-                      </p>
-                      {onvifProfiles.map((profile) => (
-                        <label key={profile.profile_token} className="cm-onvif-profile-item">
-                          <input
-                            type="radio"
-                            name="onvifProfile"
-                            checked={selectedProfileToken === profile.profile_token}
-                            onChange={() => handleSelectOnvifProfile(profile)}
-                          />
-                          <div>
-                            <span className="cm-onvif-profile-name">{profile.name || profile.profile_token}</span>
-                            <span className="cm-onvif-profile-meta">
-                              {profile.width}×{profile.height} · {profile.encoding}
-                            </span>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
+                )}
+              </div>
               <div className="cm-form-field">
                 <label>Direction (ทิศทาง)</label>
                 <select name="direction" value={formData.direction} onChange={handleFormChange}>
@@ -836,7 +639,7 @@ function CameraManagement() {
                 <button
                   type="button"
                   className="btn-cancel-cm"
-                  onClick={closeFormModal}
+                  onClick={() => setShowFormModal(false)}
                   disabled={isSubmitting}
                 >
                   ยกเลิก

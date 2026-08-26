@@ -18,7 +18,8 @@ import {
   createContactAPI,
   createVillageAPI,
   getVillagesAPI,
-  updateVillageAPI
+  updateVillageAPI,
+  deleteVillageAPI
 } from '../data/api'
 import '../styles/UserManagement.css'
 import Spinner from '../components/Spinner'
@@ -599,6 +600,58 @@ function UserManagement() {
     }
   }
 
+  // ลบหมู่บ้านถาวร — ต่างจาก Suspend (handleToggleVillageActive) ที่แค่ปิดการใช้งานชั่วคราว
+  // ถ้าหมู่บ้านนี้ยังมี user/กล้องผูกอยู่ backend มักตอบ 409 กลับมา (เหมือน pattern handleDelete ของ user)
+  async function handleDeleteVillage(village) {
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'ยืนยันการลบหมู่บ้าน',
+      html: `ต้องการลบหมู่บ้าน <strong>${village.name}</strong> ใช่หรือไม่?<br/>การลบไม่สามารถย้อนกลับได้`,
+      showCancelButton: true,
+      confirmButtonText: 'ลบ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'rgb(220, 38, 38)',
+      cancelButtonColor: 'var(--sidebar-bg)'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      await deleteVillageAPI(village.id)
+      Swal.fire({
+        icon: 'success',
+        title: 'ลบหมู่บ้านแล้ว',
+        showConfirmButton: false,
+        timer: 1500
+      })
+      fetchVillagesList()
+      useVillageStore.getState().fetchVillages(true) // force refresh dropdown บน Navbar ด้วย
+    } catch (error) {
+      console.error(error)
+      const status = error.response?.status
+      const backendMessage = error.response?.data?.detail
+
+      // 409 = ยังมีข้อมูล (user/กล้อง) ผูกกับหมู่บ้านนี้อยู่ ลบตรงๆ ไม่ได้
+      if (status === 409) {
+        Swal.fire({
+          icon: 'error',
+          title: 'ไม่สามารถลบได้',
+          text: typeof backendMessage === 'string'
+            ? backendMessage
+            : 'หมู่บ้านนี้ยังมีผู้ใช้หรือกล้องผูกอยู่ในระบบ กรุณาย้ายหรือลบข้อมูลเหล่านั้นก่อน',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'ลบไม่สำเร็จ',
+          text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      }
+    }
+  }
+
   return (
     <Layout title="User Management">
       <div className="um-wrapper">
@@ -858,6 +911,13 @@ function UserManagement() {
                               title={v.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}
                             >
                               {v.is_active ? <FaToggleOn /> : <FaToggleOff />}
+                            </button>
+                            <button
+                              className="um-icon-btn delete"
+                              onClick={() => handleDeleteVillage(v)}
+                              title="ลบหมู่บ้าน"
+                            >
+                              <FaTrashCan />
                             </button>
                           </div>
                         </td>

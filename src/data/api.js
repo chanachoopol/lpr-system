@@ -522,3 +522,7 @@ export async function probeOnvifCameraAPI({ host, port, username, password }) {
   })
   return response.data // { device_manufacturer, device_model, profiles: [{ profile_token, name, encoding, width, height, rtsp_uri }] }
 }
+export async function deleteVillageAPI(villageId) {
+  const response = await api.delete(`/api/villages/${villageId}`)
+  return response.data
+}

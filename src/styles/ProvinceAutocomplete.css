@@ -1,0 +1,89 @@
+.pa-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.pa-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid rgba(27, 42, 71, 0.1);
+  border-radius: 12px;
+  background: var(--bg-input);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.pa-input:focus {
+  border-color: rgba(27, 42, 71, 0.3);
+  box-shadow: 0 2px 8px rgba(27, 42, 71, 0.08);
+}
+
+.pa-input:disabled {
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+.pa-input-error {
+  border-color: rgb(220, 38, 38) !important;
+  background: rgba(220, 38, 38, 0.04);
+}
+
+.pa-input-error:focus {
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15) !important;
+}
+
+.pa-error-text {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: rgb(220, 38, 38);
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* position: fixed เพราะ top/left คำนวณจาก getBoundingClientRect() ซึ่งอิง viewport
+   (dropdown ถูก portal ไปที่ document.body กัน modal ที่ overflow: hidden ตัดขอบ — ดู ProvinceAutocomplete.jsx) */
+.pa-dropdown {
+  position: fixed;
+  max-height: 220px;
+  overflow-y: auto;
+  background: rgb(255, 255, 255);
+  border: 1px solid rgba(27, 42, 71, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(27, 42, 71, 0.12);
+  z-index: 1000;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+}
+
+.pa-option {
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: rgb(27, 42, 71);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.pa-option:hover,
+.pa-option.active {
+  background: rgba(27, 42, 71, 0.06);
+}
+
+.pa-option.selected {
+  font-weight: 600;
+  color: rgb(37, 99, 235);
+}
+
+.pa-option.pa-empty {
+  color: rgb(148, 163, 184);
+  cursor: default;
+  text-align: center;
+}
+
+.pa-option.pa-empty:hover {
+  background: transparent;
+}
