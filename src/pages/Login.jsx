@@ -22,6 +22,17 @@ function Login() {
 
   async function handleSubmit(e) {
   e.preventDefault()
+
+  if (!username.trim() || !password) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'กรุณากรอกข้อมูลให้ครบ',
+      text: 'กรุณากรอก Username และ Password',
+      confirmButtonColor: 'var(--sidebar-bg)'
+    })
+    return
+  }
+
   setIsSubmitting(true)
 
   try {
