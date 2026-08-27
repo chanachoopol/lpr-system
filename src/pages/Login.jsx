@@ -10,6 +10,7 @@ import { loginAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
+import { isUsernameValid, getUsernameErrorMessage, isLoginPasswordValid, getPasswordErrorMessage } from '../utils/passwordPolicy'
 
 function Login() {
   const navigate = useNavigate()
@@ -19,19 +20,19 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [usernameError, setUsernameError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
 
   async function handleSubmit(e) {
   e.preventDefault()
 
-  if (!username.trim() || !password) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'กรุณากรอกข้อมูลให้ครบ',
-      text: 'กรุณากรอก Username และ Password',
-      confirmButtonColor: 'var(--sidebar-bg)'
-    })
-    return
-  }
+  const usernameErr = isUsernameValid(username) ? '' : getUsernameErrorMessage(username)
+  const passwordErr = isLoginPasswordValid(password) ? '' : getPasswordErrorMessage(password)
+
+  setUsernameError(usernameErr)
+  setPasswordError(passwordErr)
+
+  if (usernameErr || passwordErr) return
 
   setIsSubmitting(true)
 
@@ -100,13 +101,15 @@ function Login() {
               <div className="f-row">
                 <input
                   type="text"
-                  className="f-box"
+                  className={`f-box ${usernameError ? 'f-box-error' : ''}`}
                   placeholder="Enter your username"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  maxLength={36}
+                  onChange={(e) => { setUsername(e.target.value); setUsernameError('') }}
                   autoComplete="username"
                 />
               </div>
+              {usernameError && <p className="f-error-text">{usernameError}</p>}
             </div>
 
             <div className="f-group">
@@ -114,19 +117,18 @@ function Login() {
               <div className="f-row">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className="f-box"
+                  className={`f-box ${passwordError ? 'f-box-error' : ''}`}
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  maxLength={36}
+                  onChange={(e) => { setPassword(e.target.value); setPasswordError('') }}
                   autoComplete="current-password"
                 />
-                <span
-                    className="eye-icon"
-                    onClick={() => setShowPassword(!showPassword)}
-                    >
-                    {showPassword ? <FaEye /> : <FaEyeSlash />}
+                <span className="eye-icon" onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <FaEye /> : <FaEyeSlash />}
                 </span>
               </div>
+              {passwordError && <p className="f-error-text">{passwordError}</p>}
             </div>
 
             <div className="remember">
@@ -145,7 +147,7 @@ function Login() {
           </form>
 
           <p className="forgot">
-            Forgot password? <span onClick={() => navigate('/forgot-password')}>Reset password</span>
+            <span onClick={() => navigate('/forgot-password')}>Forgot password?</span>
           </p>
         </div>
       </motion.div>

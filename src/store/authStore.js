@@ -38,6 +38,19 @@ const useAuthStore = create((set) => ({
     }
   },
 
+  // เคลียร์ session ฝั่ง client เฉยๆ ไม่ยิง logoutAPI() ซ้ำ
+  // ใช้ตอน "ตั้งรหัสผ่านใหม่" สำเร็จจากลิงก์อีเมล (Resetpassword.jsx) — ตอนนั้น
+  // อาจไม่มี token อยู่ในเครื่องเลย (เข้ามาจากลิงก์ ไม่เคย login) หรือถ้ามี token เดิมค้างอยู่
+  // (เปิดคนละแท็บ) backend ก็ revoke ทุก session ของ user คนนั้นไปแล้วตั้งแต่ตั้งรหัสผ่านสำเร็จ
+  // ยิง logoutAPI() ซ้ำจะได้แค่ 401 เฉยๆ ไม่มีประโยชน์ แค่เคลียร์ cookie/state ฝั่งนี้ก็พอ
+  clearSession: () => {
+    Cookies.remove('access_token')
+    Cookies.remove('user')
+    set({ user: null, token: null, isLoggedIn: false, isLoading: false })
+    useVillageStore.getState().reset()
+    useNotificationStore.getState().reset()
+  },
+
   loadFromStorage: () => {
     const token = Cookies.get('access_token')
     const user = Cookies.get('user')

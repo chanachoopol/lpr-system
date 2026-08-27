@@ -331,11 +331,11 @@ form {
   color: #8e9aab;
   margin-top: 20px;
   width: 100%;
-  text-align: center;
+  text-align: right;
 }
 
 .forgot span {
-  color: #1b2a47;
+  color: #4e5a72;
   font-weight: 600;
   cursor: pointer;
   transition: color 0.2s;
@@ -396,4 +396,20 @@ form {
     padding: 12px;
     font-size: 14px;
   }
+}
+.f-box-error {
+  border-color: rgb(220, 38, 38) !important;
+}
+
+.f-error-text {
+  font-size: 12px;
+  color: rgb(220, 38, 38);
+  margin-top: 6px;
+}
+.f-error-text {
+  display: block;
+  width: 100%;
+  font-size: 12px;
+  color: rgb(220, 38, 38);
+  margin-top: 6px;
 }

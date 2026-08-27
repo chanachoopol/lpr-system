@@ -9,6 +9,8 @@ import '../styles/Login.css'
 import '../styles/ForgotPassword.css'
 import { forgotPasswordAPI } from '../data/api'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
+import { isEmailValid, getEmailErrorMessage } from '../utils/passwordPolicy'
+const SKIP_API_FOR_DEV = false
 
 // เวลานับถอยหลังก่อนกดขอส่งอีเมลใหม่ได้ (วินาที)
 const RESEND_COOLDOWN_SECONDS = 30
@@ -19,6 +21,7 @@ function ForgotPassword() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSent, setIsSent] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
+  const [emailError, setEmailError] = useState('')
 
   // นับถอยหลังปุ่ม "ส่งอีกครั้ง" ทีละ 1 วินาที
   useEffect(() => {
@@ -28,43 +31,53 @@ function ForgotPassword() {
   }, [resendCooldown])
 
   async function sendResetLink(e) {
-    e?.preventDefault()
+  e?.preventDefault()
 
-    if (!email.trim()) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'กรุณากรอกอีเมล',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
+  const errorMsg = getEmailErrorMessage(email)
+  if (errorMsg) {
+    setEmailError(errorMsg)
+    Swal.fire({
+      icon: 'warning',
+      title: errorMsg,
+      confirmButtonColor: 'var(--sidebar-bg)'
+    })
+    return
+  }
+  setEmailError('')
 
-    setIsSubmitting(true)
-    try {
-      await forgotPasswordAPI(email.trim())
+  setIsSubmitting(true)
+
+  // ⚠️ TEMP BYPASS — ข้ามการยิง API จริง ไปหน้า "ส่งแล้ว" ทันที เพื่อทดสอบ UI flow ต่อได้
+  if (SKIP_API_FOR_DEV) {
+    setTimeout(() => {
       setIsSent(true)
       setResendCooldown(RESEND_COOLDOWN_SECONDS)
-    } catch (error) {
-      console.error(error)
-
-      // เพื่อความปลอดภัย ไม่บอกตรงๆ ว่า email นี้มีอยู่ในระบบหรือไม่
-      // ถ้า backend ตอบ error ระดับ client (4xx เช่น validation email format ผิด) ยังโชว์ "ส่งแล้ว" เหมือนเดิม
-      // ยกเว้น error ฝั่ง server จริงๆ (5xx) หรือ network ล่ม ถึงจะแจ้ง error ตรงๆ
-      if (error.response && error.response.status < 500) {
-        setIsSent(true)
-        setResendCooldown(RESEND_COOLDOWN_SECONDS)
-      } else {
-        Swal.fire({
-          icon: 'error',
-          title: 'ส่งอีเมลไม่สำเร็จ',
-          text: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
-          confirmButtonColor: 'var(--sidebar-bg)'
-        })
-      }
-    } finally {
       setIsSubmitting(false)
-    }
+    }, 500) // หน่วงเล็กน้อยให้เห็น loading state จริงๆ ก่อน ไม่ใช่โผล่ทันทีจนดูแปลก
+    return
   }
+
+  try {
+    await forgotPasswordAPI(email.trim())
+    setIsSent(true)
+    setResendCooldown(RESEND_COOLDOWN_SECONDS)
+  } catch (error) {
+    console.error(error)
+    if (error.response && error.response.status < 500) {
+      setIsSent(true)
+      setResendCooldown(RESEND_COOLDOWN_SECONDS)
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'ส่งอีเมลไม่สำเร็จ',
+        text: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    }
+  } finally {
+    setIsSubmitting(false)
+  }
+}
 
   function handleResend() {
     if (resendCooldown > 0) return
@@ -110,13 +123,15 @@ function ForgotPassword() {
                   <div className="f-row">
                     <input
                       type="email"
-                      className="f-box"
+                      className={`f-box ${emailError ? 'f-box-error' : ''}`}
                       placeholder="you@example.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => { setEmail(e.target.value); setEmailError('') }}
                       autoComplete="email"
                     />
                   </div>
+                  {/* 👆 ปิด .f-row ตรงนี้ก่อน แล้วค่อยวาง error message ไว้นอกกล่อง flex */}
+                  {emailError && <p className="f-error-text">{emailError}</p>}
                 </div>
 
                 <button type="submit" className="btn" disabled={isSubmitting}>

@@ -1,21 +1,50 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FaEye, FaEyeSlash, FaArrowLeft } from 'react-icons/fa'
-import { FaKey } from 'react-icons/fa6'
+import { FaKey, FaCircleCheck, FaCircleXmark } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
 import { changePasswordAPI } from '../data/api'
 import '../styles/ChangePassword.css'
 
-// ต้องตรงกับ rule ฝั่ง backend (อ้างอิงจาก error message ตอนตั้งรหัสผ่านผ่านลิงก์อีเมล)
+// ใช้เงื่อนไขชุดเดียวกับหน้า Set New Password (Resetpassword.jsx) ทุกอย่าง
+// เพื่อให้ policy รหัสผ่านตรงกันทั้งระบบ ไม่ว่าจะตั้งจากลิงก์อีเมลหรือเปลี่ยนจากในระบบเอง
 const MIN_PASSWORD_LENGTH = 8
+const MAX_PASSWORD_LENGTH = 36
+
+// อักขระที่รองรับ: a-z, A-Z, 0-9 และสัญลักษณ์ ASCII ที่พิมพ์ได้ (\x21-\x7E ครอบคลุม !"#$%...~) ไม่รวม space
+const ALLOWED_CHAR_PATTERN = /[\x21-\x7E]/
+const ALLOWED_CHARS_REGEX = /^[\x21-\x7E]+$/
+
+// คำนวณเงื่อนไขรหัสผ่านทั้งหมดจาก string เดียว — ใช้ทั้งเช็ค realtime (checklist)
+// และเช็คซ้ำก่อน submit จริง (กันเคสกด Enter ตอนปุ่มยัง disabled อยู่ไม่ทัน)
+function evaluatePassword(password) {
+  // นับเฉพาะตัวอักษรที่อยู่ในชุดที่รองรับ (อังกฤษ/ตัวเลข/สัญลักษณ์) เท่านั้น
+  // ภาษาไทยหรืออักขระอื่นที่พิมพ์ปนเข้ามาจะไม่ถูกนับเป็นความยาวเลย
+  const validCharCount = (password.match(new RegExp(ALLOWED_CHAR_PATTERN, 'g')) || []).length
+
+  return {
+    length: validCharCount >= MIN_PASSWORD_LENGTH && validCharCount <= MAX_PASSWORD_LENGTH,
+    hasLetter: /[a-zA-Z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasSpecial: /[^a-zA-Z0-9]/.test(password) && ALLOWED_CHARS_REGEX.test(password),
+    onlyAllowedChars: password.length > 0 && ALLOWED_CHARS_REGEX.test(password)
+  }
+}
+
+const CHECKLIST_ITEMS = [
+  { key: 'length', label: `ความยาว ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} ตัวอักษร (นับเฉพาะอังกฤษ/ตัวเลข/สัญลักษณ์)` },
+  { key: 'hasLetter', label: 'มีตัวอักษร (a-z, A-Z) อย่างน้อย 1 ตัว' },
+  { key: 'hasNumber', label: 'มีตัวเลข (0-9) อย่างน้อย 1 ตัว' },
+  { key: 'hasSpecial', label: 'มีอักขระพิเศษ (เช่น !@#$%) อย่างน้อย 1 ตัว' },
+  { key: 'onlyAllowedChars', label: 'ใช้เฉพาะตัวอักษรอังกฤษ ตัวเลข และสัญลักษณ์เท่านั้น (ห้ามภาษาไทย)' }
+]
 
 const EMPTY_FORM = {
   currentPassword: '',
   newPassword: '',
-  confirmPassword: '',
-  logoutAllSessions: false
+  confirmPassword: ''
 }
 
 function ChangePassword() {
@@ -24,6 +53,19 @@ function ChangePassword() {
   const [formData, setFormData] = useState(EMPTY_FORM)
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const passwordChecks = useMemo(() => evaluatePassword(formData.newPassword), [formData.newPassword])
+  const isPasswordValid = Object.values(passwordChecks).every(Boolean)
+
+  const showMatchHint = formData.confirmPassword.length > 0
+  const passwordsMatch = formData.newPassword === formData.confirmPassword
+
+  const canSubmit =
+    formData.currentPassword.trim() !== '' &&
+    isPasswordValid &&
+    passwordsMatch &&
+    formData.confirmPassword.length > 0 &&
+    !isSubmitting
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target
@@ -42,17 +84,17 @@ function ChangePassword() {
       return
     }
 
-    if (formData.newPassword.length < MIN_PASSWORD_LENGTH) {
+    if (!isPasswordValid) {
       Swal.fire({
         icon: 'warning',
-        title: 'รหัสผ่านใหม่สั้นเกินไป',
-        text: `รหัสผ่านใหม่ต้องมีอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`,
+        title: 'รหัสผ่านใหม่ยังไม่ตรงตามเงื่อนไข',
+        text: 'กรุณาตรวจสอบเงื่อนไขรหัสผ่านด้านล่างให้ครบทุกข้อ',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
     }
 
-    if (formData.newPassword !== formData.confirmPassword) {
+    if (!passwordsMatch) {
       Swal.fire({
         icon: 'warning',
         title: 'รหัสผ่านใหม่ไม่ตรงกัน',
@@ -74,11 +116,11 @@ function ChangePassword() {
 
     setIsSubmitting(true)
 
-    // ถามยืนยันก่อนเปลี่ยนรหัสผ่านจริง
+    // เพื่อความปลอดภัย บังคับออกจากระบบทุกอุปกรณ์เสมอเมื่อเปลี่ยนรหัสผ่านสำเร็จ ไม่มีทางเลือกให้ปิด
     const confirmResult = await Swal.fire({
       icon: 'question',
       title: 'ยืนยันการเปลี่ยนรหัสผ่าน?',
-      text: 'คุณจะต้องเข้าสู่ระบบใหม่หลังเปลี่ยนรหัสผ่านสำเร็จ',
+      text: 'ระบบจะออกจากระบบทุกอุปกรณ์ รวมถึงอุปกรณ์นี้ด้วย คุณจะต้องเข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่',
       showCancelButton: true,
       confirmButtonText: 'ยืนยัน',
       cancelButtonText: 'ยกเลิก',
@@ -92,23 +134,22 @@ function ChangePassword() {
     }
 
     try {
+      // logoutAllSessions บังคับเป็น true เสมอ ไม่มี option ให้เลือกอีกต่อไป
       await changePasswordAPI(
         formData.currentPassword,
         formData.newPassword,
         formData.confirmPassword,
-        formData.logoutAllSessions
+        true
       )
 
       await Swal.fire({
         icon: 'success',
         title: 'เปลี่ยนรหัสผ่านสำเร็จ',
-        text: 'กรุณาเข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่ของคุณ',
+        text: 'ระบบออกจากระบบทุกอุปกรณ์แล้ว กรุณาเข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่ของคุณ',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
-
-      // บังคับ logout เสมอหลังเปลี่ยนรหัสผ่านสำเร็จ เพื่อความปลอดภัย
       logout()
-      navigate('/')
+      navigate('/', { replace: true })
     } catch (error) {
       console.error(error)
       const backendMessage = error.response?.data?.detail
@@ -163,11 +204,26 @@ function ChangePassword() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="newPassword"
-                placeholder={`อย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`}
+                placeholder="เช่น Abcd1234!"
                 value={formData.newPassword}
                 onChange={handleChange}
                 autoComplete="new-password"
+                maxLength={MAX_PASSWORD_LENGTH}
               />
+
+              <ul className="cp-password-checklist">
+                {CHECKLIST_ITEMS.map((item) => {
+                  const isValid = passwordChecks[item.key]
+                  return (
+                    <li key={item.key} className={`cp-check-item ${isValid ? 'valid' : ''}`}>
+                      <span className="cp-check-icon">
+                        {isValid ? <FaCircleCheck /> : <FaCircleXmark />}
+                      </span>
+                      {item.label}
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
 
             <div className="cp-field">
@@ -176,35 +232,42 @@ function ChangePassword() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   name="confirmPassword"
-                  placeholder="พิมพ์อีกครั้ง"
+                  placeholder="พิมพ์รหัสผ่านใหม่อีกครั้งเพื่อยืนยัน"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   autoComplete="new-password"
+                  maxLength={MAX_PASSWORD_LENGTH}
                 />
                 <span className="cp-eye-icon" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <FaEye /> : <FaEyeSlash />}
                 </span>
               </div>
+
+              {showMatchHint && (
+                <p className={`cp-match-hint ${passwordsMatch ? 'valid' : 'invalid'}`}>
+                  {passwordsMatch ? (
+                    <>
+                      <FaCircleCheck /> รหัสผ่านตรงกัน
+                    </>
+                  ) : (
+                    <>
+                      <FaCircleXmark /> รหัสผ่านไม่ตรงกัน
+                    </>
+                  )}
+                </p>
+              )}
             </div>
 
-            <label className="cp-checkbox-row">
-              <input
-                type="checkbox"
-                name="logoutAllSessions"
-                checked={formData.logoutAllSessions}
-                onChange={handleChange}
-              />
-              <span className="cp-checkbox-text">
-                ออกจากระบบในอุปกรณ์/เบราว์เซอร์อื่นทั้งหมด
-                <small>ไม่กระทบเซสชันที่ใช้งานอยู่ตอนนี้</small>
-              </span>
-            </label>
+            <p className="cp-force-logout-note">
+              <FaKey /> เพื่อความปลอดภัย เมื่อเปลี่ยนรหัสผ่านสำเร็จ ระบบจะออกจากระบบทุกอุปกรณ์
+              รวมถึงอุปกรณ์นี้ด้วย คุณจะต้องเข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่
+            </p>
 
             <div className="cp-actions">
               <button type="button" className="btn-cancel-cp" onClick={() => navigate(-1)} disabled={isSubmitting}>
                 ยกเลิก
               </button>
-              <button type="submit" className="btn-confirm-cp" disabled={isSubmitting}>
+              <button type="submit" className="btn-confirm-cp" disabled={!canSubmit}>
                 {isSubmitting ? 'กำลังบันทึก...' : 'เปลี่ยนรหัสผ่าน'}
               </button>
             </div>
