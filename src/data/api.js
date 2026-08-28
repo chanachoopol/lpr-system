@@ -34,7 +34,7 @@ function onRefreshed(newToken) {
   refreshSubscribers.forEach((callback) => callback(newToken))
   refreshSubscribers = []
 }
-
+const PUBLIC_AUTH_PATHS = ['/api/auth/login']
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -45,22 +45,23 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 👇 รวม 2 เงื่อนไข "terminal failure" (ไม่มีทางกู้ session คืนได้แล้ว) เป็นก้อนเดียว
-    // เพื่อให้ skipAuthRedirect มีผลกับทุกเคส ไม่ใช่แค่เคส url ตรงกับ /auth/refresh เท่านั้น
-    // - error_code ใน body = backend บอกตรงๆ ว่า session ถูก revoke แล้ว (เปลี่ยนรหัสผ่าน/ปิดบัญชี/ปิดหมู่บ้าน ฯลฯ)
-    // - request เองคือ /api/auth/refresh ที่ยัง 401 = ไม่มี token อะไรให้ refresh ต่อแล้วจริงๆ
+    // 👇 401 จาก endpoint สาธารณะ (เช่น login ผิด) — ปล่อยให้ catch ใน component จัดการ ไม่แตะ session/redirect
+    const isPublicAuthCall = PUBLIC_AUTH_PATHS.some((path) => originalRequest.url?.includes(path))
+    if (isPublicAuthCall) {
+      return Promise.reject(error)
+    }
+
     const hasErrorCode = error.response?.data && 'error_code' in error.response.data
     const isRefreshCallItself = originalRequest.url?.includes('/api/auth/refresh')
 
     if (hasErrorCode || isRefreshCallItself) {
       useAuthStore.getState().clearSession()
-      // silent request (เช่นตอน initSession เช็ค session ตอน mount แอปครั้งแรก ยังไม่เคย login)
-      // ไม่ต้อง redirect เอง ปล่อยให้ store จัดการ isLoggedIn: false เงียบๆ พอ
       if (!originalRequest.skipAuthRedirect) {
         window.location.href = '/'
       }
       return Promise.reject(error)
     }
+
 
     originalRequest._retry = true
 
@@ -646,5 +647,16 @@ export async function requestEmailChangeAPI(userId, newEmail) {
 
 export async function confirmEmailChangeAPI(token) {
   const response = await api.post('/api/auth/confirm-email-change', { token })
+  return response.data
+}
+// ==================== Verify Set Password Token ====================
+// เรียกก่อนโชว์ฟอร์มตั้งรหัสผ่านใหม่ — เช็คว่า token ใน URL ยัง valid อยู่ไหม โดยไม่ consume token ทิ้ง
+// สำเร็จ (204 No Content) = valid, error ใดๆ = invalid/expired
+export async function verifySetPasswordTokenAPI(token) {
+  const response = await api.post(
+    '/api/auth/set-password/verify-token',
+    { token },
+    { skipAuthRedirect: true } // กัน interceptor เด้งไปหน้า login เผื่อ backend ตอบ 401 มา
+  )
   return response.data
 }

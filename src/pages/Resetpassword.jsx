@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import { FaTriangleExclamation, FaCircleCheck, FaCircleXmark } from 'react-icons/fa6'
@@ -7,9 +7,10 @@ import { motion } from 'framer-motion'
 import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
 import '../styles/ForgotPassword.css'
-import { setPasswordAPI } from '../data/api'
+import { setPasswordAPI, verifySetPasswordTokenAPI } from '../data/api'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
 import useAuthStore from '../store/authStore'
+import Spinner from '../components/Spinner'
 
 // ต้องตรงกับ rule ฝั่ง backend (อ้างอิงจาก error message จริง: "Password must be at least 8 characters long")
 // เพิ่มเงื่อนไข complexity ฝั่ง frontend: ต้องมีตัวอักษร + ตัวเลข + อักขระพิเศษ อย่างน้อยอย่างละ 1 ตัว
@@ -68,10 +69,40 @@ function ResetPassword() {
   const token = searchParams.get('token')
   const { clearSession } = useAuthStore()
 
+  // 'checking' = กำลังเช็ค token กับ backend, 'valid' = ใช้ได้ โชว์ฟอร์ม, 'invalid' = ลิงก์ผิด/หมดอายุ/ไม่มี token
+  const [tokenStatus, setTokenStatus] = useState('checking')
+
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // เช็ค token กับ backend ทันทีที่เปิดหน้า — ไม่รอจน submit ถึงจะรู้ว่าลิงก์ผิด/หมดอายุ
+  // ไม่มี token แนบมาใน URL เลย ก็ถือว่า invalid ไปเลย ไม่ต้องยิง API
+  useEffect(() => {
+    if (!token) {
+      setTokenStatus('invalid')
+      return
+    }
+
+    let isCancelled = false
+
+    async function checkToken() {
+      try {
+        await verifySetPasswordTokenAPI(token)
+        if (!isCancelled) setTokenStatus('valid')
+      } catch (error) {
+        console.error('Token ไม่ถูกต้องหรือหมดอายุ:', error)
+        if (!isCancelled) setTokenStatus('invalid')
+      }
+    }
+
+    checkToken()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [token])
 
   // คำนวณใหม่ทุกครั้งที่ newPassword เปลี่ยน — ใช้ useMemo กันคำนวณ regex ซ้ำโดยไม่จำเป็นตอน re-render อื่นๆ
   const passwordChecks = useMemo(() => evaluatePassword(newPassword), [newPassword])
@@ -140,8 +171,29 @@ function ResetPassword() {
     }
   }
 
-  // ไม่มี token แนบมาใน URL เลย → ลิงก์ผิดตั้งแต่ต้น ไม่ต้องโชว์ฟอร์มให้กรอกเปล่าๆ
-  if (!token) {
+  // กำลังเช็ค token อยู่ — โชว์ spinner รอ ยังไม่ตัดสินใจว่าจะโชว์ฟอร์มหรือหน้า Invalid Link
+  if (tokenStatus === 'checking') {
+    return (
+      <div className="bg">
+        <CloudBackground />
+        <motion.div
+          className="card fp-card"
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          variants={pageVariants}
+          transition={pageTransition}
+        >
+          <div className="card-right fp-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spinner text="กำลังตรวจสอบลิงก์..." />
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
+
+  // token ไม่ valid (ไม่มีเลย, ผิด, หรือหมดอายุ) — ไม่ต้องโชว์ฟอร์มให้กรอกเปล่าๆ
+  if (tokenStatus === 'invalid') {
     return (
       <div className="bg">
         <CloudBackground />
@@ -172,6 +224,7 @@ function ResetPassword() {
     )
   }
 
+  // tokenStatus === 'valid' — โชว์ฟอร์มตั้งรหัสผ่านใหม่ (ฟอร์มเดิม ไม่มีการแก้ไข)
   return (
     <div className="bg">
       <CloudBackground />

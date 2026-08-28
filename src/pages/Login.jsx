@@ -24,12 +24,10 @@ function Login() {
   const [usernameError, setUsernameError] = useState('')
   const [passwordError, setPasswordError] = useState('')
 
-  // กำลังเช็ค session อยู่ (initSession() ตอนแอปเพิ่งโหลด/เปิดแท็บใหม่ยังไม่เสร็จ)
-  // อย่าเพิ่งโชว์ฟอร์ม login เดี๋ยวจะกระพริบก่อนเด้งไป dashboard
   if (isLoading) {
     return (
-      <div className="bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <Spinner text="กำลังตรวจสอบสถานะการเข้าสู่ระบบ..." />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <Spinner text="กำลังตรวจสอบการเข้าสู่ระบบ..." />
       </div>
     )
   }

@@ -16,6 +16,14 @@ let refreshTimerId = null
 let inFlightRefresh = null
 let sessionInitPromise = null
 
+// ช่องสัญญาณสำหรับ sync สถานะ logout ข้ามแท็บของ origin เดียวกัน — ไม่ต้องกด refresh หน้าเว็บ
+// แท็บไหน clearSession() ก่อน จะ broadcast บอกแท็บอื่นให้เคลียร์ session ตัวเองตามทันที
+// รองรับทุก browser หลักยกเว้น Safari เก่ามาก (<15.4) — ถ้าไม่รองรับ ก็แค่ไม่ sync ข้ามแท็บ ไม่ error
+const LOGOUT_CHANNEL_NAME = 'auth-logout-channel'
+const logoutChannel = typeof BroadcastChannel !== 'undefined'
+  ? new BroadcastChannel(LOGOUT_CHANNEL_NAME)
+  : null
+
 function clearRefreshTimer() {
   if (refreshTimerId) {
     clearTimeout(refreshTimerId)
@@ -82,29 +90,29 @@ const useAuthStore = create((set, get) => ({
   // response interceptor ว่า "นี่คือการเช็ค session เฉยๆ ตอนเปิดแอป ไม่ใช่ error จริง" — ถ้าเจอ 401
   // ตรงนี้ ห้าม redirect ไปหน้า login เอง (เดี๋ยว catch ด้านล่างจัดการ set isLoggedIn: false ให้เอง
   // ปกติของเคสนี้คือ "ไม่เคย login" หรือ "refresh token หมดอายุแล้ว" ซึ่งไม่ใช่ error ที่ควร alert user)
-initSession: async () => {
-  if (sessionInitPromise) return sessionInitPromise
+  initSession: async () => {
+    if (sessionInitPromise) return sessionInitPromise
 
-  sessionInitPromise = (async () => {
-    set({ isLoading: true })
-    try {
-      const data = await refreshTokenAPI({ silent: true })
-      set({ accessToken: data.access_token })   // 👈 set token ให้ store ก่อน ให้ interceptor เห็นทัน
-      const profile = await getMyProfileAPI()    // 👈 ตอนนี้ request นี้จะมี Authorization header แนบไปแล้ว
-      set({
-        user: profile,
-        isLoggedIn: true,
-        isLoading: false
-      })
-      get().scheduleRefresh()
-      useVillageStore.getState().initSelectedVillage(profile)
-    } catch (error) {
-      set({ isLoading: false, isLoggedIn: false, user: null, accessToken: null })
-    }
-  })()
+    sessionInitPromise = (async () => {
+      set({ isLoading: true })
+      try {
+        const data = await refreshTokenAPI({ silent: true })
+        set({ accessToken: data.access_token })   // 👈 set token ให้ store ก่อน ให้ interceptor เห็นทัน
+        const profile = await getMyProfileAPI()    // 👈 ตอนนี้ request นี้จะมี Authorization header แนบไปแล้ว
+        set({
+          user: profile,
+          isLoggedIn: true,
+          isLoading: false
+        })
+        get().scheduleRefresh()
+        useVillageStore.getState().initSelectedVillage(profile)
+      } catch (error) {
+        set({ isLoading: false, isLoggedIn: false, user: null, accessToken: null })
+      }
+    })()
 
-  return sessionInitPromise
-},
+    return sessionInitPromise
+  },
 
   // logout ปกติที่ user กดเอง — เรียก backend ให้ revoke + clear cookie ให้เรียบร้อยก่อน
   logout: async () => {
@@ -120,12 +128,37 @@ initSession: async () => {
   // ใช้ตอนเจอ 401 ที่ระบุว่า session ถูกลบไปแล้วจากฝั่ง server (ไม่ต้องเรียก logout API ซ้ำ)
   // และใช้เป็น cleanup กลางที่ logout()/refreshAccessToken() เรียกใช้ร่วมกัน
   clearSession: () => {
+    const wasLoggedIn = get().isLoggedIn // 👈 เช็คก่อนเคลียร์ กันกรณี broadcast ตอนที่ session ไม่เคย login เลย
     clearRefreshTimer()
     inFlightRefresh = null
+    sessionInitPromise = null
     set({ user: null, accessToken: null, isLoggedIn: false, isLoading: false })
     useVillageStore.getState().reset()
     useNotificationStore.getState().reset()
+
+    // แจ้งแท็บอื่นว่า session นี้ถูก logout แล้ว — ยิงเฉพาะตอนเปลี่ยนจาก login -> logout จริงๆ
+    // (ไม่ยิงตอน initSession ล้มเหลวเพราะไม่เคย login มาก่อน กันสัญญาณหลอกไปแท็บอื่น)
+    if (wasLoggedIn) {
+      logoutChannel?.postMessage({ type: 'logout', at: Date.now() })
+    }
   }
 }))
+
+// ฟังสัญญาณ logout จากแท็บอื่น — ถ้าแท็บนี้ยัง login อยู่ ให้เคลียร์ session ทันทีโดยไม่ต้อง refresh หน้า
+// ไม่เรียก useAuthStore.getState().clearSession() ตรงๆ เพราะจะ broadcast ซ้ำออกไปอีกรอบโดยไม่จำเป็น
+// (setState ตรงๆ ทำให้ component ที่ subscribe อยู่ เช่น ProtectedRoute re-render ทันทีเหมือนกัน)
+if (logoutChannel) {
+  logoutChannel.onmessage = (event) => {
+    if (event.data?.type !== 'logout') return
+    if (!useAuthStore.getState().isLoggedIn) return // แท็บนี้ logout ไปแล้ว ไม่ต้องทำอะไรซ้ำ
+
+    clearRefreshTimer()
+    inFlightRefresh = null
+    sessionInitPromise = null
+    useAuthStore.setState({ user: null, accessToken: null, isLoggedIn: false, isLoading: false })
+    useVillageStore.getState().reset()
+    useNotificationStore.getState().reset()
+  }
+}
 
 export default useAuthStore
