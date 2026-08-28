@@ -1,4 +1,4 @@
-import { useNavigate, Navigate } from 'react-router-dom' 
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import Swal from 'sweetalert2'
@@ -11,7 +11,7 @@ import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
 import { isUsernameValid, getUsernameErrorMessage, isLoginPasswordValid, getPasswordErrorMessage } from '../utils/passwordPolicy'
-
+import Spinner from '../components/Spinner'
 
 function Login() {
   const navigate = useNavigate()
@@ -24,46 +24,61 @@ function Login() {
   const [usernameError, setUsernameError] = useState('')
   const [passwordError, setPasswordError] = useState('')
 
-  async function handleSubmit(e) {
-  e.preventDefault()
-
-  const usernameErr = isUsernameValid(username) ? '' : getUsernameErrorMessage(username)
-  const passwordErr = isLoginPasswordValid(password) ? '' : getPasswordErrorMessage(password)
-
-  setUsernameError(usernameErr)
-  setPasswordError(passwordErr)
-
-  if (usernameErr || passwordErr) return
-
-  setIsSubmitting(true)
-
-  try {
-    const result = await loginAPI(username.trim(), password, remember)
-
-    // เก็บข้อมูลลง Zustand + Cookie
-    login(result.user, result.access_token)
-
-    // ตั้งค่าหมู่บ้านเริ่มต้นตาม role
-    // superadmin -> ทุกหมู่บ้าน (null), admin/user -> ล็อกหมู่บ้านตัวเอง
-    useVillageStore.getState().initSelectedVillage(result.user)
-
-    // ไปหน้า Dashboard
-    navigate('/dashboard')
-
-  } catch (error) {
-    console.error(error)
-
-    await Swal.fire({
-      icon: 'error',
-      title: 'เข้าสู่ระบบไม่สำเร็จ',
-      text: 'Username หรือ Password ไม่ถูกต้อง',
-      confirmButtonText: 'ลองอีกครั้ง',
-      confirmButtonColor: 'var(--sidebar-bg)'
-    })
-
-    setIsSubmitting(false)
+  // กำลังเช็ค session อยู่ (initSession() ตอนแอปเพิ่งโหลด/เปิดแท็บใหม่ยังไม่เสร็จ)
+  // อย่าเพิ่งโชว์ฟอร์ม login เดี๋ยวจะกระพริบก่อนเด้งไป dashboard
+  if (isLoading) {
+    return (
+      <div className="bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <Spinner text="กำลังตรวจสอบสถานะการเข้าสู่ระบบ..." />
+      </div>
+    )
   }
-}
+
+  // login อยู่แล้ว (ไม่ว่าจะ login เองในแท็บนี้ หรือ cookie จากแท็บอื่นถูก restore มา) → เด้งไป dashboard เลย ไม่ต้องโชว์ฟอร์ม
+  if (isLoggedIn) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+
+    const usernameErr = isUsernameValid(username) ? '' : getUsernameErrorMessage(username)
+    const passwordErr = isLoginPasswordValid(password) ? '' : getPasswordErrorMessage(password)
+
+    setUsernameError(usernameErr)
+    setPasswordError(passwordErr)
+
+    if (usernameErr || passwordErr) return
+
+    setIsSubmitting(true)
+
+    try {
+      const result = await loginAPI(username.trim(), password, remember)
+
+      // เก็บข้อมูลลง Zustand (accessToken อยู่ใน memory, refresh_token เป็น httpOnly cookie ที่ backend set ให้เอง)
+      login(result.user, result.access_token)
+
+      // ตั้งค่าหมู่บ้านเริ่มต้นตาม role
+      // superadmin -> ทุกหมู่บ้าน (null), admin/user -> ล็อกหมู่บ้านตัวเอง
+      useVillageStore.getState().initSelectedVillage(result.user)
+
+      // ไปหน้า Dashboard
+      navigate('/dashboard')
+
+    } catch (error) {
+      console.error(error)
+
+      await Swal.fire({
+        icon: 'error',
+        title: 'เข้าสู่ระบบไม่สำเร็จ',
+        text: 'Username หรือ Password ไม่ถูกต้อง',
+        confirmButtonText: 'ลองอีกครั้ง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="bg">

@@ -607,7 +607,7 @@ export async function deleteVillageAPI(villageId) {
 // ==================== User Avatar APIs ====================
 export async function uploadUserAvatarAPI(userId, file) {
   const formData = new FormData()
-  formData.append('file', file) // ⚠️ field name เดา — ยืนยันจาก Body_upload_user_avatar_api_users__user_id__avatar_post ให้ชัวร์อีกที
+  formData.append('avatar', file) // ⚠️ field name เดา — ยืนยันจาก Body_upload_user_avatar_api_users__user_id__avatar_post ให้ชัวร์อีกที
   const response = await api.post(`/api/users/${userId}/avatar`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
