@@ -9,12 +9,17 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://192.168.100.211:8000',
+        target: 'https://d52a-137-59-112-51.ngrok-free.app',
         changeOrigin: true,
-        // SSE (EventSource) ใช้ long-lived connection แบบ stream — ปิด buffering กันดีเลย์
+        secure: false,
+        headers: {
+          'ngrok-skip-browser-warning': '69420'
+        },
+        // SSE (EventSource) ใช้ long-lived connection แบบ stream — ปิด buffering กันดีเลย์ + ข้ามหน้าเตือน ngrok
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq) => {
             proxyReq.setHeader('Connection', 'keep-alive')
+            proxyReq.setHeader('ngrok-skip-browser-warning', '69420')
           })
         }
       }

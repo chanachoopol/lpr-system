@@ -2,14 +2,17 @@ import axios from 'axios'
 import useAuthStore from '../store/authStore'
 
 // Base URL ของ backend
-// พอย้าย server แก้แค่บรรทัดนี้พอ
+// ใช้ '' เพื่อให้วิ่งผ่าน Vite Proxy ในเครื่อง (คุกกี้จะเป็น Same-Origin ไม่โดน Browser บล็อก)
 export const BASE_URL = ''
 
 // สร้าง axios instance สำหรับ request ทั่วไป (JSON)
 export const api = axios.create({
   baseURL: BASE_URL,
   withCredentials: true, // 👈 ต้องมี ไม่งั้น cookie httpOnly ของ refresh token จะไม่ถูกส่ง/ไม่ถูกเก็บเลย
-  headers: { 'Content-Type': 'application/json' }
+  headers: {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true' // 👈 ข้ามหน้าเตือน interstitial ของ ngrok
+  }
 })
 
 // แนบ token ทุก request อัตโนมัติ
