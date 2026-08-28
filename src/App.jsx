@@ -81,14 +81,14 @@ function AnimatedRoutes() {
 
 function App() {
   const theme = useThemeStore((state) => state.theme)
-  const { loadFromStorage, isLoggedIn } = useAuthStore()
+  const { initSession, isLoggedIn } = useAuthStore()
   const { connect, disconnect } = useNotificationStore()
   const { connect: connectPresence, disconnect: disconnectPresence } = usePresenceStore() // 👈 เพิ่ม
 
   // อ่าน cookie และ restore สถานะ login ทันทีตอน app เริ่มต้น
   useEffect(() => {
-    loadFromStorage()
-  }, [])
+  initSession()
+}, [])
 
   // เปิด SSE ทันทีที่ login (รวมถึงตอน restore session จาก cookie), ปิดตอน logout
   useEffect(() => {

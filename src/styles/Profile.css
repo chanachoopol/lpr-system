@@ -23,6 +23,7 @@
   justify-content: center;
   font-size: 34px;
   flex-shrink: 0;
+  overflow: hidden; /* กันรูปที่ไม่ใช่สี่เหลี่ยมจัตุรัสล้นออกนอกวงกลม */
 }
 
 .pf-header-info {
@@ -40,6 +41,12 @@
   font-size: 13px;
   color: var(--text-secondary);
   margin: 0 0 12px;
+  /* 👇 แก้จุดหลัก: ทำให้ข้อความ + ปุ่มดินสอเรียงแนวนอนอยู่บรรทัดเดียวกันเสมอ
+     ไม่ต้องพึ่งพฤติกรรม inline ของ <p> ที่แตกหักง่ายเวลามีปุ่ม flex แทรกอยู่ข้างใน */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .pf-badges {
@@ -139,12 +146,12 @@
   color: var(--text-main);
   margin: 0;
   word-break: break-word;
-}
-
-.pf-mono {
-  font-family: monospace;
-  font-size: 12.5px;
-  color: var(--text-secondary);
+  /* 👇 เหมือน .pf-username — ใช้กับ Email ที่มีปุ่มแก้ไขแทรกอยู่ข้างในด้วย
+     ไม่กระทบ info อื่นที่เป็นข้อความล้วน เพราะ flex กับ text node เดี่ยวๆ ยังแสดงผลปกติ */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 /* Contacts */
@@ -156,7 +163,7 @@
 
 .pf-contact-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(27, 42, 71, 0.06);
@@ -180,6 +187,17 @@
   flex-shrink: 0;
 }
 
+.pf-contact-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-contact-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .pf-empty-contact {
   font-size: 13.5px;
   color: var(--text-secondary);
@@ -193,23 +211,6 @@
   padding: 24px;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .pf-header-card {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .pf-badges {
-    justify-content: center;
-  }
-
-  .pf-info-grid {
-    grid-template-columns: 1fr;
-  }
-}
-/* ==================== เพิ่มสำหรับ Contact Add/Edit/Delete ==================== */
-
 .pf-contact-header {
   display: flex;
   justify-content: space-between;
@@ -217,6 +218,12 @@
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.pf-contact-count {
+  font-size: 12px;
+  color: rgb(148, 163, 184);
+  margin: 2px 0 0;
 }
 
 .btn-add-contact {
@@ -236,37 +243,34 @@
   transition: all 0.2s ease;
 }
 
-.btn-add-contact:hover {
+.btn-add-contact:hover:not(:disabled) {
   background: rgb(17, 30, 55);
   transform: translateY(-1px);
 }
 
-/* ปรับ pf-contact-item เดิมให้รองรับปุ่ม action ทางขวา */
-.pf-contact-item {
-  align-items: center;
+.btn-add-contact:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
-.pf-contact-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.pf-contact-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
+/* ==================== Icon Buttons ==================== */
+/* 👇 แก้จุดหลักของปัญหา: เดิม display:flex ทำให้ outer display เป็น block
+   พอปุ่มนี้ถูกวางแทรกกลางข้อความ (เช่นใน .pf-username, .pf-info-value)
+   มันเลยตัดขึ้นบรรทัดใหม่ ดันตำแหน่งเพี้ยนไปจากที่ตั้งใจ (ควรลอยติดข้อความ)
+   เปลี่ยนเป็น inline-flex — ทำงานเหมือนเดิมทุกที่ที่เป็น flex item อยู่แล้ว (เช่นใน .pf-contact-actions)
+   แต่จะไม่ตัดบรรทัดเวลาอยู่แทรกกลางข้อความอีกต่อไป */
 .pf-icon-btn {
   width: 32px;
   height: 32px;
   border-radius: 9px;
   border: none;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 13px;
+  vertical-align: middle;
   transition: all 0.2s ease;
 }
 
@@ -288,6 +292,42 @@
 .pf-icon-btn.delete:hover {
   background: rgb(220, 38, 38);
   color: rgb(255, 255, 255);
+}
+
+/* ปุ่มยืนยัน/ยกเลิก ตอนแก้ไข username แบบ inline — เดิมไม่มีสไตล์เลย โชว์เป็นกล่องเปล่า */
+.pf-icon-btn.confirm {
+  background: rgba(22, 163, 74, 0.1);
+  color: rgb(22, 163, 74);
+}
+
+.pf-icon-btn.confirm:hover:not(:disabled) {
+  background: rgb(22, 163, 74);
+  color: rgb(255, 255, 255);
+}
+
+.pf-icon-btn.cancel {
+  background: rgba(100, 116, 139, 0.1);
+  color: rgb(100, 116, 139);
+}
+
+.pf-icon-btn.cancel:hover:not(:disabled) {
+  background: rgb(100, 116, 139);
+  color: rgb(255, 255, 255);
+}
+
+.pf-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ปุ่มดินสอเล็กที่แทรกอยู่ในข้อความ (username / email) — ต้องเล็กกว่าปุ่มในรายการ contact
+   เพราะข้อความรอบข้างมีขนาดแค่ 13-14px ปุ่ม 32px เดิมมันใหญ่เกินจนดูเกินสัดส่วน/หลุดแนว */
+.pf-icon-btn.small {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  font-size: 10.5px;
+  border-radius: 6px;
 }
 
 /* Modal base (convention เดิมของโปรเจค) */
@@ -388,6 +428,11 @@
   box-shadow: 0 2px 8px rgba(27, 42, 71, 0.08);
 }
 
+.pf-form-field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .pf-form-field select {
   cursor: pointer;
 }
@@ -445,7 +490,139 @@
   transform: none;
 }
 
+/* ==================== Avatar (upload + preview) ==================== */
+.pf-avatar-wrap {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+}
+
+.pf-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.pf-avatar-edit-btn {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2.5px solid rgb(255, 255, 255);
+  background: rgb(27, 42, 71);
+  color: rgb(255, 255, 255);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.pf-avatar-edit-btn:hover {
+  background: rgb(17, 30, 55);
+  transform: scale(1.06);
+}
+
+/* ==================== Username inline edit ==================== */
+.pf-username-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.pf-username-input {
+  padding: 5px 10px;
+  border: 1px solid rgba(27, 42, 71, 0.2);
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  outline: none;
+  min-width: 0;
+  flex: 1;
+}
+
+.pf-username-input:focus {
+  border-color: rgb(27, 42, 71);
+  box-shadow: 0 0 0 2px rgba(27, 42, 71, 0.1);
+}
+
+/* ==================== Email change ==================== */
+.pf-pending-email-note {
+  font-size: 12px;
+  color: rgb(217, 119, 6);
+  margin: 4px 0 0;
+  flex-basis: 100%; /* ดันขึ้นบรรทัดใหม่เสมอ แยกจากแถวอีเมลหลัก */
+}
+
+.pf-link-btn {
+  text-decoration: underline;
+  cursor: pointer;
+  color: rgb(27, 42, 71);
+  font-weight: 600;
+}
+
+.pf-email-hint {
+  font-size: 12px;
+  color: rgb(148, 163, 184);
+  margin: -8px 0 4px;
+  line-height: 1.5;
+}
+
+.pf-email-sent-body {
+  padding: 20px 24px 24px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-main);
+}
+
+.pf-dev-mock-btn {
+  margin-top: 16px;
+  padding: 8px 14px;
+  border: 1px dashed rgb(217, 119, 6);
+  background: rgba(217, 119, 6, 0.08);
+  color: rgb(180, 83, 9);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  width: 100%;
+}
+
+.pf-dev-mock-btn:hover {
+  background: rgba(217, 119, 6, 0.14);
+}
+
+/* Responsive */
 @media (max-width: 768px) {
+  .pf-header-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .pf-username {
+    justify-content: center;
+  }
+
+  .pf-badges {
+    justify-content: center;
+  }
+
+  .pf-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-info-value {
+    justify-content: flex-start;
+  }
+
   .pf-contact-header {
     flex-direction: column;
     align-items: stretch;
@@ -454,4 +631,88 @@
   .btn-add-contact {
     justify-content: center;
   }
+}
+/* ==================== Avatar preview modal (วงกลม) ==================== */
+.pf-avatar-preview-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.pf-avatar-preview-circle {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid rgba(27, 42, 71, 0.1);
+  flex-shrink: 0;
+}
+
+.pf-avatar-preview-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pf-avatar-preview-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+}
+
+.pf-avatar-preview-actions .btn-cancel-pf,
+.pf-avatar-preview-actions .btn-confirm-pf {
+  flex: 1;
+  max-width: 180px;
+  text-align: center;
+}
+
+/* ==================== Username real-time error ==================== */
+.pf-username-edit-wrap {
+  margin: 0 0 12px;
+}
+
+.pf-error-text-left {
+  text-align: left;
+  padding: 0;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: rgb(220, 38, 38);
+}
+
+.pf-input-error {
+  border-color: rgb(220, 38, 38) !important;
+}
+
+/* ==================== Contact header hint ==================== */
+.pf-contact-hint {
+  font-weight: 400;
+  color: rgb(148, 163, 184);
+}
+.pf-avatar-delete-btn {
+  position: absolute;
+  bottom: -2px;
+  left: -2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2.5px solid rgb(255, 255, 255);
+  background: rgb(220, 38, 38);
+  color: rgb(255, 255, 255);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.pf-avatar-delete-btn:hover {
+  background: rgb(185, 28, 28);
+  transform: scale(1.06);
 }

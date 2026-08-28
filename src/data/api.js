@@ -1,39 +1,117 @@
 import axios from 'axios'
-import Cookies from 'js-cookie'
+import useAuthStore from '../store/authStore'
 
 // Base URL ของ backend
 // พอย้าย server แก้แค่บรรทัดนี้พอ
-export const BASE_URL = 'http://192.168.100.211:8000'
+export const BASE_URL = ''
 
 // สร้าง axios instance สำหรับ request ทั่วไป (JSON)
 export const api = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  withCredentials: true, // 👈 ต้องมี ไม่งั้น cookie httpOnly ของ refresh token จะไม่ถูกส่ง/ไม่ถูกเก็บเลย
+  headers: { 'Content-Type': 'application/json' }
 })
 
 // แนบ token ทุก request อัตโนมัติ
 api.interceptors.request.use((config) => {
-  const token = Cookies.get('access_token')
+  const token = useAuthStore.getState().accessToken
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
+// ==================== Response Interceptor — จัดการ 401 แบบ global ====================
+// กันเรียก /refresh ซ้ำพร้อมกันหลาย request (เช่นหน้า dashboard ยิงหลาย API พร้อมกันแล้วโดน 401 พร้อมกันหมด)
+let isRefreshing = false
+let refreshSubscribers = []
+
+function subscribeTokenRefresh(callback) {
+  refreshSubscribers.push(callback)
+}
+
+function onRefreshed(newToken) {
+  refreshSubscribers.forEach((callback) => callback(newToken))
+  refreshSubscribers = []
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+    const status = error.response?.status
+
+    if (!originalRequest || status !== 401 || originalRequest._retry) {
+      return Promise.reject(error)
+    }
+
+    // 👇 รวม 2 เงื่อนไข "terminal failure" (ไม่มีทางกู้ session คืนได้แล้ว) เป็นก้อนเดียว
+    // เพื่อให้ skipAuthRedirect มีผลกับทุกเคส ไม่ใช่แค่เคส url ตรงกับ /auth/refresh เท่านั้น
+    // - error_code ใน body = backend บอกตรงๆ ว่า session ถูก revoke แล้ว (เปลี่ยนรหัสผ่าน/ปิดบัญชี/ปิดหมู่บ้าน ฯลฯ)
+    // - request เองคือ /api/auth/refresh ที่ยัง 401 = ไม่มี token อะไรให้ refresh ต่อแล้วจริงๆ
+    const hasErrorCode = error.response?.data && 'error_code' in error.response.data
+    const isRefreshCallItself = originalRequest.url?.includes('/api/auth/refresh')
+
+    if (hasErrorCode || isRefreshCallItself) {
+      useAuthStore.getState().clearSession()
+      // silent request (เช่นตอน initSession เช็ค session ตอน mount แอปครั้งแรก ยังไม่เคย login)
+      // ไม่ต้อง redirect เอง ปล่อยให้ store จัดการ isLoggedIn: false เงียบๆ พอ
+      if (!originalRequest.skipAuthRedirect) {
+        window.location.href = '/'
+      }
+      return Promise.reject(error)
+    }
+
+    originalRequest._retry = true
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        subscribeTokenRefresh((newToken) => {
+          if (newToken) {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            resolve(api(originalRequest))
+          } else {
+            reject(error)
+          }
+        })
+      })
+    }
+
+    isRefreshing = true
+    try {
+      const newToken = await useAuthStore.getState().refreshAccessToken()
+      isRefreshing = false
+      onRefreshed(newToken)
+      originalRequest.headers.Authorization = `Bearer ${newToken}`
+      return api(originalRequest)
+    } catch (refreshError) {
+      isRefreshing = false
+      onRefreshed(null)
+      window.location.href = '/'
+      return Promise.reject(refreshError)
+    }
+  }
+)
+
 // ฟังก์ชัน Login — ใช้ form-urlencoded ตามที่ backend กำหนด (OAuth2 standard)
-export async function loginAPI(username, password) {
+// rememberMe: ตาม spec ที่ backend ยืนยัน — remember_me=true → refresh cookie อยู่ 7 วัน
+// remember_me=false → session cookie + server-side expiry 12 ชม. (กัน browser restore session เก่า)
+// ไม่ส่ง field นี้เลย = backend ถือเป็น false โดย default จึงต้องส่งเสมอ ไม่ปล่อยเป็น optional
+//
+// 👇 แก้: เปลี่ยนจาก axios.post ตรงๆ มาใช้ instance `api` แทน — endpoint นี้เป็นจุดที่ backend
+// Set-Cookie refresh_token กลับมาเป็นครั้งแรก ถ้า request ไม่มี withCredentials: true
+// (ซึ่ง axios เปล่าๆ ไม่มีให้โดย default) browser จะไม่เก็บ cookie httpOnly นี้ไว้เลยในกรณี cross-origin
+// เป็นสาเหตุที่ auto-login ตอนเปิดแท็บใหม่ไม่เคยทำงาน เพราะไม่มี cookie ให้ /auth/refresh ใช้ตั้งแต่แรก
+export async function loginAPI(username, password, rememberMe = false) {
   const formData = new URLSearchParams()
   formData.append('grant_type', 'password')
   formData.append('username', username)
   formData.append('password', password)
+  formData.append('remember_me', rememberMe ? 'true' : 'false')
 
-  const response = await axios.post(
-    `${BASE_URL}/api/auth/login`,
-    formData,
-    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-  )
+  const response = await api.post('/api/auth/login', formData, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  })
 
   const data = response.data
   return {
@@ -266,6 +344,16 @@ export async function logoutAPI() {
   return response.data
 }
 
+// ==================== Refresh Token ====================
+// ทำงานผ่าน refresh_token cookie (httpOnly, path=/api/auth) ไม่ต้องส่ง body ใดๆ
+// คืนแค่ { access_token, token_type } เท่านั้น ไม่มีข้อมูล user มาด้วย
+export async function refreshTokenAPI({ silent = false } = {}) {
+  const response = await api.post('/api/auth/refresh', null, {
+    skipAuthRedirect: silent
+  })
+  return response.data
+}
+
 // ==================== Report APIs ====================
 export async function getReportDailyAPI({ villageId, date } = {}) {
   const params = { date }
@@ -436,16 +524,10 @@ export async function markAllNotificationsReadAPI() {
   return response.data
 }
 // ==================== SSE Presence ====================
-// ticket สำหรับ presence stream (online/offline) แยกจาก ticket ของ alert (getSSEAlertsTicketAPI)
-// ตามข้อตกลง: ไม่ส่ง village_id เลยไม่ว่า role ไหน
-// - user/admin ห้ามส่งอยู่แล้ว (backend คืนหมู่บ้านตัวเองให้อัตโนมัติ)
-// - superadmin เลือกไม่ส่งเพื่อความง่าย (ได้ snapshot ทุกหมู่บ้านในคอนเนกชันเดียว ไม่ต้อง reconnect ตอนสลับหมู่บ้าน)
 export async function getSSEPresenceTicketAPI() {
   const response = await api.post('/api/sse/presence/ticket')
   return response.data // { ticket }
 }
-// ==================== Route Tracking API ====================
-
 // ==================== Route Tracking API ====================
 export async function getRouteTrackingAPI({
   licensePlate,
@@ -489,20 +571,18 @@ export async function getContactsListAPI({ village_id, search, page = 1, page_si
   if (search) params.search = search
 
   const response = await api.get('/api/contacts', { params })
-  return response.data // { items, total, page, page_size }
+  return response.data
 }
 
 export async function getUserContactsDetailAPI(userId) {
   const response = await api.get(`/api/contacts/users/${userId}`)
-  return response.data // { user_id, username, fullname, village_id, village_name, contacts: [] }
+  return response.data
 }
 export async function getCameraStreamTokenAPI(cameraId) {
   const res = await api.get(`/api/cameras/${cameraId}/stream-token`)
   return res.data
 }
 // ==================== Dashboard Today API ====================
-// รวม stat + latest_detections ในเรียกเดียว — แทนที่ getReportDailyAPI + getDetectionsAPI
-// ที่หน้า Dashboard.jsx เคยยิงแยกกัน 2 รอบ
 export async function getTodayDashboardAPI({ villageId, latestLimit = 10 } = {}) {
   const params = { latest_limit: latestLimit }
   if (villageId) params.village_id = villageId
@@ -511,8 +591,6 @@ export async function getTodayDashboardAPI({ villageId, latestLimit = 10 } = {})
   return response.data
 }
 // ==================== ONVIF Probe API ====================
-// ใช้ช่วยหา RTSP URI จากกล้องที่รองรับ ONVIF — ไม่ได้ถูกเก็บเป็น field แยกใน backend
-// ผลลัพธ์ (rtsp_uri ของ profile ที่เลือก) จะถูกเอาไปใส่ใน stream_ai ตอน create/update camera ตามปกติ
 export async function probeOnvifCameraAPI({ host, port, username, password }) {
   const response = await api.post('/api/cameras/onvif/probe', {
     host,
@@ -520,9 +598,53 @@ export async function probeOnvifCameraAPI({ host, port, username, password }) {
     username,
     password
   })
-  return response.data // { device_manufacturer, device_model, profiles: [{ profile_token, name, encoding, width, height, rtsp_uri }] }
+  return response.data
 }
 export async function deleteVillageAPI(villageId) {
   const response = await api.delete(`/api/villages/${villageId}`)
+  return response.data
+}
+// ==================== User Avatar APIs ====================
+export async function uploadUserAvatarAPI(userId, file) {
+  const formData = new FormData()
+  formData.append('file', file) // ⚠️ field name เดา — ยืนยันจาก Body_upload_user_avatar_api_users__user_id__avatar_post ให้ชัวร์อีกที
+  const response = await api.post(`/api/users/${userId}/avatar`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return response.data
+}
+
+export async function deleteUserAvatarAPI(userId) {
+  const response = await api.delete(`/api/users/${userId}/avatar`)
+  return response.data
+}
+
+// คืน object URL ของรูป หรือ null ถ้า user ยังไม่เคยอัปโหลด avatar (คาดว่า backend ตอบ 404)
+export async function getUserAvatarBlobURL(userId) {
+  try {
+    const response = await api.get(`/api/users/${userId}/avatar`, { responseType: 'blob' })
+    return URL.createObjectURL(response.data)
+  } catch (error) {
+    if (error.response?.status === 404) return null
+    throw error
+  }
+}
+
+// ==================== Fullname Update ====================
+// PATCH /api/users/{user_id}/profile — schema UserFullnameUpdate
+// ⚠️ ตอนนี้ backend ยังไม่มี endpoint แก้ "username" โดยตรง มีแค่ fullname เท่านั้น
+export async function updateUserFullnameAPI(userId, fullname) {
+  const response = await api.patch(`/api/users/${userId}/profile`, { fullname })
+  return response.data
+}
+
+// ==================== Email Change APIs ====================
+export async function requestEmailChangeAPI(userId, newEmail) {
+  const response = await api.post(`/api/users/${userId}/email-change`, { new_email: newEmail })
+  return response.data
+}
+
+export async function confirmEmailChangeAPI(token) {
+  const response = await api.post('/api/auth/confirm-email-change', { token })
   return response.data
 }

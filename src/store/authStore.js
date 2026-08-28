@@ -1,66 +1,130 @@
 import { create } from 'zustand'
-import Cookies from 'js-cookie'
-import { logoutAPI } from '../data/api'
+import { refreshTokenAPI, logoutAPI, getMyProfileAPI } from '../data/api'
 import useVillageStore from './villageStore'
 import useNotificationStore from './notificationStore'
 
-const REMEMBER_ME_EXPIRY_DAYS = 7
+const ACCESS_TOKEN_LIFETIME_MS = 300 * 60 * 1000 // 300 นาที ตามที่ backend ยืนยัน (ACCESS_TOKEN_EXPIRE_MINUTES)
+const REFRESH_BUFFER_MS = 60 * 1000 // ขอ token ใหม่ก่อนหมดอายุจริง 60 วิ กัน network latency/clock skew
 
-const useAuthStore = create((set) => ({
+let refreshTimerId = null
+
+// เก็บ promise ของการ refresh ที่กำลังทำอยู่ไว้ระดับ module (ไม่ใช่ state ของ store)
+// เพราะต้อง dedupe ข้าม caller ทุกทาง — ทั้งจาก scheduleRefresh (timer) และจาก axios interceptor
+// ที่อาจเจอ 401 พร้อมกันจากหลาย request วิ่งขนานกัน ถ้าไม่ share promise ตัวเดียวกัน แต่ละตัวจะยิง
+// /auth/refresh ของตัวเอง และถ้า backend ทำ refresh-token rotation (revoke token เก่าทันทีที่ใช้ 1 ครั้ง)
+// request ที่ยิงทีหลังจะได้ token ที่ถูก revoke ไปแล้ว ทำให้ user โดน clearSession ทั้งที่ session จริงยังไม่หมดอายุ
+let inFlightRefresh = null
+let sessionInitPromise = null
+
+function clearRefreshTimer() {
+  if (refreshTimerId) {
+    clearTimeout(refreshTimerId)
+    refreshTimerId = null
+  }
+}
+
+// เก็บ access_token ใน memory เท่านั้น (ไม่ persist ลง cookie/localStorage อีกต่อไป)
+// session ยาวจริงๆ อยู่ที่ refresh_token httpOnly cookie ซึ่ง backend คุมทั้งหมด
+// frontend มีหน้าที่แค่ขอ access_token ใหม่ผ่าน /api/auth/refresh ตอน token ใกล้หมดอายุ
+const useAuthStore = create((set, get) => ({
   user: null,
-  token: null,
+  accessToken: null,
   isLoggedIn: false,
-  isLoading: true,
+  isLoading: true, // true ตอนเริ่มแอป ระหว่างเช็คว่ามี session ค้างอยู่จาก refresh cookie ไหม
 
-  login: (user, token, rememberMe) => {
-    const cookieOptions = rememberMe ? { expires: REMEMBER_ME_EXPIRY_DAYS } : {}
-    Cookies.set('access_token', token, cookieOptions)
-    Cookies.set('user', JSON.stringify(user), cookieOptions)
-    set({ user, token, isLoggedIn: true, isLoading: false })
+  // เรียกตอน login สำเร็จจาก Login.jsx — ไม่แตะ cookie เลย backend set refresh_token ให้เองแล้ว
+  login: (user, accessToken) => {
+    set({ user, accessToken, isLoggedIn: true, isLoading: false })
+    get().scheduleRefresh()
   },
 
-  // เรียก API logout ก่อน แล้วค่อยเคลียร์ cookie/state ฝั่ง client
-  // ใช้ try/finally เพื่อให้ user logout ออกจากระบบได้เสมอ
-  // แม้ backend จะ error หรือ token หมดอายุไปแล้วก็ตาม
+  getAccessToken: () => get().accessToken,
+
+  // ตั้ง timer ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริง (แนวคิดเดียวกับ scheduleNext ใน useCameraStream.js)
+  scheduleRefresh: () => {
+    clearRefreshTimer()
+    refreshTimerId = setTimeout(() => {
+      get().refreshAccessToken().catch(() => {
+        // เงียบไว้ตรงนี้พอ — refreshAccessToken เคลียร์ state ให้เองแล้วถ้าพัง
+      })
+    }, ACCESS_TOKEN_LIFETIME_MS - REFRESH_BUFFER_MS)
+  },
+
+  // ขอ access_token ใหม่ผ่าน refresh_token cookie — ใช้ทั้งตอน silent refresh (timer)
+  // และตอน api.js interceptor เจอ 401
+  //
+  // 👇 สำคัญ: ใช้ inFlightRefresh (module-level) เป็นตัว dedupe — ถ้ามีการ refresh ทำงานอยู่แล้ว
+  // caller ตัวถัดไปจะได้ promise ตัวเดียวกันกลับไป ไม่ยิง /auth/refresh ซ้ำ
+  refreshAccessToken: async () => {
+    if (inFlightRefresh) return inFlightRefresh
+
+    inFlightRefresh = (async () => {
+      try {
+        const data = await refreshTokenAPI()
+        set({ accessToken: data.access_token, isLoggedIn: true, isLoading: false })
+        get().scheduleRefresh()
+        return data.access_token
+      } catch (error) {
+        get().clearSession()
+        throw error
+      } finally {
+        inFlightRefresh = null
+      }
+    })()
+
+    return inFlightRefresh
+  },
+
+  // เรียกตอน App mount ครั้งแรกเท่านั้น — แทนที่ loadFromStorage เดิมที่เคยอ่าน cookie เอง
+  // ตอนนี้ frontend ไม่มี cookie ให้อ่านแล้ว (refresh_token เป็น httpOnly) ต้องถาม backend แทน
+  //
+  // ส่ง { silent: true } ไปให้ refreshTokenAPI แนบเป็น axios config พิเศษ (ดู api.js) เพื่อบอก
+  // response interceptor ว่า "นี่คือการเช็ค session เฉยๆ ตอนเปิดแอป ไม่ใช่ error จริง" — ถ้าเจอ 401
+  // ตรงนี้ ห้าม redirect ไปหน้า login เอง (เดี๋ยว catch ด้านล่างจัดการ set isLoggedIn: false ให้เอง
+  // ปกติของเคสนี้คือ "ไม่เคย login" หรือ "refresh token หมดอายุแล้ว" ซึ่งไม่ใช่ error ที่ควร alert user)
+initSession: async () => {
+  if (sessionInitPromise) return sessionInitPromise
+
+  sessionInitPromise = (async () => {
+    set({ isLoading: true })
+    try {
+      const data = await refreshTokenAPI({ silent: true })
+      set({ accessToken: data.access_token })   // 👈 set token ให้ store ก่อน ให้ interceptor เห็นทัน
+      const profile = await getMyProfileAPI()    // 👈 ตอนนี้ request นี้จะมี Authorization header แนบไปแล้ว
+      set({
+        user: profile,
+        isLoggedIn: true,
+        isLoading: false
+      })
+      get().scheduleRefresh()
+      useVillageStore.getState().initSelectedVillage(profile)
+    } catch (error) {
+      set({ isLoading: false, isLoggedIn: false, user: null, accessToken: null })
+    }
+  })()
+
+  return sessionInitPromise
+},
+
+  // logout ปกติที่ user กดเอง — เรียก backend ให้ revoke + clear cookie ให้เรียบร้อยก่อน
   logout: async () => {
     try {
       await logoutAPI()
     } catch (error) {
       console.error('Logout API error:', error)
     } finally {
-      Cookies.remove('access_token')
-      Cookies.remove('user')
-      set({ user: null, token: null, isLoggedIn: false, isLoading: false })
-      // เคลียร์หมู่บ้านที่เลือกไว้ ไม่ให้ user คนถัดไปที่ login เจอค่าค้างจากคนก่อนหน้า
-      useVillageStore.getState().reset()
-      // ปิด SSE connection + เคลียร์ notification ของ user เก่า
-      useNotificationStore.getState().reset()
+      get().clearSession()
     }
   },
 
-  // เคลียร์ session ฝั่ง client เฉยๆ ไม่ยิง logoutAPI() ซ้ำ
-  // ใช้ตอน "ตั้งรหัสผ่านใหม่" สำเร็จจากลิงก์อีเมล (Resetpassword.jsx) — ตอนนั้น
-  // อาจไม่มี token อยู่ในเครื่องเลย (เข้ามาจากลิงก์ ไม่เคย login) หรือถ้ามี token เดิมค้างอยู่
-  // (เปิดคนละแท็บ) backend ก็ revoke ทุก session ของ user คนนั้นไปแล้วตั้งแต่ตั้งรหัสผ่านสำเร็จ
-  // ยิง logoutAPI() ซ้ำจะได้แค่ 401 เฉยๆ ไม่มีประโยชน์ แค่เคลียร์ cookie/state ฝั่งนี้ก็พอ
+  // ใช้ตอนเจอ 401 ที่ระบุว่า session ถูกลบไปแล้วจากฝั่ง server (ไม่ต้องเรียก logout API ซ้ำ)
+  // และใช้เป็น cleanup กลางที่ logout()/refreshAccessToken() เรียกใช้ร่วมกัน
   clearSession: () => {
-    Cookies.remove('access_token')
-    Cookies.remove('user')
-    set({ user: null, token: null, isLoggedIn: false, isLoading: false })
+    clearRefreshTimer()
+    inFlightRefresh = null
+    set({ user: null, accessToken: null, isLoggedIn: false, isLoading: false })
     useVillageStore.getState().reset()
     useNotificationStore.getState().reset()
-  },
-
-  loadFromStorage: () => {
-    const token = Cookies.get('access_token')
-    const user = Cookies.get('user')
-    if (token && user) {
-      const parsedUser = JSON.parse(user)
-      set({ token, user: parsedUser, isLoggedIn: true, isLoading: false })
-      useVillageStore.getState().initSelectedVillage(parsedUser)
-    } else {
-      set({ isLoading: false })
-    }
   }
 }))
 

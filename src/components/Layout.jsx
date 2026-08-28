@@ -5,6 +5,7 @@ import '../styles/Layout.css'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
+import CookieNotice from './CookieNotice'
 
 function Layout({ children, title }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -36,40 +37,42 @@ function Layout({ children, title }) {
   }
 
   return (
-    <div className="layout">
-      {/* Overlay สำหรับ Mobile */}
-      {isMobileOpen && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
-
-      <Sidebar
-        isCollapsed={isCollapsed}
-        isMobileOpen={isMobileOpen}
-        onClose={() => setIsMobileOpen(false)}
+  <div className="layout">
+    {/* Overlay สำหรับ Mobile */}
+    {isMobileOpen && (
+      <div
+        className="sidebar-overlay"
+        onClick={() => setIsMobileOpen(false)}
       />
+    )}
 
-      <div className="layout-main">
-        <Navbar
-          title={title}
-          onToggle={handleToggle}
-        />
-        <main className="layout-content">
-          <motion.div
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            variants={pageVariants}
-            transition={pageTransition}
-          >
-            {children}
-          </motion.div>
-        </main>
-      </div>
+    <Sidebar
+      isCollapsed={isCollapsed}
+      isMobileOpen={isMobileOpen}
+      onClose={() => setIsMobileOpen(false)}
+    />
+
+    <div className="layout-main">
+      <Navbar
+        title={title}
+        onToggle={handleToggle}
+      />
+      <main className="layout-content">
+        <motion.div
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          variants={pageVariants}
+          transition={pageTransition}
+        >
+          {children}
+        </motion.div>
+      </main>
     </div>
-  )
+
+    <CookieNotice />
+  </div>
+)
 }
 
 export default Layout

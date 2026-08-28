@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom' 
 import { useState } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import Swal from 'sweetalert2'
@@ -12,9 +12,10 @@ import useVillageStore from '../store/villageStore'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
 import { isUsernameValid, getUsernameErrorMessage, isLoginPasswordValid, getPasswordErrorMessage } from '../utils/passwordPolicy'
 
+
 function Login() {
   const navigate = useNavigate()
-  const { login } = useAuthStore()
+  const { login, isLoggedIn, isLoading } = useAuthStore()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -37,10 +38,10 @@ function Login() {
   setIsSubmitting(true)
 
   try {
-    const result = await loginAPI(username, password)
+    const result = await loginAPI(username.trim(), password, remember)
 
     // เก็บข้อมูลลง Zustand + Cookie
-    login(result.user, result.access_token, remember)
+    login(result.user, result.access_token)
 
     // ตั้งค่าหมู่บ้านเริ่มต้นตาม role
     // superadmin -> ทุกหมู่บ้าน (null), admin/user -> ล็อกหมู่บ้านตัวเอง
