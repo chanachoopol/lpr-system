@@ -90,7 +90,10 @@ function ProvinceAutocomplete({ value, onChange, name = 'province', id, placehol
         validateAndSettle()
       }
     }
-    function handleScrollOrResize() {
+    function handleScrollOrResize(e) {
+      if (dropdownRef.current && dropdownRef.current.contains(e.target)) {
+        return // อนุญาตให้ scroll ดูรายชื่อใน dropdown ได้
+      }
       setIsOpen(false)
     }
 

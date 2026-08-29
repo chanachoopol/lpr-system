@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { refreshTokenAPI, logoutAPI, getMyProfileAPI } from '../data/api'
+import { refreshTokenAPI, logoutAPI, getMyProfileAPI, getUserAvatarBlobURL } from '../data/api'
 import useVillageStore from './villageStore'
 import useNotificationStore from './notificationStore'
 
@@ -37,13 +37,35 @@ function clearRefreshTimer() {
 const useAuthStore = create((set, get) => ({
   user: null,
   accessToken: null,
+  avatarUrl: null, // blob URL ของรูปโปรไฟล์ผู้ใช้ (sync ข้าม Navbar/Sidebar/Profile)
   isLoggedIn: false,
   isLoading: true, // true ตอนเริ่มแอป ระหว่างเช็คว่ามี session ค้างอยู่จาก refresh cookie ไหม
+
+  // อัปเดตข้อมูล user บางส่วน (เช่น fullname) ให้ Navbar/Sidebar re-render ทันที
+  updateUser: (partialUser) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...partialUser } : null
+    }))
+  },
+
+  // อัปเดต avatarUrl ใน store พร้อมเคลียร์ blob เก่ากัน memory leak
+  setAvatarUrl: (newUrl) => {
+    const prev = get().avatarUrl
+    if (prev && prev !== newUrl) {
+      URL.revokeObjectURL(prev)
+    }
+    set({ avatarUrl: newUrl })
+  },
 
   // เรียกตอน login สำเร็จจาก Login.jsx — ไม่แตะ cookie เลย backend set refresh_token ให้เองแล้ว
   login: (user, accessToken) => {
     set({ user, accessToken, isLoggedIn: true, isLoading: false })
     get().scheduleRefresh()
+    if (user?.id) {
+      getUserAvatarBlobURL(user.id)
+        .then((url) => get().setAvatarUrl(url))
+        .catch(() => get().setAvatarUrl(null))
+    }
   },
 
   getAccessToken: () => get().accessToken,
@@ -106,8 +128,18 @@ const useAuthStore = create((set, get) => ({
         })
         get().scheduleRefresh()
         useVillageStore.getState().initSelectedVillage(profile)
+
+        // โหลดรูป avatar สำหรับ Navbar/Sidebar
+        if (profile?.id) {
+          try {
+            const avatar = await getUserAvatarBlobURL(profile.id)
+            get().setAvatarUrl(avatar)
+          } catch {
+            get().setAvatarUrl(null)
+          }
+        }
       } catch (error) {
-        set({ isLoading: false, isLoggedIn: false, user: null, accessToken: null })
+        set({ isLoading: false, isLoggedIn: false, user: null, accessToken: null, avatarUrl: null })
       }
     })()
 
@@ -129,10 +161,14 @@ const useAuthStore = create((set, get) => ({
   // และใช้เป็น cleanup กลางที่ logout()/refreshAccessToken() เรียกใช้ร่วมกัน
   clearSession: () => {
     const wasLoggedIn = get().isLoggedIn // 👈 เช็คก่อนเคลียร์ กันกรณี broadcast ตอนที่ session ไม่เคย login เลย
+    const currentAvatar = get().avatarUrl
+    if (currentAvatar) {
+      URL.revokeObjectURL(currentAvatar)
+    }
     clearRefreshTimer()
     inFlightRefresh = null
     sessionInitPromise = null
-    set({ user: null, accessToken: null, isLoggedIn: false, isLoading: false })
+    set({ user: null, accessToken: null, avatarUrl: null, isLoggedIn: false, isLoading: false })
     useVillageStore.getState().reset()
     useNotificationStore.getState().reset()
 

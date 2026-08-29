@@ -10,7 +10,7 @@ import { FaTriangleExclamation, FaVideo, FaArrowRight, FaKey, FaIdCard, FaLock }
 
 
 function Navbar({ title, onToggle }) {
-  const { user, logout } = useAuthStore()
+  const { user, avatarUrl, logout } = useAuthStore()
   const navigate = useNavigate()
   const [time, setTime] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -160,8 +160,10 @@ function Navbar({ title, onToggle }) {
           ref={dropdownRef}
           onClick={() => setShowDropdown(!showDropdown)}
         >
-          <div className="nb-avatar"><FaUser /></div>
-          <span className="nb-name">{user?.username || 'Admin'}</span>
+          <div className="nb-avatar">
+            {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="nb-avatar-img" /> : <FaUser />}
+          </div>
+          <span className="nb-name">{user?.fullname || user?.fullName || user?.username || 'Admin'}</span>
           <FaChevronDown className="nb-chevron" />
 
           <div className={`nb-dropdown ${showDropdown ? 'show' : ''}`}>

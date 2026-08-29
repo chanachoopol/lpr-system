@@ -354,6 +354,15 @@
   box-shadow: 0 2px 8px rgba(27, 42, 71, 0.08);
 }
 
+.cm-form-field input:disabled,
+.cm-form-field select:disabled {
+  background: rgba(27, 42, 71, 0.05);
+  color: var(--text-secondary);
+  border-color: rgba(27, 42, 71, 0.08);
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .cm-form-actions {
   display: flex;
   justify-content: flex-end;

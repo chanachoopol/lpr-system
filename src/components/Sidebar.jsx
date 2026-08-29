@@ -20,7 +20,7 @@ const menuItems = [
 ]
 
 function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
-  const { user, logout } = useAuthStore()
+  const { user, avatarUrl, logout } = useAuthStore()
   const navigate = useNavigate()
 
   async function handleLogout() {
@@ -55,9 +55,11 @@ function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
       ${isMobileOpen ? 'mobile-open' : ''}
     `}>
       <div className="sb-user">
-        <div className="sb-avatar"><FaUser /></div>
+        <div className="sb-avatar">
+          {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="sb-avatar-img" /> : <FaUser />}
+        </div>
         <div className="sb-user-info">
-          <p className="sb-user-name">{user?.username || 'Admin'}</p>
+          <p className="sb-user-name">{user?.fullname || user?.fullName || user?.username || 'Admin'}</p>
           <p className="sb-user-role">{user?.role || 'Administrator'}</p>
         </div>
       </div>

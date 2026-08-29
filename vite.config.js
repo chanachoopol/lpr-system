@@ -12,6 +12,7 @@ export default defineConfig({
         target: 'https://abfc-1-10-249-32.ngrok-free.app',
         changeOrigin: true,
         secure: false,
+        cookieDomainRewrite: '', // ปลด domain ให้คุกกี้ผูกกับ Host/IP ที่เปิดใช้งานจริง (เช่น 192.168.x.x หรือ localhost)
         headers: {
           'ngrok-skip-browser-warning': '69420'
         },
@@ -20,6 +21,20 @@ export default defineConfig({
           proxy.on('proxyReq', (proxyReq) => {
             proxyReq.setHeader('Connection', 'keep-alive')
             proxyReq.setHeader('ngrok-skip-browser-warning', '69420')
+          })
+
+          // ดักจับ Set-Cookie จาก backend: ปรับแต่งให้เบราว์เซอร์ในวง LAN (HTTP) ยอมรับและบันทึกคุกกี้ refresh_token
+          proxy.on('proxyRes', (proxyRes) => {
+            const setCookieHeaders = proxyRes.headers['set-cookie']
+            if (setCookieHeaders) {
+              proxyRes.headers['set-cookie'] = (
+                Array.isArray(setCookieHeaders) ? setCookieHeaders : [setCookieHeaders]
+              ).map((cookieStr) =>
+                cookieStr
+                  .replace(/;\s*Secure/gi, '')
+                  .replace(/;\s*SameSite=None/gi, '; SameSite=Lax')
+              )
+            }
           })
         }
       }

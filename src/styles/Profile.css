@@ -7,9 +7,130 @@
 
 /* Header Card */
 .pf-header-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 24px;
+  padding-right: 56px;
+}
+
+/* 3-dots Action Menu */
+.pf-menu-container {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+}
+
+.pf-menu-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(27, 42, 71, 0.12);
+  background: rgba(27, 42, 71, 0.05);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pf-menu-btn:hover,
+.pf-menu-btn.active {
+  background: rgba(27, 42, 71, 0.12);
+  border-color: rgba(27, 42, 71, 0.25);
+  color: rgb(27, 42, 71);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+/* Dropdown Menu Popup */
+.pf-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 190px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid rgba(27, 42, 71, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 50;
+  animation: pfMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes pfMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.pf-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.pf-dropdown-item:hover {
+  background: rgba(27, 42, 71, 0.06);
+  color: rgb(27, 42, 71);
+}
+
+.pf-dropdown-item svg {
+  font-size: 14px;
+  color: rgba(27, 42, 71, 0.6);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.pf-dropdown-item:hover svg {
+  color: rgb(27, 42, 71);
+}
+
+.pf-dropdown-item.danger {
+  color: rgb(220, 38, 38);
+}
+
+.pf-dropdown-item.danger svg {
+  color: rgb(220, 38, 38);
+}
+
+.pf-dropdown-item.danger:hover {
+  background: rgba(220, 38, 38, 0.08);
+  color: rgb(185, 28, 28);
+}
+
+.pf-dropdown-item.danger:hover svg {
+  color: rgb(185, 28, 28);
+}
+
+/* Section รูปโปรไฟล์ */
+.pf-avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .pf-avatar-lg {
@@ -23,19 +144,59 @@
   justify-content: center;
   font-size: 34px;
   flex-shrink: 0;
-  overflow: hidden; /* กันรูปที่ไม่ใช่สี่เหลี่ยมจัตุรัสล้นออกนอกวงกลม */
+  overflow: hidden;
 }
 
 .pf-header-info {
   min-width: 0;
+  flex: 1;
 }
 
+/* Fullname แก้ไขได้ */
 .pf-fullname {
   font-family: 'Playfair Display', serif;
   font-size: 22px;
   color: var(--text-main);
   margin: 0 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
+
+/* Fullname edit inline */
+.pf-fullname-edit-wrap {
+  margin-bottom: 8px;
+}
+
+.pf-fullname-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pf-fullname-input {
+  padding: 6px 12px;
+  border: 1px solid rgba(27, 42, 71, 0.2);
+  border-radius: 8px;
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: var(--text-main);
+  outline: none;
+  min-width: 0;
+  flex: 1;
+  background: var(--bg-input);
+}
+
+.pf-fullname-input:focus {
+  border-color: rgb(27, 42, 71);
+  box-shadow: 0 0 0 2px rgba(27, 42, 71, 0.1);
+}
+
+.pf-fullname-input.pf-input-error {
+  border-color: rgb(220, 38, 38);
+}
+
 
 .pf-username {
   font-size: 13px;
@@ -687,32 +848,53 @@
   border-color: rgb(220, 38, 38) !important;
 }
 
-/* ==================== Contact header hint ==================== */
 .pf-contact-hint {
   font-weight: 400;
   color: rgb(148, 163, 184);
 }
-.pf-avatar-delete-btn {
-  position: absolute;
-  bottom: -2px;
-  left: -2px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 2.5px solid rgb(255, 255, 255);
-  background: rgb(220, 38, 38);
-  color: rgb(255, 255, 255);
+
+/* ==================== Full Avatar Modal ==================== */
+.pf-full-avatar-modal {
+  position: relative;
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 16px;
+  padding: 16px;
+  max-width: 90vw;
+  max-height: 90vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+}
+
+.pf-full-avatar-img {
+  max-width: 80vw;
+  max-height: 80vh;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  object-fit: contain;
+  display: block;
+}
+
+.pf-full-avatar-modal .modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
-  transition: all 0.2s ease;
+  font-size: 16px;
+  transition: background 0.2s ease;
   z-index: 2;
 }
 
-.pf-avatar-delete-btn:hover {
-  background: rgb(185, 28, 28);
-  transform: scale(1.06);
-}
+.pf-full-avatar-modal .modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

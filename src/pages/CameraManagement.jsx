@@ -197,6 +197,14 @@ function CameraManagement() {
     setIsProbing(false)
   }
 
+  function toggleOnvifPanel() {
+    if (showOnvifPanel) {
+      resetOnvifPanel()
+    } else {
+      setShowOnvifPanel(true)
+    }
+  }
+
   function handleOnvifFormChange(e) {
     const { name, value } = e.target
     setOnvifForm((prev) => ({ ...prev, [name]: name === 'port' ? value.replace(/\D/g, '') : value }))
@@ -206,7 +214,7 @@ function CameraManagement() {
     if (!onvifForm.host.trim()) {
       Swal.fire({
         icon: 'warning',
-        title: 'กรุณากรอก Host',
+        title: 'กรุณากรอก Host / IP',
         text: 'ต้องระบุ IP หรือ Host ของกล้องก่อนค้นหา',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
@@ -274,8 +282,8 @@ function CameraManagement() {
     setEditingCamera(camera)
     setFormData({
       name: camera.name,
-      lat: camera.lat,
-      long: camera.long,
+      lat: String(camera.lat ?? ''),
+      long: String(camera.long ?? ''),
       streamAi: camera.stream_ai || '',
       direction: camera.direction || 'entry', // fallback 'entry' เผื่อกล้องเก่าไม่มี field นี้
       isActive: camera.is_active,
@@ -292,17 +300,85 @@ function CameraManagement() {
 
   function handleFormChange(e) {
     const { name, value, type, checked } = e.target
+    if (name === 'lat' || name === 'long') {
+      // อนุญาตเฉพาะตัวเลข เครื่องหมายลบ (-) ที่ตัวแรก และจุดทศนิยม (.) ไม่เกิน 1 จุด
+      let sanitized = value.replace(/[^0-9.-]/g, '')
+      if (sanitized.indexOf('-') > 0) {
+        sanitized = sanitized.replace(/(?!^)-/g, '')
+      }
+      const parts = sanitized.split('.')
+      if (parts.length > 2) {
+        sanitized = parts[0] + '.' + parts.slice(1).join('')
+      }
+      setFormData((prev) => ({ ...prev, [name]: sanitized }))
+      return
+    }
     setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
   async function handleFormSubmit(e) {
     e.preventDefault()
 
-    if (!formData.name.trim() || formData.lat === '' || formData.long === '' || !formData.streamAi.trim()) {
+    const trimmedName = formData.name.trim()
+    const trimmedStreamAi = formData.streamAi.trim()
+
+    if (!trimmedName) {
       Swal.fire({
         icon: 'warning',
-        title: 'กรอกข้อมูลไม่ครบ',
-        text: 'กรุณากรอกชื่อกล้อง, พิกัด (lat/long) และ Stream Source',
+        title: 'กรุณากรอกชื่อกล้อง',
+        text: 'ห้ามเว้นว่างชื่อกล้อง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    if (formData.lat === '' || formData.lat === undefined) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'กรุณากรอก Latitude',
+        text: 'ห้ามเว้นว่างพิกัด Latitude',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    const latNum = parseFloat(formData.lat)
+    if (isNaN(latNum) || latNum < -90 || latNum > 90) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'พิกัด Latitude ไม่ถูกต้อง',
+        text: 'Latitude ต้องเป็นตัวเลขระหว่าง -90 ถึง 90',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    if (formData.long === '' || formData.long === undefined) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'กรุณากรอก Longitude',
+        text: 'ห้ามเว้นว่างพิกัด Longitude',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    const longNum = parseFloat(formData.long)
+    if (isNaN(longNum) || longNum < -180 || longNum > 180) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'พิกัด Longitude ไม่ถูกต้อง',
+        text: 'Longitude ต้องเป็นตัวเลขระหว่าง -180 ถึง 180',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    if (!trimmedStreamAi) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'กรุณากรอก Stream Source',
+        text: 'ห้ามเว้นว่างลิงก์ RTSP Stream ของกล้อง',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
@@ -312,10 +388,10 @@ function CameraManagement() {
     try {
       if (editingCamera) {
         await updateCameraAPI(editingCamera.id, {
-          name: formData.name.trim(),
-          lat: parseFloat(formData.lat),
-          long: parseFloat(formData.long),
-          stream_ai: formData.streamAi.trim(),
+          name: trimmedName,
+          lat: latNum,
+          long: longNum,
+          stream_ai: trimmedStreamAi,
           direction: formData.direction,
           is_active: formData.isActive
         })
@@ -338,10 +414,10 @@ function CameraManagement() {
         }
         await createCameraAPI(
           formData.villageId,
-          formData.name.trim(),
-          parseFloat(formData.lat),
-          parseFloat(formData.long),
-          formData.streamAi.trim(),
+          trimmedName,
+          latNum,
+          longNum,
+          trimmedStreamAi,
           formData.direction
         )
         Swal.fire({
@@ -659,7 +735,7 @@ function CameraManagement() {
                 <input
                   type="text"
                   name="name"
-                  placeholder="เช่น Main Entrance (Inbound)"
+                  placeholder="เช่น ป้อมยามหน้าโครงการ (ขาเข้า)"
                   value={formData.name}
                   onChange={handleFormChange}
                 />
@@ -668,8 +744,7 @@ function CameraManagement() {
                 <div className="cm-form-field">
                   <label>Latitude</label>
                   <input
-                    type="number"
-                    step="any"
+                    type="text"
                     name="lat"
                     placeholder="เช่น 13.844849"
                     value={formData.lat}
@@ -679,8 +754,7 @@ function CameraManagement() {
                 <div className="cm-form-field">
                   <label>Longitude</label>
                   <input
-                    type="number"
-                    step="any"
+                    type="text"
                     name="long"
                     placeholder="เช่น 100.632904"
                     value={formData.long}
@@ -694,7 +768,7 @@ function CameraManagement() {
                 <input
                   type="text"
                   name="streamAi"
-                  placeholder="rtsp://username:password@ip:port/path"
+                  placeholder="เช่น rtsp://admin:pass@192.168.1.100:554/live"
                   value={formData.streamAi}
                   onChange={handleFormChange}
                   disabled={!!editingCamera}
@@ -717,10 +791,10 @@ function CameraManagement() {
                     ไม่ทราบลิงก์ RTSP ของกล้อง?{' '}
                     <span
                       className="cm-onvif-link"
-                      onClick={() => setShowOnvifPanel((prev) => !prev)}
+                      onClick={toggleOnvifPanel}
                       role="button"
                       tabIndex={0}
-                      onKeyDown={(e) => e.key === 'Enter' && setShowOnvifPanel((prev) => !prev)}
+                      onKeyDown={(e) => e.key === 'Enter' && toggleOnvifPanel()}
                     >
                       {showOnvifPanel ? 'ซ่อนตัวช่วยค้นหา ONVIF' : 'ค้นหา RTSP ด้วย ONVIF'}
                     </span>
@@ -748,7 +822,7 @@ function CameraManagement() {
                           <input
                             type="text"
                             name="port"
-                            placeholder="80"
+                            placeholder="เช่น 80 หรือ 554"
                             value={onvifForm.port}
                             onChange={handleOnvifFormChange}
                           />
@@ -761,7 +835,7 @@ function CameraManagement() {
                           <input
                             type="text"
                             name="username"
-                            placeholder="admin"
+                            placeholder="เช่น admin"
                             value={onvifForm.username}
                             onChange={handleOnvifFormChange}
                           />
@@ -771,6 +845,7 @@ function CameraManagement() {
                           <input
                             type="password"
                             name="password"
+                            placeholder="กรอกรหัสผ่านกล้อง"
                             value={onvifForm.password}
                             onChange={handleOnvifFormChange}
                           />
