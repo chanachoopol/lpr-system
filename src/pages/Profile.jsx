@@ -229,6 +229,17 @@ function Profile() {
       return
     }
 
+    const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+    if (file.size > MAX_FILE_SIZE) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์มีขนาดใหญ่เกินไป',
+        text: 'กรุณาเลือกไฟล์รูปภาพขนาดไม่เกิน 5MB',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
     const reader = new FileReader()
     reader.onload = () => {
       setAvatarDraft(reader.result)

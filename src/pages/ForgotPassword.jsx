@@ -124,7 +124,7 @@ function ForgotPassword() {
                     <input
                       type="email"
                       className={`f-box ${emailError ? 'f-box-error' : ''}`}
-                      placeholder="you@example.com"
+                      placeholder="กรอกอีเมลของคุณ เช่น user@example.com"
                       value={email}
                       onChange={(e) => { setEmail(e.target.value); setEmailError('') }}
                       autoComplete="email"

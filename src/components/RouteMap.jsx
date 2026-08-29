@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
 import Spinner from './Spinner';
 
-const LONGDO_API_KEY = '77b3dd6ca1af611860ee1d100bc5d530';
+const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af611860ee1d100bc5d530';
 const CARD_WIDTH = 260;
 const CARD_GAP = 12;
 const FOCUS_ANIMATION_DELAY_MS = 350; // เผื่อเวลา map.location/zoom animate เสร็จก่อนคำนวณตำแหน่งการ์ด

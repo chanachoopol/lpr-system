@@ -226,7 +226,11 @@ useEffect(() => {
     let searchTo = today;
 
     if (dateFromURL) {
-      const targetDate = new Date(`${dateFromURL}T00:00:00`);
+      const [year, month, day] = dateFromURL.split('-').map(Number);
+      const targetDate = (!isNaN(year) && !isNaN(month) && !isNaN(day))
+        ? new Date(year, month - 1, day, 0, 0, 0)
+        : new Date(dateFromURL);
+
       searchFrom = new Date(targetDate);
       searchFrom.setDate(searchFrom.getDate() - 3);
       searchTo = new Date(targetDate);

@@ -489,9 +489,10 @@ export async function createVillageAPI(name, address) {
   return response.data
 }
 
-export async function updateVillageAPI(villageId, { name, isActive } = {}) {
+export async function updateVillageAPI(villageId, { name, address, isActive } = {}) {
   const payload = {}
   if (name !== undefined) payload.name = name
+  if (address !== undefined) payload.address = address
   if (isActive !== undefined) payload.is_active = isActive
 
   const response = await api.patch(`/api/villages/${villageId}`, payload)
@@ -557,17 +558,10 @@ export async function getRouteTrackingAPI({
   if (direction) params.direction = direction
   if (villageId) params.village_id = villageId
 
-  try {
-    const response = await api.get('/api/detections/route-tracking', {
-      params
-    })
-
-    return response.data
-  } catch (error) {
-    console.log('Route Tracking 422 DETAIL:', error.response?.data)
-    console.log('Route Tracking REQUEST:', error.config?.url)
-    throw error
-  }
+  const response = await api.get('/api/detections/route-tracking', {
+    params
+  })
+  return response.data
 }
 export async function getContactsListAPI({ village_id, search, page = 1, page_size = 20 } = {}) {
   const params = { page, page_size }

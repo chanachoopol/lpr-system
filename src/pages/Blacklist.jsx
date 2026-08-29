@@ -88,8 +88,10 @@ function Blacklist() {
     let items = []
     while (page <= JOIN_MAX_PAGES) {
       const data = await getBlacklistAPI({ villageId: selectedVillageId || undefined, page, pageSize: JOIN_PAGE_SIZE })
-      items = items.concat(data.items)
-      if (items.length >= data.total || data.items.length === 0) break
+      const pageItems = Array.isArray(data?.items) ? data.items : []
+      items = items.concat(pageItems)
+      const total = data?.total ?? 0
+      if (items.length >= total || pageItems.length === 0) break
       page += 1
     }
     return items
@@ -111,8 +113,10 @@ function Blacklist() {
         page,
         page_size: JOIN_PAGE_SIZE
       })
-      items = items.concat(data.items)
-      if (items.length >= data.total || data.items.length === 0) break
+      const pageItems = Array.isArray(data?.items) ? data.items : []
+      items = items.concat(pageItems)
+      const total = data?.total ?? 0
+      if (items.length >= total || pageItems.length === 0) break
       page += 1
     }
     return items
@@ -127,13 +131,26 @@ function Blacklist() {
         fetchAllDetectionsToday()
       ])
 
-      const blacklistSet = new Set(
-        blacklistEntries.map((b) => `${normalizePlate(b.license_plate)}|${b.province}`)
-      )
+      // แยก set สำหรับ blacklist ที่ระบุจังหวัด vs ไม่ได้ระบุจังหวัด (match ทุกจังหวัด)
+      const blacklistWithProv = new Set()
+      const blacklistAnyProv = new Set()
 
-      const matched = todayDetections.filter((d) =>
-        blacklistSet.has(`${normalizePlate(d.license_plate)}|${d.province}`)
-      )
+      blacklistEntries.forEach((b) => {
+        const plate = normalizePlate(b.license_plate)
+        if (!plate) return
+        if (b.province && b.province.trim()) {
+          blacklistWithProv.add(`${plate}|${b.province.trim()}`)
+        } else {
+          blacklistAnyProv.add(plate)
+        }
+      })
+
+      const matched = todayDetections.filter((d) => {
+        const plate = normalizePlate(d.license_plate)
+        if (!plate) return false
+        const prov = (d.province || '').trim()
+        return blacklistAnyProv.has(plate) || (prov && blacklistWithProv.has(`${plate}|${prov}`))
+      })
 
       setFoundToday(matched)
     } catch (error) {

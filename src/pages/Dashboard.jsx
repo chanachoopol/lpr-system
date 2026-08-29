@@ -163,8 +163,15 @@ useEffect(() => {
     }
   }, [selectedItem])
 
+  // คืนหน่วยความจำ blob URL ทิ้งเมื่อ modalImages เปลี่ยนหรือ unmount กัน memory leak
+  useEffect(() => {
+    return () => {
+      if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
+      if (modalImages.full) URL.revokeObjectURL(modalImages.full)
+    }
+  }, [modalImages])
+
   function closeModal() {
-    // คืนหน่วยความจำ blob URL ทิ้งตอนปิด modal กัน memory leak
     if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
     if (modalImages.full) URL.revokeObjectURL(modalImages.full)
     setSelectedItem(null)

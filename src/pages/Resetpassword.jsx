@@ -247,7 +247,7 @@ function ResetPassword() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   className="f-box"
-                  placeholder="เช่น Abcd1234!"
+                  placeholder="กรอกรหัสผ่านใหม่ (เช่น Abcd1234!)"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   autoComplete="new-password"

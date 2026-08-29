@@ -37,21 +37,49 @@ function Login() {
     return <Navigate to="/dashboard" replace />
   }
 
+  function handleUsernameChange(e) {
+    const val = e.target.value
+    setUsername(val)
+    if (val.length > 36) {
+      setUsernameError('Username ต้องไม่เกิน 36 ตัวอักษร')
+    } else {
+      setUsernameError('')
+    }
+  }
+
+  function handlePasswordChange(e) {
+    setPassword(e.target.value)
+    if (passwordError) setPasswordError('')
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
 
-    const usernameErr = isUsernameValid(username) ? '' : getUsernameErrorMessage(username)
-    const passwordErr = isLoginPasswordValid(password) ? '' : getPasswordErrorMessage(password)
+    const trimmedUser = username.trim()
+    let userErr = ''
+    let passErr = ''
 
-    setUsernameError(usernameErr)
-    setPasswordError(passwordErr)
+    if (!trimmedUser) {
+      userErr = 'กรุณากรอก Username'
+    } else if (trimmedUser.length < 4) {
+      userErr = 'Username ต้องมีอย่างน้อย 4 ตัวอักษร'
+    } else if (trimmedUser.length > 36) {
+      userErr = 'Username ต้องไม่เกิน 36 ตัวอักษร'
+    }
 
-    if (usernameErr || passwordErr) return
+    if (!password) {
+      passErr = 'กรุณากรอกรหัสผ่าน'
+    }
+
+    setUsernameError(userErr)
+    setPasswordError(passErr)
+
+    if (userErr || passErr) return
 
     setIsSubmitting(true)
 
     try {
-      const result = await loginAPI(username.trim(), password, remember)
+      const result = await loginAPI(trimmedUser, password, remember)
 
       // เก็บข้อมูลลง Zustand (accessToken อยู่ใน memory, refresh_token เป็น httpOnly cookie ที่ backend set ให้เอง)
       login(result.user, result.access_token)
@@ -116,10 +144,10 @@ function Login() {
                 <input
                   type="text"
                   className={`f-box ${usernameError ? 'f-box-error' : ''}`}
-                  placeholder="Enter your username"
+                  placeholder="กรอก Username ของคุณ"
                   value={username}
-                  maxLength={36}
-                  onChange={(e) => { setUsername(e.target.value); setUsernameError('') }}
+                  maxLength={50}
+                  onChange={handleUsernameChange}
                   autoComplete="username"
                 />
               </div>
@@ -132,10 +160,9 @@ function Login() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   className={`f-box ${passwordError ? 'f-box-error' : ''}`}
-                  placeholder="Enter your password"
+                  placeholder="กรอกรหัสผ่านของคุณ"
                   value={password}
-                  maxLength={36}
-                  onChange={(e) => { setPassword(e.target.value); setPasswordError('') }}
+                  onChange={handlePasswordChange}
                   autoComplete="current-password"
                 />
                 <span className="eye-icon" onClick={() => setShowPassword(!showPassword)}>

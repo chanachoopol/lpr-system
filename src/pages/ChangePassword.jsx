@@ -192,7 +192,7 @@ function ChangePassword() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="currentPassword"
-                placeholder="กรอกรหัสผ่านปัจจุบัน"
+                placeholder="กรอกรหัสผ่านปัจจุบันของคุณ"
                 value={formData.currentPassword}
                 onChange={handleChange}
                 autoComplete="current-password"
@@ -204,7 +204,7 @@ function ChangePassword() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="newPassword"
-                placeholder="เช่น Abcd1234!"
+                placeholder="กรอกรหัสผ่านใหม่ (เช่น Abcd1234!)"
                 value={formData.newPassword}
                 onChange={handleChange}
                 autoComplete="new-password"

@@ -16,6 +16,7 @@ import Report from './pages/Report'
 import UserManagement from './pages/UserManagement'
 import CameraManagement from './pages/CameraManagement'
 import AuditLog from './pages/AuditLog'
+import ConfirmEmailChange from './pages/ConfirmEmailChange'
 import ResetPassword from './pages/ResetPassword'
 import ChangePassword from './pages/ChangePassword'
 import Profile from './pages/Profile'
@@ -31,6 +32,8 @@ function AnimatedRoutes() {
         <Route path="/" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/set-password" element={<ResetPassword />} />
+        <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
+        <Route path="/confirm-email" element={<ConfirmEmailChange />} />
 
         {/* Protected routes — ต้อง login ทุก role */}
         <Route path="/dashboard" element={

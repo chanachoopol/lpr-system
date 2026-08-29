@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-const LONGDO_API_KEY = '77b3dd6ca1af611860ee1d100bc5d530'
+const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af611860ee1d100bc5d530'
 const CARD_WIDTH = 240
 const CARD_GAP = 12 // ระยะห่างระหว่างหมุดกับการ์ด
 
