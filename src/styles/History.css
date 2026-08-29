@@ -176,6 +176,19 @@
   background: rgba(27, 42, 71, 0.02);
 }
 
+.history-table tr.history-row-blacklist td {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.history-table tr.history-row-blacklist:hover td {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.history-table tr.history-row-blacklist .plate-text {
+  color: rgb(220, 38, 38);
+  font-weight: 700;
+}
+
 .history-table tr:last-child td {
   border-bottom: none;
 }

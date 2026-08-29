@@ -114,8 +114,22 @@ body {
   100% { background-position: -200% 0; }
 }
 .blacklist-alert-popup {
-  border: 3px solid rgb(220, 38, 38) !important;
-  animation: blacklistPulse 1.5s infinite;
+  border: 2.5px solid rgb(220, 38, 38) !important;
+  border-radius: 20px !important;
+  position: relative !important;
+  animation: blacklistPulse 1.8s infinite ease-in-out;
+}
+
+/* 3D Stacked Cards Layer Effect เมื่อมี Alert ซ้อนกัน */
+.blacklist-alert-popup.has-stacked-alerts {
+  box-shadow:
+    0 0 0 1px rgba(220, 38, 38, 0.25),
+    8px 8px 0 -1px #ffffff,
+    8px 8px 0 1px rgba(220, 38, 38, 0.4),
+    16px 16px 0 -2px #ffffff,
+    16px 16px 0 1px rgba(220, 38, 38, 0.25),
+    0 25px 50px -12px rgba(0, 0, 0, 0.35) !important;
+  animation: none !important;
 }
 
 @keyframes blacklistPulse {

@@ -89,6 +89,20 @@ async function showNextBlacklistAlert() {
     }
   }
 
+  const remainingCount = blacklistAlertQueue.length
+  const hasStacked = remainingCount > 0
+
+  const stackedBadgeHtml = hasStacked
+    ? `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:6px 12px; background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.2); border-radius:10px;">
+        <span style="font-size:12px; font-weight:700; color:rgb(220,38,38);">🚨 กำลังแสดงรายการ</span>
+        <span style="font-size:12px; font-weight:700; color:rgb(220,38,38); background:#ffffff; padding:2px 10px; border-radius:12px; border:1px solid rgba(220,38,38,0.2); box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          ซ้อนอยู่ +${remainingCount} รายการ
+        </span>
+      </div>
+    `
+    : ''
+
   const imageHtml = imageUrl
     ? `<img src="${imageUrl}" alt="ภาพรถที่ตรวจจับได้" style="width:100%; max-height:220px; object-fit:cover; border-radius:12px; margin-bottom:14px; border:1px solid rgba(220,38,38,0.2);" />`
     : `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:rgba(220,38,38,0.06); border-radius:12px; margin-bottom:14px; color:rgb(148,163,184); font-size:13px;">ไม่มีรูปภาพ</div>`
@@ -98,6 +112,7 @@ async function showNextBlacklistAlert() {
     title: 'พบรถต้องสงสัย (Blacklist)',
     html: `
       <div style="text-align:left; font-family:'DM Sans', sans-serif; font-size:14px; line-height:1.8;">
+        ${stackedBadgeHtml}
         ${imageHtml}
         <p><strong>ป้ายทะเบียน:</strong> ${merged.license_plate || '-'}</p>
         <p><strong>จังหวัด:</strong> ${merged.province || '-'}</p>
@@ -106,13 +121,13 @@ async function showNextBlacklistAlert() {
         ${next.reason ? `<p><strong>เหตุผล:</strong> ${next.reason}</p>` : ''}
       </div>
     `,
-    confirmButtonText: 'รับทราบ',
+    confirmButtonText: hasStacked ? `รับทราบ (เหลืออีก ${remainingCount} รายการ)` : 'รับทราบ',
     confirmButtonColor: 'rgb(220, 38, 38)',
     allowOutsideClick: false,
     allowEscapeKey: false,
     showCloseButton: false,
     width: 460,
-    customClass: { popup: 'blacklist-alert-popup' }
+    customClass: { popup: hasStacked ? 'blacklist-alert-popup has-stacked-alerts' : 'blacklist-alert-popup' }
   }).then(() => {
     if (imageUrl) URL.revokeObjectURL(imageUrl)
     isBlacklistAlertShowing = false

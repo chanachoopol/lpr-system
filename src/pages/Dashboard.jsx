@@ -214,11 +214,13 @@ useEffect(() => {
           <div className="content-card">
             <h3 className="card-title">LPR Camera Map</h3>
             {isLoadingCameras ? (
-              <div className="video-skeleton" style={{ height: '100%', minHeight: '300px', borderRadius: '16px' }}>
+              <div className="video-skeleton" style={{ flex: 1, minHeight: '540px', borderRadius: '16px' }}>
                 <Spinner text="กำลังโหลดตำแหน่งกล้อง..." />
               </div>
             ) : (
-              <MapView cameras={cameras} />
+              <div className="dashboard-map-container">
+                <MapView cameras={cameras} />
+              </div>
             )}
           </div>
 
@@ -246,22 +248,30 @@ useEffect(() => {
                       </td>
                     </tr>
                   ) : history.length > 0 ? (
-                    history.map((item, index) => (
-                      <tr key={item.id}>
-                        <td>{index + 1}</td>
-                        <td>{formatDate(item.time_detect)}</td>
-                        <td>{formatTime(item.time_detect)}</td>
-                        <td className="plate-text">{item.license_plate}</td>
-                        <td>{item.province}</td>
-                        <td>{item.color}</td>
-                        <td>{getCameraName(item.camera_id)}</td>
-                        <td>
-                          <button className="btn-view" onClick={() => setSelectedItem(item)}>
-                            <FaEye /> View
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    history.map((item, index) => {
+                      const isBlacklist = Boolean(
+                        item.is_blacklist ||
+                        item.is_blacklisted ||
+                        item.category === 'blacklist' ||
+                        item.type === 'blacklist'
+                      )
+                      return (
+                        <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
+                          <td>{index + 1}</td>
+                          <td>{formatDate(item.time_detect)}</td>
+                          <td>{formatTime(item.time_detect)}</td>
+                          <td className="plate-text">{item.license_plate}</td>
+                          <td>{item.province}</td>
+                          <td>{item.color}</td>
+                          <td>{getCameraName(item.camera_id)}</td>
+                          <td>
+                            <button className="btn-view" onClick={() => setSelectedItem(item)}>
+                              <FaEye /> View
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })
                   ) : (
                     <tr>
                       <td colSpan="8">

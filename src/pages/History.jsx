@@ -332,22 +332,30 @@ function History() {
                     </td>
                   </tr>
                 ) : historyData.length > 0 ? (
-                  historyData.map((item, index) => (
-                    <tr key={item.id}>
-                      <td>{(currentPage - 1) * ROWS_PER_PAGE + index + 1}</td>
-                      <td>{formatDate(item.time_detect)}</td>
-                      <td>{formatTime(item.time_detect)}</td>
-                      <td className="plate-text">{item.license_plate}</td>
-                      <td>{item.province}</td>
-                      <td>{item.color}</td>
-                      <td>{getCameraName(item.camera_id)}</td>
-                      <td>
-                        <button className="btn-view" onClick={() => setSelectedItem(item)}>
-                          <FaEye /> View
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  historyData.map((item, index) => {
+                    const isBlacklist = Boolean(
+                      item.is_blacklist ||
+                      item.is_blacklisted ||
+                      item.category === 'blacklist' ||
+                      item.type === 'blacklist'
+                    )
+                    return (
+                      <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
+                        <td>{(currentPage - 1) * ROWS_PER_PAGE + index + 1}</td>
+                        <td>{formatDate(item.time_detect)}</td>
+                        <td>{formatTime(item.time_detect)}</td>
+                        <td className="plate-text">{item.license_plate}</td>
+                        <td>{item.province}</td>
+                        <td>{item.color}</td>
+                        <td>{getCameraName(item.camera_id)}</td>
+                        <td>
+                          <button className="btn-view" onClick={() => setSelectedItem(item)}>
+                            <FaEye /> View
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
                 ) : (
                   <tr>
                     <td colSpan="8">

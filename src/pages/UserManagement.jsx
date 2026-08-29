@@ -26,6 +26,7 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import UserProfileModal from '../components/UserProfileModal'
 import ActionMenu from '../components/ActionMenu'
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter'
 import { filterVisibleUsers } from '../utils/Permissions'
 import { isEmailValid, isPasswordValid } from '../utils/passwordPolicy'
 
@@ -39,6 +40,72 @@ const CAN_ADD_VILLAGE_ROLES = ['superadmin']
 const EMPTY_FORM = { username: '', fullname: '', email: '', phone: '', villageId: '' }
 const EMPTY_VILLAGE_FORM = { name: '', address: '' }
 const EMPTY_RESET_FORM = { newPassword: '', confirmPassword: '' }
+
+function validateUserForm(data, isCurrentUserAdmin) {
+  const errors = {}
+
+  const u = (data.username || '').trim()
+  if (!u) {
+    errors.username = 'กรุณากรอก Username'
+  } else if (u.length < 4) {
+    errors.username = 'Username ต้องมีอย่างน้อย 4 ตัวอักษร'
+  } else if (u.length > 36) {
+    errors.username = 'Username ต้องไม่เกิน 36 ตัวอักษร'
+  } else if (!/^[a-zA-Z0-9_]+$/.test(u)) {
+    errors.username = 'Username ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ _ เท่านั้น'
+  }
+
+  const fn = (data.fullname || '').trim()
+  if (!fn) {
+    errors.fullname = 'กรุณากรอกชื่อ-นามสกุล'
+  } else if (fn.length < 2) {
+    errors.fullname = 'ชื่อ-นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร'
+  } else if (fn.length > 50) {
+    errors.fullname = 'ชื่อ-นามสกุลต้องไม่เกิน 50 ตัวอักษร'
+  }
+
+  const em = (data.email || '').trim()
+  if (!em) {
+    errors.email = 'กรุณากรอกอีเมล'
+  } else if (!isEmailValid(em)) {
+    errors.email = 'รูปแบบอีเมลไม่ถูกต้อง เช่น user@example.com'
+  }
+
+  const ph = (data.phone || '').trim()
+  const digits = ph.replace(/\D/g, '')
+  if (!ph) {
+    errors.phone = 'กรุณากรอกเบอร์โทรศัพท์'
+  } else if (digits.length !== 10) {
+    errors.phone = 'เบอร์โทรศัพท์ต้องครบ 10 หลัก (เช่น 089-123-4567)'
+  }
+
+  if (!isCurrentUserAdmin && !data.villageId) {
+    errors.villageId = 'กรุณาเลือกหมู่บ้าน'
+  }
+
+  return errors
+}
+
+function validateVillageForm(data) {
+  const errors = {}
+  const n = (data.name || '').trim()
+  if (!n) {
+    errors.name = 'กรุณากรอกชื่อหมู่บ้าน'
+  } else if (n.length < 2) {
+    errors.name = 'ชื่อหมู่บ้านต้องมีอย่างน้อย 2 ตัวอักษร'
+  } else if (n.length > 36) {
+    errors.name = 'ชื่อหมู่บ้านต้องไม่เกิน 36 ตัวอักษร'
+  }
+
+  const addr = (data.address || '').trim()
+  if (!addr) {
+    errors.address = 'กรุณากรอกที่อยู่ของหมู่บ้าน'
+  } else if (addr.length < 5) {
+    errors.address = 'ที่อยู่ของหมู่บ้านต้องมีอย่างน้อย 5 ตัวอักษร'
+  }
+
+  return errors
+}
 
 function formatPhoneInput(raw) {
   const digits = raw.replace(/\D/g, '').slice(0, 10)
@@ -83,12 +150,16 @@ function UserManagement() {
   const [showFormModal, setShowFormModal] = useState(false)
   const [addRole, setAddRole] = useState('user')
   const [formData, setFormData] = useState(EMPTY_FORM)
+  const [touchedFields, setTouchedFields] = useState({})
+  const [hasSubmittedUserForm, setHasSubmittedUserForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Add/Edit Village modal — null = โหมดเพิ่ม, มีค่า = โหมดแก้ไข
   const [showVillageModal, setShowVillageModal] = useState(false)
   const [editingVillage, setEditingVillage] = useState(null)
   const [villageFormData, setVillageFormData] = useState(EMPTY_VILLAGE_FORM)
+  const [villageTouchedFields, setVillageTouchedFields] = useState({})
+  const [hasSubmittedVillageForm, setHasSubmittedVillageForm] = useState(false)
   const [isSubmittingVillage, setIsSubmittingVillage] = useState(false)
 
   // รายการหมู่บ้านทั้งหมด (ไม่กรอง active) สำหรับตารางจัดการ — เฉพาะ superadmin
@@ -99,6 +170,19 @@ function UserManagement() {
   const [resetTargetUser, setResetTargetUser] = useState(null)
   const [resetForm, setResetForm] = useState(EMPTY_RESET_FORM)
   const [isResetting, setIsResetting] = useState(false)
+
+  // Real-time validations
+  const userFormErrors = useMemo(() => validateUserForm(formData, isAdmin), [formData, isAdmin])
+  const isUserFormValid = Object.keys(userFormErrors).length === 0
+
+  const villageFormErrors = useMemo(() => validateVillageForm(villageFormData), [villageFormData])
+  const isVillageFormValid = Object.keys(villageFormErrors).length === 0
+
+  const isResetPasswordValid = useMemo(() => {
+    const p = resetForm.newPassword
+    const cp = resetForm.confirmPassword
+    return isPasswordValid(p) && cp.length > 0 && p === cp
+  }, [resetForm])
 
   // View Profile modal — โชว์ข้อมูลติดต่อ (เบอร์โทร/อีเมล) ของ user ที่กด
   const [profileUser, setProfileUser] = useState(null)
@@ -240,11 +324,14 @@ function UserManagement() {
       // admin สร้าง user ได้แค่ในหมู่บ้านตัวเองเท่านั้น
       villageId: currentUser?.role === 'admin' ? currentUser.village_id : ''
     })
+    setTouchedFields({})
+    setHasSubmittedUserForm(false)
     setShowFormModal(true)
   }
 
   function handleFormChange(e) {
     const { name, value } = e.target
+    setTouchedFields((prev) => ({ ...prev, [name]: true }))
     if (name === 'phone') {
       setFormData((prev) => ({ ...prev, phone: formatPhoneInput(value) }))
       return
@@ -254,88 +341,23 @@ function UserManagement() {
 
   async function handleFormSubmit(e) {
     e.preventDefault()
+    setHasSubmittedUserForm(true)
+
+    if (!isUserFormValid) {
+      const firstError = Object.values(userFormErrors)[0]
+      Swal.fire({
+        icon: 'warning',
+        title: 'ข้อมูลไม่ถูกต้อง',
+        text: firstError || 'กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
 
     const trimmedUser = formData.username.trim()
     const trimmedName = formData.fullname.trim()
     const trimmedEmail = formData.email.trim()
     const trimmedPhone = formData.phone.trim()
-
-    if (!trimmedUser) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'กรุณากรอก Username',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    if (trimmedUser.length < 4 || trimmedUser.length > 36) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Username ไม่ถูกต้อง',
-        text: 'Username ต้องมีความยาวระหว่าง 4 - 36 ตัวอักษร',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    if (!trimmedName) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'กรุณากรอกชื่อ-นามสกุล',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    if (!trimmedEmail) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'กรุณากรอกอีเมล',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    if (!isEmailValid(trimmedEmail)) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'รูปแบบอีเมลไม่ถูกต้อง',
-        text: 'กรุณากรอกอีเมลให้ถูกต้อง เช่น user@example.com',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    if (!trimmedPhone) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'กรุณากรอกเบอร์โทรศัพท์',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    const digitsOnly = trimmedPhone.replace(/\D/g, '')
-    if (digitsOnly.length !== 10) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'เบอร์โทรศัพท์ไม่ถูกต้อง',
-        text: 'กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก (เช่น 089-123-4567)',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
-
-    if (!formData.villageId) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'กรุณาเลือกหมู่บ้าน',
-        text: 'ต้องระบุหมู่บ้านให้ผู้ใช้ก่อนสร้างบัญชี',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      return
-    }
 
     setIsSubmitting(true)
     try {
@@ -596,42 +618,42 @@ function UserManagement() {
   function openAddVillageModal() {
     setEditingVillage(null)
     setVillageFormData(EMPTY_VILLAGE_FORM)
+    setVillageTouchedFields({})
+    setHasSubmittedVillageForm(false)
     setShowVillageModal(true)
   }
 
   function openEditVillageModal(village) {
     setEditingVillage(village)
     setVillageFormData({ name: village.name || '', address: village.address || '' })
+    setVillageTouchedFields({})
+    setHasSubmittedVillageForm(false)
     setShowVillageModal(true)
   }
 
   function handleVillageFormChange(e) {
     const { name, value } = e.target
+    setVillageTouchedFields((prev) => ({ ...prev, [name]: true }))
     setVillageFormData((prev) => ({ ...prev, [name]: value }))
   }
 
   async function handleVillageFormSubmit(e) {
     e.preventDefault()
-    const villageName = villageFormData.name.trim()
-    const villageAddress = villageFormData.address.trim()
+    setHasSubmittedVillageForm(true)
 
-    if (!villageName) {
-      Swal.fire({ icon: 'warning', title: 'กรุณากรอกชื่อหมู่บ้าน', confirmButtonColor: 'var(--sidebar-bg)' })
-      return
-    }
-    if (villageName.length > 36) {
+    if (!isVillageFormValid) {
+      const firstError = Object.values(villageFormErrors)[0]
       Swal.fire({
         icon: 'warning',
-        title: 'ชื่อหมู่บ้านยาวเกินไป',
-        text: 'ชื่อหมู่บ้านต้องมีความยาวไม่เกิน 36 ตัวอักษร',
+        title: 'ข้อมูลไม่ถูกต้อง',
+        text: firstError || 'กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
     }
-    if (!villageAddress) {
-      Swal.fire({ icon: 'warning', title: 'กรุณากรอกที่อยู่ของหมู่บ้าน', confirmButtonColor: 'var(--sidebar-bg)' })
-      return
-    }
+
+    const villageName = villageFormData.name.trim()
+    const villageAddress = villageFormData.address.trim()
 
     setIsSubmittingVillage(true)
     try {
@@ -1077,23 +1099,70 @@ function UserManagement() {
               <h3>{addRole === 'admin' ? 'Add New Admin' : 'Add New User'}</h3>
               <button className="modal-close" onClick={() => setShowFormModal(false)}><FaXmark /></button>
             </div>
-            <form className="um-form" onSubmit={handleFormSubmit}>
+            <form className="um-form" onSubmit={handleFormSubmit} noValidate>
               <div className="um-form-field">
                 <label>Username</label>
-                <input type="text" name="username" placeholder="กรอก Username เช่น somchaik (4-36 ตัวอักษร)" maxLength={50} value={formData.username} onChange={handleFormChange} />
+                <input
+                  type="text"
+                  name="username"
+                  placeholder="กรอก Username เช่น somchaik (4-36 ตัวอักษร)"
+                  maxLength={36}
+                  value={formData.username}
+                  onChange={handleFormChange}
+                  className={(touchedFields.username || hasSubmittedUserForm) && userFormErrors.username ? 'um-input-error' : ''}
+                />
+                {(touchedFields.username || hasSubmittedUserForm) && userFormErrors.username && (
+                  <p className="um-field-error">{userFormErrors.username}</p>
+                )}
               </div>
+
               <div className="um-form-field">
                 <label>ชื่อ-นามสกุล</label>
-                <input type="text" name="fullname" placeholder="กรอกชื่อ-นามสกุลจริง เช่น สมชาย กิจเจริญ" value={formData.fullname} onChange={handleFormChange} />
+                <input
+                  type="text"
+                  name="fullname"
+                  placeholder="กรอกชื่อ-นามสกุลจริง เช่น สมชาย กิจเจริญ (2-50 ตัวอักษร)"
+                  maxLength={50}
+                  value={formData.fullname}
+                  onChange={handleFormChange}
+                  className={(touchedFields.fullname || hasSubmittedUserForm) && userFormErrors.fullname ? 'um-input-error' : ''}
+                />
+                {(touchedFields.fullname || hasSubmittedUserForm) && userFormErrors.fullname && (
+                  <p className="um-field-error">{userFormErrors.fullname}</p>
+                )}
               </div>
+
               <div className="um-form-field">
                 <label>อีเมล</label>
-                <input type="email" name="email" placeholder="กรอกอีเมล เช่น user@example.com" value={formData.email} onChange={handleFormChange} />
-                <p className="um-role-hint">ระบบจะส่งคำเชิญให้ตั้งรหัสผ่านไปที่อีเมลนี้</p>
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="กรอกอีเมล เช่น user@example.com"
+                  value={formData.email}
+                  onChange={handleFormChange}
+                  className={(touchedFields.email || hasSubmittedUserForm) && userFormErrors.email ? 'um-input-error' : ''}
+                />
+                {(touchedFields.email || hasSubmittedUserForm) && userFormErrors.email ? (
+                  <p className="um-field-error">{userFormErrors.email}</p>
+                ) : (
+                  <p className="um-role-hint">ระบบจะส่งคำเชิญให้ตั้งรหัสผ่านไปที่อีเมลนี้</p>
+                )}
               </div>
+
               <div className="um-form-field">
                 <label>เบอร์โทรศัพท์ (10 หลัก)</label>
-                <input type="tel" name="phone" placeholder="เช่น 089-123-4567" maxLength={12} value={formData.phone} onChange={handleFormChange} />
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="เช่น 089-123-4567"
+                  maxLength={12}
+                  value={formData.phone}
+                  onChange={handleFormChange}
+                  className={(touchedFields.phone || hasSubmittedUserForm) && userFormErrors.phone ? 'um-input-error' : ''}
+                />
+                {(touchedFields.phone || hasSubmittedUserForm) && userFormErrors.phone && (
+                  <p className="um-field-error">{userFormErrors.phone}</p>
+                )}
               </div>
 
               <div className="um-form-field">
@@ -1101,18 +1170,27 @@ function UserManagement() {
                 {isAdmin ? (
                   <input type="text" value={getVillageName(currentUser?.village_id)} disabled />
                 ) : (
-                  <select name="villageId" value={formData.villageId} onChange={handleFormChange}>
+                  <select
+                    name="villageId"
+                    value={formData.villageId}
+                    onChange={handleFormChange}
+                    className={(touchedFields.villageId || hasSubmittedUserForm) && userFormErrors.villageId ? 'um-input-error' : ''}
+                  >
                     <option value="">-- เลือกหมู่บ้าน --</option>
                     {villages.map((v) => (
                       <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
                   </select>
                 )}
-                <p className="um-role-hint">
-                  {isAdmin
-                    ? 'ล็อกไว้ที่หมู่บ้านของคุณ เนื่องจาก Admin สร้างผู้ใช้ได้เฉพาะหมู่บ้านตัวเอง'
-                    : 'Superadmin ต้องเลือกหมู่บ้านให้ผู้ใช้ใหม่ก่อนบันทึก'}
-                </p>
+                {(touchedFields.villageId || hasSubmittedUserForm) && userFormErrors.villageId ? (
+                  <p className="um-field-error">{userFormErrors.villageId}</p>
+                ) : (
+                  <p className="um-role-hint">
+                    {isAdmin
+                      ? 'ล็อกไว้ที่หมู่บ้านของคุณ เนื่องจาก Admin สร้างผู้ใช้ได้เฉพาะหมู่บ้านตัวเอง'
+                      : 'Superadmin ต้องเลือกหมู่บ้านให้ผู้ใช้ใหม่ก่อนบันทึก'}
+                  </p>
+                )}
               </div>
 
               <div className="um-form-field">
@@ -1122,7 +1200,7 @@ function UserManagement() {
 
               <div className="um-form-actions">
                 <button type="button" className="btn-cancel-um" onClick={() => setShowFormModal(false)} disabled={isSubmitting}>ยกเลิก</button>
-                <button type="submit" className="btn-confirm-um" disabled={isSubmitting}>
+                <button type="submit" className="btn-confirm-um" disabled={isSubmitting || (hasSubmittedUserForm && !isUserFormValid)}>
                   {isSubmitting ? 'กำลังบันทึก...' : 'บันทึก'}
                 </button>
               </div>
@@ -1139,24 +1217,48 @@ function UserManagement() {
               <h3>Reset Password — {resetTargetUser.username}</h3>
               <button className="modal-close" onClick={() => setResetTargetUser(null)}><FaXmark /></button>
             </div>
-            <form className="um-form" onSubmit={handleResetSubmit}>
+            <form className="um-form" onSubmit={handleResetSubmit} noValidate>
               <div className="um-form-field">
                 <label>รหัสผ่านใหม่</label>
                 <input
-                  type="password" name="newPassword" placeholder="กรอกรหัสผ่านใหม่ (เช่น Abcd1234!)"
-                  value={resetForm.newPassword} onChange={handleResetFormChange} autoComplete="new-password"
+                  type="password"
+                  name="newPassword"
+                  placeholder="กรอกรหัสผ่านใหม่ (เช่น Abcd1234!)"
+                  value={resetForm.newPassword}
+                  onChange={handleResetFormChange}
+                  autoComplete="new-password"
+                  className={resetForm.newPassword && !isPasswordValid(resetForm.newPassword) ? 'um-input-error' : ''}
                 />
+                <PasswordStrengthMeter password={resetForm.newPassword} />
               </div>
+
               <div className="um-form-field">
                 <label>ยืนยันรหัสผ่านใหม่</label>
                 <input
-                  type="password" name="confirmPassword" placeholder="พิมพ์รหัสผ่านใหม่อีกครั้งเพื่อยืนยัน"
-                  value={resetForm.confirmPassword} onChange={handleResetFormChange} autoComplete="new-password"
+                  type="password"
+                  name="confirmPassword"
+                  placeholder="พิมพ์รหัสผ่านใหม่อีกครั้งเพื่อยืนยัน"
+                  value={resetForm.confirmPassword}
+                  onChange={handleResetFormChange}
+                  autoComplete="new-password"
+                  className={
+                    resetForm.confirmPassword && resetForm.newPassword !== resetForm.confirmPassword
+                      ? 'um-input-error'
+                      : ''
+                  }
                 />
+                {resetForm.confirmPassword.length > 0 && (
+                  resetForm.newPassword === resetForm.confirmPassword ? (
+                    <p className="um-match-success"><FaCircleCheck /> รหัสผ่านตรงกัน</p>
+                  ) : (
+                    <p className="um-match-error"><FaCircleXmark /> รหัสผ่านไม่ตรงกัน</p>
+                  )
+                )}
               </div>
+
               <div className="um-form-actions">
                 <button type="button" className="btn-cancel-um" onClick={() => setResetTargetUser(null)} disabled={isResetting}>ยกเลิก</button>
-                <button type="submit" className="btn-confirm-um" disabled={isResetting}>
+                <button type="submit" className="btn-confirm-um" disabled={isResetting || !isResetPasswordValid}>
                   {isResetting ? 'กำลังบันทึก...' : 'ยืนยันรีเซ็ต'}
                 </button>
               </div>
@@ -1173,18 +1275,41 @@ function UserManagement() {
               <h3>{editingVillage ? 'Edit Village' : 'Add Village'}</h3>
               <button className="modal-close" onClick={() => setShowVillageModal(false)}><FaXmark /></button>
             </div>
-            <form className="um-form" onSubmit={handleVillageFormSubmit}>
+            <form className="um-form" onSubmit={handleVillageFormSubmit} noValidate>
               <div className="um-form-field">
                 <label>ชื่อหมู่บ้าน</label>
-                <input type="text" name="name" maxLength={36} placeholder="กรอกชื่อหมู่บ้าน (ไม่เกิน 36 ตัวอักษร)" value={villageFormData.name} onChange={handleVillageFormChange} />
+                <input
+                  type="text"
+                  name="name"
+                  maxLength={36}
+                  placeholder="กรอกชื่อหมู่บ้าน (2-36 ตัวอักษร)"
+                  value={villageFormData.name}
+                  onChange={handleVillageFormChange}
+                  className={(villageTouchedFields.name || hasSubmittedVillageForm) && villageFormErrors.name ? 'um-input-error' : ''}
+                />
+                {(villageTouchedFields.name || hasSubmittedVillageForm) && villageFormErrors.name && (
+                  <p className="um-field-error">{villageFormErrors.name}</p>
+                )}
               </div>
+
               <div className="um-form-field">
                 <label>ที่อยู่หมู่บ้าน</label>
-                <input type="text" name="address" placeholder="กรอกที่อยู่ของหมู่บ้าน เช่น ต.บางแค อ.บางแค กทม." value={villageFormData.address} onChange={handleVillageFormChange} />
+                <input
+                  type="text"
+                  name="address"
+                  placeholder="กรอกที่อยู่ของหมู่บ้าน เช่น ต.บางแค อ.บางแค กทม. (อย่างน้อย 5 ตัวอักษร)"
+                  value={villageFormData.address}
+                  onChange={handleVillageFormChange}
+                  className={(villageTouchedFields.address || hasSubmittedVillageForm) && villageFormErrors.address ? 'um-input-error' : ''}
+                />
+                {(villageTouchedFields.address || hasSubmittedVillageForm) && villageFormErrors.address && (
+                  <p className="um-field-error">{villageFormErrors.address}</p>
+                )}
               </div>
+
               <div className="um-form-actions">
                 <button type="button" className="btn-cancel-um" onClick={() => setShowVillageModal(false)} disabled={isSubmittingVillage}>ยกเลิก</button>
-                <button type="submit" className="btn-confirm-um" disabled={isSubmittingVillage}>
+                <button type="submit" className="btn-confirm-um" disabled={isSubmittingVillage || (hasSubmittedVillageForm && !isVillageFormValid)}>
                   {isSubmittingVillage ? 'กำลังบันทึก...' : 'บันทึก'}
                 </button>
               </div>
