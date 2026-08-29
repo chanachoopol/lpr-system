@@ -393,6 +393,25 @@ function UserManagement() {
 
   // Toggle เปิด/ปิดบัญชี — แทนที่ปุ่ม Edit เดิม เพราะ API แก้ได้แค่ is_active
   async function handleToggleActive(targetUser) {
+    if (targetUser.id === currentUser?.id) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไม่สามารถทำรายการได้',
+        text: 'ไม่สามารถปิดการใช้งานบัญชีของตนเองได้',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+    if (!isSuperadmin && targetUser.role === 'superadmin') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไม่มีสิทธิ์ทำรายการ',
+        text: 'Admin ไม่มีสิทธิ์เปลี่ยนสถานะของ Superadmin',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
     const willActivate = !targetUser.is_active
     const result = await Swal.fire({
       icon: 'question',
@@ -427,104 +446,76 @@ function UserManagement() {
   }
 
   async function handleDelete(targetUser) {
-  const result = await Swal.fire({
-    icon: 'warning',
-    title: 'ยืนยันการลบผู้ใช้',
-    text: `ต้องการลบบัญชี "${targetUser.username}" ใช่หรือไม่?`,
-    showCancelButton: true,
-    confirmButtonText: 'ลบ',
-    cancelButtonText: 'ยกเลิก',
-    confirmButtonColor: 'rgb(220, 38, 38)',
-    cancelButtonColor: 'var(--sidebar-bg)'
-  })
-  if (!result.isConfirmed) return
-
-  try {
-    await deleteUserAPI(targetUser.id)
-    Swal.fire({ icon: 'success', title: 'ลบผู้ใช้แล้ว', confirmButtonColor: 'var(--sidebar-bg)' })
-    fetchUsers()
-  } catch (error) {
-    const status = error.response?.status
-    const detail = error.response?.data?.detail
-
-    // 409 = มีข้อมูลผูกกับ user นี้อยู่ ลบตรง ๆ ไม่ได้
-    if (status === 409) {
+    if (targetUser.id === currentUser?.id) {
       Swal.fire({
-        icon: 'error',
+        icon: 'warning',
         title: 'ไม่สามารถลบได้',
-        text: typeof detail === 'string'
-          ? detail
-          : 'ผู้ใช้นี้ยังมีข้อมูลผูกอยู่ในระบบ ไม่สามารถลบได้',
+        text: 'ไม่สามารถลบบัญชีของตนเองได้',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
-    } else {
-      Swal.fire({
-        icon: 'error',
-        title: 'ลบไม่สำเร็จ',
-        text: typeof detail === 'string' ? detail : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
+      return
     }
-  }
-}
-
-  async function handleResendInvite(targetUser) {
-    try {
-      await resendInviteAPI(targetUser.id)
+    if (!isSuperadmin && targetUser.role === 'superadmin') {
       Swal.fire({
-        icon: 'success',
-        title: 'ส่งคำเชิญอีกครั้งแล้ว',
-        text: `ระบบได้ส่งอีเมลคำเชิญไปยัง "${targetUser.username}" อีกครั้ง`,
+        icon: 'warning',
+        title: 'ไม่มีสิทธิ์ทำรายการ',
+        text: 'Admin ไม่มีสิทธิ์ลบบัญชีของ Superadmin',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
-    } catch (error) {
-      console.error(error)
-      Swal.fire({
-        icon: 'error',
-        title: 'ส่งคำเชิญไม่สำเร็จ',
-        text: 'เกิดข้อผิดพลาด กรุณาลองใหม่',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
+      return
     }
-  }
 
-  // ปลดล็อคบัญชีที่โดน rate-limit บล็อคจาก login ผิดเกิน 5 ครั้งติดกัน
-  async function handleUnlockAccount(targetUser) {
     const result = await Swal.fire({
-      icon: 'question',
-      title: 'ปลดล็อคบัญชีนี้?',
-      text: `บัญชี "${targetUser.username}" จะสามารถเข้าสู่ระบบได้ทันที โดยไม่ต้องรอเวลาบล็อค`,
+      icon: 'warning',
+      title: 'ยืนยันการลบผู้ใช้',
+      text: `ต้องการลบบัญชี "${targetUser.username}" ใช่หรือไม่?`,
       showCancelButton: true,
-      confirmButtonText: 'ปลดล็อค',
+      confirmButtonText: 'ลบ',
       cancelButtonText: 'ยกเลิก',
-      confirmButtonColor: 'rgb(37, 99, 235)',
+      confirmButtonColor: 'rgb(220, 38, 38)',
       cancelButtonColor: 'var(--sidebar-bg)'
     })
     if (!result.isConfirmed) return
 
     try {
-      await unlockUserAccountAPI(targetUser.id)
-      Swal.fire({
-        icon: 'success',
-        title: 'ปลดล็อคบัญชีแล้ว',
-        text: `"${targetUser.username}" สามารถเข้าสู่ระบบได้ทันที`,
-        showConfirmButton: false,
-        timer: 1500
-      })
-      fetchLockedAccounts() // ปลดแล้วต้อง refresh ลิสต์ล็อค ไม่งั้นปุ่ม/badge จะค้าง
+      await deleteUserAPI(targetUser.id)
+      Swal.fire({ icon: 'success', title: 'ลบผู้ใช้แล้ว', confirmButtonColor: 'var(--sidebar-bg)' })
+      fetchUsers()
     } catch (error) {
-      console.error(error)
-      const backendMessage = error.response?.data?.detail
-      Swal.fire({
-        icon: 'error',
-        title: 'ปลดล็อคไม่สำเร็จ',
-        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
+      const status = error.response?.status
+      const detail = error.response?.data?.detail
+
+      // 409 = มีข้อมูลผูกกับ user นี้อยู่ ลบตรง ๆ ไม่ได้
+      if (status === 409) {
+        Swal.fire({
+          icon: 'error',
+          title: 'ไม่สามารถลบได้',
+          text: typeof detail === 'string'
+            ? detail
+            : 'ผู้ใช้นี้ยังมีข้อมูลผูกอยู่ในระบบ ไม่สามารถลบได้',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'ลบไม่สำเร็จ',
+          text: typeof detail === 'string' ? detail : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      }
     }
   }
 
   function openResetModal(targetUser) {
+    if (!isSuperadmin && targetUser.role === 'superadmin') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไม่มีสิทธิ์ทำรายการ',
+        text: 'Admin ไม่มีสิทธิ์รีเซ็ตรหัสผ่านของ Superadmin',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
     setResetTargetUser(targetUser)
     setResetForm(EMPTY_RESET_FORM)
   }
@@ -878,90 +869,119 @@ function UserManagement() {
                 {isLoading ? (
                   <tr><td colSpan={7}><Spinner text="Loading users..." /></td></tr>
                 ) : users.length > 0 ? (
-                  users.map((u) => (
-                    <tr key={u.id}>
-                      <td>
-                        <div className="um-user-cell">
-                          <div className="um-mini-avatar">{u.username.charAt(0).toUpperCase()}</div>
-                          <div className="um-username">{u.username}</div>
-                        </div>
-                      </td>
-                      <td><span className={`um-badge um-badge-${u.role}`}>{u.role}</span></td>
-                      <td>
-                        <span className={`um-status-dot ${u.is_active ? 'active' : 'inactive'}`}></span>
-                        {u.is_active ? 'Active' : 'Inactive'}
-                        {lockedMap.has(u.id) && (
-                          <span
-                            className="um-locked-badge"
-                            title={
-                              lockedMap.get(u.id)
-                                ? `ปลดล็อคอัตโนมัติ: ${new Date(lockedMap.get(u.id)).toLocaleTimeString('th-TH')}`
-                                : undefined
-                            }
-                          >
-                            <FaLock /> Locked
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {/* สถานะ Online/Offline — แยกจากคอลัมน์ Status ข้างบนโดยสิ้นเชิง มาจาก presence SSE แบบ real-time
-                            ไม่เกี่ยวกับ is_active เลย: ปิดบัญชี (Inactive) แต่ยังเปิดแท็บค้างอยู่ก็ยังโชว์ Online ได้ */}
-                        <span className={`um-status-dot ${onlineUserIds.has(u.id) ? 'active' : 'inactive'}`}></span>
-                        {onlineUserIds.has(u.id) ? 'Online' : 'Offline'}
-                      </td>
-                      <td>
-                        {u.is_verify
-                          ? <FaCircleCheck style={{ color: 'rgb(22,163,74)' }} title="Verified" />
-                          : <FaCircleXmark style={{ color: 'rgb(148,163,184)' }} title="Not verified" />}
-                      </td>
-                      <td>{formatDate(u.created_at)}</td>
-                      <td>
-                        <ActionMenu
-                          items={[
-                            {
-                              key: 'view-profile',
-                              label: 'ดูโปรไฟล์',
-                              icon: <FaIdCard />,
-                              onClick: () => setProfileUser(u)
-                            },
-                            {
-                              key: 'toggle-active',
-                              label: u.is_active ? 'ปิดใช้งานบัญชี' : 'เปิดใช้งานบัญชี',
-                              icon: u.is_active ? <FaToggleOff /> : <FaToggleOn />,
-                              onClick: () => handleToggleActive(u)
-                            },
-                            {
-                              key: 'unlock',
-                              label: 'ปลดล็อคบัญชี',
-                              icon: <FaLockOpen />,
-                              hidden: !lockedMap.has(u.id),
-                              onClick: () => handleUnlockAccount(u)
-                            },
-                            {
-                              key: 'resend-invite',
-                              label: 'ส่งคำเชิญอีกครั้ง',
-                              icon: <FaPaperPlane />,
-                              hidden: u.is_verify,
-                              onClick: () => handleResendInvite(u)
-                            },
-                            {
-                              key: 'reset-password',
-                              label: 'Reset Password',
-                              icon: <FaKey />,
-                              onClick: () => openResetModal(u)
-                            },
-                            {
-                              key: 'delete',
-                              label: 'ลบผู้ใช้',
-                              icon: <FaTrashCan />,
-                              danger: true,
-                              onClick: () => handleDelete(u)
-                            }
-                          ]}
-                        />
-                      </td>
-                    </tr>
-                  ))
+                  users.map((u) => {
+                    const isSelf = u.id === currentUser?.id
+                    const isAdminTargetingSuperadmin = !isSuperadmin && u.role === 'superadmin'
+
+                    return (
+                      <tr key={u.id}>
+                        <td>
+                          <div className="um-user-cell">
+                            <div className="um-mini-avatar">{u.username.charAt(0).toUpperCase()}</div>
+                            <div className="um-username">{u.username}</div>
+                          </div>
+                        </td>
+                        <td><span className={`um-badge um-badge-${u.role}`}>{u.role}</span></td>
+                        <td>
+                          <span className={`um-status-dot ${u.is_active ? 'active' : 'inactive'}`}></span>
+                          {u.is_active ? 'Active' : 'Inactive'}
+                          {lockedMap.has(u.id) && (
+                            <span
+                              className="um-locked-badge"
+                              title={
+                                lockedMap.get(u.id)
+                                  ? `ปลดล็อคอัตโนมัติ: ${new Date(lockedMap.get(u.id)).toLocaleTimeString('th-TH')}`
+                                  : undefined
+                              }
+                            >
+                              <FaLock /> Locked
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {/* สถานะ Online/Offline — แยกจากคอลัมน์ Status ข้างบนโดยสิ้นเชิง มาจาก presence SSE แบบ real-time
+                              ไม่เกี่ยวกับ is_active เลย: ปิดบัญชี (Inactive) แต่ยังเปิดแท็บค้างอยู่ก็ยังโชว์ Online ได้ */}
+                          <span className={`um-status-dot ${onlineUserIds.has(u.id) ? 'active' : 'inactive'}`}></span>
+                          {onlineUserIds.has(u.id) ? 'Online' : 'Offline'}
+                        </td>
+                        <td>
+                          {u.is_verify
+                            ? <FaCircleCheck style={{ color: 'rgb(22,163,74)' }} title="Verified" />
+                            : <FaCircleXmark style={{ color: 'rgb(148,163,184)' }} title="Not verified" />}
+                        </td>
+                        <td>{formatDate(u.created_at)}</td>
+                        <td>
+                          <ActionMenu
+                            items={[
+                              {
+                                key: 'view-profile',
+                                label: 'ดูโปรไฟล์',
+                                icon: <FaIdCard />,
+                                onClick: () => setProfileUser(u)
+                              },
+                              {
+                                key: 'toggle-active',
+                                label: u.is_active ? 'ปิดใช้งานบัญชี' : 'เปิดใช้งานบัญชี',
+                                icon: u.is_active ? <FaToggleOff /> : <FaToggleOn />,
+                                disabled: isSelf || isAdminTargetingSuperadmin,
+                                title: isSelf
+                                  ? 'ไม่สามารถปิดใช้งานบัญชีของตนเองได้'
+                                  : isAdminTargetingSuperadmin
+                                  ? 'ไม่มีสิทธิ์ปิด/เปิดใช้งานบัญชี Superadmin'
+                                  : undefined,
+                                onClick: () => handleToggleActive(u)
+                              },
+                              {
+                                key: 'unlock',
+                                label: 'ปลดล็อคบัญชี',
+                                icon: <FaLockOpen />,
+                                hidden: !lockedMap.has(u.id),
+                                disabled: isAdminTargetingSuperadmin,
+                                title: isAdminTargetingSuperadmin
+                                  ? 'ไม่มีสิทธิ์ปลดล็อคบัญชี Superadmin'
+                                  : undefined,
+                                onClick: () => handleUnlockAccount(u)
+                              },
+                              {
+                                key: 'resend-invite',
+                                label: 'ส่งคำเชิญอีกครั้ง',
+                                icon: <FaPaperPlane />,
+                                hidden: u.is_verify,
+                                disabled: isAdminTargetingSuperadmin,
+                                title: isAdminTargetingSuperadmin
+                                  ? 'ไม่มีสิทธิ์ส่งคำเชิญให้ Superadmin'
+                                  : undefined,
+                                onClick: () => handleResendInvite(u)
+                              },
+                              {
+                                key: 'reset-password',
+                                label: 'Reset Password',
+                                icon: <FaKey />,
+                                disabled: isAdminTargetingSuperadmin,
+                                title: isAdminTargetingSuperadmin
+                                  ? 'ไม่มีสิทธิ์รีเซ็ตรหัสผ่าน Superadmin'
+                                  : undefined,
+                                onClick: () => openResetModal(u)
+                              },
+                              {
+                                key: 'delete',
+                                label: 'ลบผู้ใช้',
+                                icon: <FaTrashCan />,
+                                danger: true,
+                                disabled: isSelf || isAdminTargetingSuperadmin,
+                                title: isSelf
+                                  ? 'ไม่สามารถลบบัญชีของตนเองได้'
+                                  : isAdminTargetingSuperadmin
+                                  ? 'ไม่มีสิทธิ์ลบบัญชี Superadmin'
+                                  : undefined,
+                                onClick: () => handleDelete(u)
+                              }
+                            ]}
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })
                 ) : (
                   <tr>
                     <td colSpan={7}>

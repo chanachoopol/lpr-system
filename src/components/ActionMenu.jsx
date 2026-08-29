@@ -22,21 +22,23 @@ function ActionMenu({ items }) {
   const visibleItems = items.filter((item) => !item.hidden)
 
   // คำนวณตำแหน่งเมนูจากตำแหน่งจริงของปุ่ม trigger บนหน้าจอ (viewport)
-  // ต้องทำหลัง DOM update เสร็จ (useLayoutEffect) ไม่งั้นเมนูจะกระพริบตำแหน่งผิดตอนเปิดครั้งแรก
+  // เพราะ CSS ใช้ position: fixed — พิกัดต้องอิงจาก viewport (ไม่ต้องบวก scrollY/scrollX)
   useLayoutEffect(() => {
     if (!isOpen || !triggerRef.current) return
 
     const rect = triggerRef.current.getBoundingClientRect()
-    const menuWidth = 200 // ต้องตรงกับ min-width ใน ActionMenu.css
+    const menuWidth = 200
 
-    // ถ้าเปิดชิดขอบขวาจอเกินไป ให้เมนูงอกไปทางซ้ายของปุ่มแทน กันล้นจอ
-    const overflowsRight = rect.left + menuWidth > window.innerWidth
-    setPosition({
-      top: rect.bottom + window.scrollY + 4,
-      left: overflowsRight
-        ? rect.right + window.scrollX - menuWidth
-        : rect.left + window.scrollX
-    })
+    // จัดให้ขอบขวาของเมนูตรงกับขอบขวาของปุ่ม trigger พอดี และเว้นระยะห่างด้านล่าง 6px
+    let left = rect.right - menuWidth
+    if (left < 10) left = 10 // กันล้นขอบซ้ายจอ
+    if (left + menuWidth > window.innerWidth - 10) {
+      left = window.innerWidth - menuWidth - 10 // กันล้นขอบขวาจอ
+    }
+
+    const top = rect.bottom + 6
+
+    setPosition({ top, left })
   }, [isOpen])
 
   // ปิดเมนูเมื่อคลิกข้างนอก หรือ scroll/resize (กันเมนูค้างผิดตำแหน่งตอน scroll ตาราง)
@@ -67,6 +69,7 @@ function ActionMenu({ items }) {
   }, [isOpen])
 
   function handleItemClick(item) {
+    if (item.disabled) return
     setIsOpen(false)
     item.onClick()
   }
@@ -94,6 +97,7 @@ function ActionMenu({ items }) {
               className={`action-menu-item ${item.danger ? 'danger' : ''}`}
               onClick={() => handleItemClick(item)}
               disabled={item.disabled}
+              title={item.title || undefined}
             >
               <span className="action-menu-icon">{item.icon}</span>
               <span>{item.label}</span>

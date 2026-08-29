@@ -1,18 +1,28 @@
-import { useEffect, useState } from 'react'
-import { FaTimes, FaUserCircle, FaPhone, FaEnvelope, FaCommentDots, FaAddressCard } from 'react-icons/fa'
-import { getUserContactsDetailAPI } from '../data/api'
+import { useEffect, useState, useCallback } from 'react'
+import {
+  FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaShieldAlt, FaCalendarAlt,
+  FaFacebook, FaInstagram, FaGlobe, FaEye
+} from 'react-icons/fa'
+import { FaCircleCheck, FaCircleXmark, FaXmark } from 'react-icons/fa6'
+import { SiLine } from 'react-icons/si'
+import { getUserContactsDetailAPI, getUserAvatarBlobURL } from '../data/api'
 import useVillageStore from '../store/villageStore'
 import Spinner from './Spinner'
 import '../styles/UserProfileModal.css'
 
-// ไอคอนตาม content_type ที่เจอบ่อย — ถ้าเจอ type ที่ไม่รู้จักจะ fallback เป็น FaAddressCard
-const CONTACT_ICONS = {
-  phone: FaPhone,
-  email: FaEnvelope,
-  line: FaCommentDots
+const CONTACT_META = {
+  phone: { label: 'เบอร์โทร', icon: <FaPhone /> },
+  line: { label: 'Line ID', icon: <SiLine /> },
+  facebook: { label: 'Facebook', icon: <FaFacebook /> },
+  instagram: { label: 'Instagram', icon: <FaInstagram /> },
+  other: { label: 'อื่นๆ', icon: <FaGlobe /> }
 }
 
-function formatDate(isoString) {
+function getContactMeta(contentType) {
+  return CONTACT_META[contentType] || CONTACT_META.other
+}
+
+function formatDateThai(isoString) {
   if (!isoString) return '-'
   return new Date(isoString).toLocaleDateString('th-TH', {
     year: 'numeric',
@@ -21,21 +31,18 @@ function formatDate(isoString) {
   })
 }
 
-// Modal แสดงรายละเอียด profile ของ user (read-only)
-// เปิดใช้จาก UserManagement.jsx เมื่อกดปุ่ม "ดู profile" ในตาราง
-//
-// Props:
-// - user: object แถวจาก list (/api/contacts) เช่น { user_id, username, fullname, role, village_id, village_name }
-//         ต้องเช็ค canViewUserProfile(currentUser, user) ก่อนเปิด modal นี้แล้วจากภายนอก
-// - onClose: function ปิด modal
+function roleLabel(role) {
+  const map = { user: 'User', admin: 'Admin', superadmin: 'Superadmin' }
+  return map[role] || role
+}
+
 function UserProfileModal({ user, onClose }) {
   const { getVillageName } = useVillageStore()
   const [detail, setDetail] = useState(null)
+  const [avatarUrl, setAvatarUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
+  const [showFullAvatarModal, setShowFullAvatarModal] = useState(false)
 
-  // รองรับทั้ง user.id (จาก getUsersAPI ในหน้า User Management)
-  // และ user.user_id (จาก /api/contacts list) — path param ของ endpoint นี้เป็น uuid เดียวกัน
   const userId = user?.id ?? user?.user_id
 
   useEffect(() => {
@@ -43,89 +50,175 @@ function UserProfileModal({ user, onClose }) {
 
     let isCancelled = false
 
-    async function fetchDetail() {
+    async function loadData() {
       setIsLoading(true)
-      setHasError(false)
       try {
-        // /api/contacts/users/{user_id} — คืน user_id, username, fullname, village_id, village_name, contacts[]
-        const data = await getUserContactsDetailAPI(userId)
-        if (!isCancelled) setDetail(data)
-      } catch (error) {
-        console.error(error)
-        if (!isCancelled) setHasError(true)
+        const [contactData, avatar] = await Promise.all([
+          getUserContactsDetailAPI(userId).catch(() => null),
+          getUserAvatarBlobURL(userId).catch(() => null)
+        ])
+
+        if (!isCancelled) {
+          if (contactData) setDetail(contactData)
+          if (avatar) setAvatarUrl(avatar)
+        }
+      } catch (err) {
+        console.error(err)
       } finally {
         if (!isCancelled) setIsLoading(false)
       }
     }
 
-    fetchDetail()
+    loadData()
 
     return () => {
       isCancelled = true
+      if (avatarUrl) {
+        URL.revokeObjectURL(avatarUrl)
+      }
     }
   }, [userId])
 
   if (!user) return null
 
-  // fallback ชื่อหมู่บ้าน: ใช้ village_name จาก response ถ้ามี ไม่งั้น lookup จาก store ด้วย village_id
-  const villageDisplay =
-    user.village_name || detail?.village_name || getVillageName(user.village_id) || 'ไม่สังกัดหมู่บ้าน'
+  const displayFullname = user.fullname || detail?.fullname || user.username
+  const displayVillage = user.village_id
+    ? (getVillageName(user.village_id) || user.village_name || detail?.village_name || 'กำลังโหลด...')
+    : 'ทุกหมู่บ้าน (Superadmin)'
+
+  const contactsList = detail?.contacts || []
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content profile-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>
-          <FaTimes />
-        </button>
+    <>
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content um-profile-modal" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={onClose} title="ปิด">
+            <FaXmark />
+          </button>
 
-        <div className="profile-modal-header">
-          <FaUserCircle className="profile-modal-avatar" />
-          <h3>{user.fullname || user.username || '-'}</h3>
-          <span className={`role-badge role-${user.role}`}>{user.role}</span>
-        </div>
+          {/* Header Card */}
+          <div className="um-pm-header">
+            <div className="um-pm-avatar-wrap">
+              <div className="um-pm-avatar">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Avatar" className="um-pm-avatar-img" />
+                ) : (
+                  <FaUser />
+                )}
+              </div>
+              {avatarUrl && (
+                <button
+                  type="button"
+                  className="um-pm-view-avatar-btn"
+                  onClick={() => setShowFullAvatarModal(true)}
+                  title="ดูรูปโปรไฟล์แบบเต็ม"
+                >
+                  <FaEye /> ดูรูปเต็ม
+                </button>
+              )}
+            </div>
 
-        <div className="profile-modal-body">
-          <div className="profile-field">
-            <label>Username</label>
-            <p>{user.username || '-'}</p>
+            <div className="um-pm-header-info">
+              <h3 className="um-pm-fullname">{displayFullname}</h3>
+              <p className="um-pm-username">@{user.username || detail?.username}</p>
+
+              <div className="um-pm-badges">
+                <span className={`pf-role-badge pf-role-${user.role}`}>
+                  <FaShieldAlt /> {roleLabel(user.role)}
+                </span>
+                <span className={`pf-status-badge ${user.is_active ? 'active' : 'inactive'}`}>
+                  {user.is_active ? <FaCircleCheck /> : <FaCircleXmark />}
+                  {user.is_active ? 'Active' : 'Inactive'}
+                </span>
+                {!user.is_verify && (
+                  <span className="pf-status-badge unverified">Unverified</span>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="profile-field">
-            <label>หมู่บ้าน</label>
-            <p>{villageDisplay}</p>
+          {/* Account Details Grid */}
+          <div className="um-pm-section">
+            <h4 className="um-pm-section-title">Account Information</h4>
+            <div className="um-pm-grid">
+              <div className="um-pm-info-item">
+                <span className="um-pm-info-icon"><FaEnvelope /></span>
+                <div>
+                  <p className="um-pm-info-label">Email</p>
+                  <p className="um-pm-info-value">{user.email || detail?.email || '-'}</p>
+                </div>
+              </div>
+
+              <div className="um-pm-info-item">
+                <span className="um-pm-info-icon"><FaMapMarkerAlt /></span>
+                <div>
+                  <p className="um-pm-info-label">หมู่บ้าน</p>
+                  <p className="um-pm-info-value">{displayVillage}</p>
+                </div>
+              </div>
+
+              <div className="um-pm-info-item">
+                <span className="um-pm-info-icon"><FaCalendarAlt /></span>
+                <div>
+                  <p className="um-pm-info-label">สมัครสมาชิกเมื่อ</p>
+                  <p className="um-pm-info-value">{formatDateThai(user.created_at || detail?.created_at)}</p>
+                </div>
+              </div>
+
+              <div className="um-pm-info-item">
+                <span className="um-pm-info-icon"><FaUser /></span>
+                <div>
+                  <p className="um-pm-info-label">User ID</p>
+                  <p className="um-pm-info-value pf-mono">{userId}</p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="profile-modal-contacts">
-          <h4>ช่องทางติดต่อ</h4>
+          {/* Contacts List */}
+          <div className="um-pm-section">
+            <h4 className="um-pm-section-title">
+              Contact ({contactsList.length} ช่องทาง)
+            </h4>
 
-          {isLoading ? (
-            <Spinner text="กำลังโหลด..." />
-          ) : hasError ? (
-            <p className="contact-error">โหลดข้อมูลติดต่อไม่สำเร็จ</p>
-          ) : !detail?.contacts || detail.contacts.length === 0 ? (
-            <p className="contact-empty">ยังไม่มีข้อมูลติดต่อ</p>
-          ) : (
-            <ul className="contact-list">
-              {detail.contacts.map((contact) => {
-                const Icon = CONTACT_ICONS[contact.content_type] || FaAddressCard
-                return (
-                  <li key={contact.id} className="contact-item">
-                    <Icon className="contact-icon" />
-                    <div>
-                      <p className="contact-value">{contact.value}</p>
-                      <span className="contact-label">
-                        {contact.custom_label || contact.content_type} · เพิ่มเมื่อ {formatDate(contact.created_at)}
-                      </span>
+            {isLoading ? (
+              <div style={{ padding: '16px 0' }}><Spinner text="กำลังโหลดข้อมูล..." /></div>
+            ) : contactsList.length === 0 ? (
+              <p className="um-pm-empty-contact">ไม่มีช่องทางติดต่อเพิ่มเติม</p>
+            ) : (
+              <div className="um-pm-contact-list">
+                {contactsList.map((c) => {
+                  const meta = getContactMeta(c.content_type)
+                  const label = c.content_type === 'other' && c.custom_label ? c.custom_label : meta.label
+
+                  return (
+                    <div key={c.id} className="um-pm-contact-item">
+                      <span className="um-pm-contact-icon">{meta.icon}</span>
+                      <div className="um-pm-contact-info">
+                        <p className="um-pm-contact-label">{label}</p>
+                        <p className="um-pm-contact-value">{c.value}</p>
+                      </div>
                     </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Modal ดูรูปเต็ม */}
+      {showFullAvatarModal && avatarUrl && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }} onClick={() => setShowFullAvatarModal(false)}>
+          <div className="pf-full-avatar-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowFullAvatarModal(false)}>
+              <FaXmark />
+            </button>
+            <img src={avatarUrl} alt="Avatar Full" className="pf-full-avatar-img" />
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

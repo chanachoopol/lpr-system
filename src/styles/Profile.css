@@ -51,10 +51,10 @@
   top: calc(100% + 8px);
   right: 0;
   min-width: 190px;
-  background: var(--bg-card, #ffffff);
-  border: 1px solid rgba(27, 42, 71, 0.12);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 12px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.08);
   padding: 6px;
   display: flex;
   flex-direction: column;

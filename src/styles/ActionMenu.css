@@ -17,17 +17,15 @@
   color: var(--sidebar-bg);
 }
 
-/* position: fixed เพราะ top/left คำนวณจาก getBoundingClientRect() ซึ่งอิง viewport
-   ไม่ใช่ document — ต้องใช้ fixed คู่กัน ไม่งั้นตำแหน่งจะเพี้ยนตอน scroll */
 .action-menu-dropdown {
   position: fixed;
   min-width: 200px;
-  background: var(--card-bg, #ffffff);
+  background: #ffffff;
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  border: 1px solid var(--border-color, #e5e7eb);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   padding: 6px;
-  z-index: 1000;
+  z-index: 9999;
   display: flex;
   flex-direction: column;
   gap: 2px;
