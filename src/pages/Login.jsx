@@ -1,5 +1,5 @@
 import { useNavigate, Navigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import Swal from 'sweetalert2'
 import { motion } from 'framer-motion'
@@ -13,6 +13,11 @@ import { pageVariants, pageTransition } from '../animations/pageTransition'
 import { isUsernameValid, getUsernameErrorMessage, isLoginPasswordValid, getPasswordErrorMessage } from '../utils/passwordPolicy'
 import Spinner from '../components/Spinner'
 
+const LOCKOUT_UNTIL_KEY = 'lpr_login_lockout_until'
+const FAILED_ATTEMPTS_KEY = 'lpr_login_failed_attempts'
+const MAX_ATTEMPTS = 5
+const LOCKOUT_DURATION_SEC = 300 // 5 นาที
+
 function Login() {
   const navigate = useNavigate()
   const { login, isLoggedIn, isLoading } = useAuthStore()
@@ -23,6 +28,84 @@ function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [usernameError, setUsernameError] = useState('')
   const [passwordError, setPasswordError] = useState('')
+
+  // Rate Limit / Lockout tracking (Sync ข้ามทุกแท็บ & ป้องกัน Refresh F5)
+  const [failedAttempts, setFailedAttempts] = useState(0)
+  const [isLocked, setIsLocked] = useState(false)
+  const [lockoutSeconds, setLockoutSeconds] = useState(0)
+
+  // ตรวจสอบสถานะการล็อคเมื่อเปิดหน้าจอ หรือเมื่อแท็บอื่นมีการอัปเดต storage
+  useEffect(() => {
+    function checkStoredLockout() {
+      try {
+        const storedUntil = localStorage.getItem(LOCKOUT_UNTIL_KEY)
+        const storedAttempts = parseInt(localStorage.getItem(FAILED_ATTEMPTS_KEY) || '0', 10)
+
+        if (storedUntil) {
+          const remainingMs = parseInt(storedUntil, 10) - Date.now()
+          if (remainingMs > 0) {
+            const remainingSec = Math.ceil(remainingMs / 1000)
+            setIsLocked(true)
+            setLockoutSeconds(remainingSec)
+            setFailedAttempts(MAX_ATTEMPTS)
+            return
+          } else {
+            // หมดเวลาแล้ว ล้างข้อมูลออก
+            localStorage.removeItem(LOCKOUT_UNTIL_KEY)
+            localStorage.removeItem(FAILED_ATTEMPTS_KEY)
+            setIsLocked(false)
+            setLockoutSeconds(0)
+            setFailedAttempts(0)
+          }
+        } else {
+          setFailedAttempts(isNaN(storedAttempts) ? 0 : storedAttempts)
+        }
+      } catch (err) {
+        console.error('อ่านสถานะ lockout จาก localStorage ไม่สำเร็จ:', err)
+      }
+    }
+
+    checkStoredLockout()
+
+    // Sync ข้ามแท็บอัตโนมัติเมื่อแท็บอื่นมีการอัปเดต storage
+    function handleStorageChange(e) {
+      if (e.key === LOCKOUT_UNTIL_KEY || e.key === FAILED_ATTEMPTS_KEY) {
+        checkStoredLockout()
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
+
+  // Timer นับถอยหลังวินาทีต่อวินาที
+  useEffect(() => {
+    if (!isLocked || lockoutSeconds <= 0) return
+
+    const timer = setInterval(() => {
+      setLockoutSeconds((prev) => {
+        if (prev <= 1) {
+          setIsLocked(false)
+          setFailedAttempts(0)
+          try {
+            localStorage.removeItem(LOCKOUT_UNTIL_KEY)
+            localStorage.removeItem(FAILED_ATTEMPTS_KEY)
+          } catch {}
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [isLocked, lockoutSeconds])
+
+  function formatCountdown(sec) {
+    const m = Math.floor(sec / 60)
+    const s = sec % 60
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
 
   if (isLoading) {
     return (
@@ -55,6 +138,16 @@ function Login() {
   async function handleSubmit(e) {
     e.preventDefault()
 
+    if (isLocked) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'บัญชีถูกระงับการใช้งานชั่วคราว',
+        text: `กรุณารอสักครู่ (${formatCountdown(lockoutSeconds)} นาที) ก่อนลองใหม่อีกครั้ง`,
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
     const trimmedUser = username.trim()
     let userErr = ''
     let passErr = ''
@@ -81,6 +174,14 @@ function Login() {
     try {
       const result = await loginAPI(trimmedUser, password, remember)
 
+      // รีเซ็ตตัวนับเมื่อเข้าสู่ระบบสำเร็จ
+      setFailedAttempts(0)
+      setIsLocked(false)
+      try {
+        localStorage.removeItem(LOCKOUT_UNTIL_KEY)
+        localStorage.removeItem(FAILED_ATTEMPTS_KEY)
+      } catch {}
+
       // เก็บข้อมูลลง Zustand (accessToken อยู่ใน memory, refresh_token เป็น httpOnly cookie ที่ backend set ให้เอง)
       login(result.user, result.access_token)
 
@@ -93,18 +194,65 @@ function Login() {
 
     } catch (error) {
       console.error(error)
+      setIsSubmitting(false)
+
+      const status = error.response?.status
+      const detail = error.response?.data?.detail
+      const isBackendLocked =
+        status === 429 ||
+        (typeof detail === 'string' &&
+          (detail.toLowerCase().includes('locked') ||
+            detail.toLowerCase().includes('too many') ||
+            detail.includes('ระงับ') ||
+            detail.includes('ล็อค')))
+
+      const newFailedCount = failedAttempts + 1
+      setFailedAttempts(newFailedCount)
+      try {
+        localStorage.setItem(FAILED_ATTEMPTS_KEY, String(newFailedCount))
+      } catch {}
+
+      const remainingAttempts = Math.max(0, MAX_ATTEMPTS - newFailedCount)
+
+      // ถ้า backend แจ้งว่าถูกล็อค หรือล็อกอินผิดสะสมครบ 5 ครั้ง
+      if (isBackendLocked || newFailedCount >= MAX_ATTEMPTS) {
+        const lockUntil = Date.now() + (LOCKOUT_DURATION_SEC * 1000)
+        try {
+          localStorage.setItem(LOCKOUT_UNTIL_KEY, String(lockUntil))
+        } catch {}
+
+        setIsLocked(true)
+        setLockoutSeconds(LOCKOUT_DURATION_SEC)
+
+        await Swal.fire({
+          icon: 'error',
+          title: 'บัญชีถูกระงับชั่วคราว',
+          text: 'คุณกรอกรหัสผ่านไม่ถูกต้องเกินจำนวนครั้งที่กำหนด ระบบได้ระงับการเข้าสู่ระบบชั่วคราวเป็นเวลา 5 นาที กรุณารอจนกว่าจะครบเวลาที่กำหนด',
+          confirmButtonText: 'รับทราบ',
+          confirmButtonColor: 'var(--sidebar-bg)',
+          allowOutsideClick: false,
+          allowEscapeKey: false
+        })
+        return
+      }
+
+      // รอบที่ 1-2: แสดงข้อความปกติ / รอบที่ 3-4: ค่อยแจ้งเตือนจำนวนครั้งที่เหลือ
+      const errorMessage =
+        newFailedCount >= 3
+          ? `Username หรือ Password ไม่ถูกต้อง (เหลือโอกาสอีก ${remainingAttempts} ครั้งก่อนบัญชีจะถูกระงับ)`
+          : 'Username หรือ Password ไม่ถูกต้อง'
 
       await Swal.fire({
         icon: 'error',
         title: 'เข้าสู่ระบบไม่สำเร็จ',
-        text: 'Username หรือ Password ไม่ถูกต้อง',
+        text: errorMessage,
         confirmButtonText: 'ลองอีกครั้ง',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
-
-      setIsSubmitting(false)
     }
   }
+
+  const MAX_ATTEMPTS = 5
 
   return (
     <div className="bg">
@@ -138,6 +286,26 @@ function Login() {
           <p className="r-sub">Sign in to access the system</p>
 
           <form onSubmit={handleSubmit}>
+            {/* Lockout & Progressive Warning Banner (No Emojis) */}
+            {isLocked ? (
+              <div className="login-lockout-banner">
+                <div className="lockout-info">
+                  <strong>บัญชีถูกระงับการใช้งานชั่วคราว</strong>
+                  <p>
+                    สามารถลองใหม่ได้ในอีก <span className="lockout-timer">{formatCountdown(lockoutSeconds)}</span> นาที
+                  </p>
+                </div>
+              </div>
+            ) : failedAttempts >= 3 ? (
+              <div className="login-warning-banner">
+                <div className="warning-info">
+                  <p>
+                    รหัสผ่านไม่ถูกต้อง (เหลือโอกาสอีก <strong>{Math.max(0, MAX_ATTEMPTS - failedAttempts)}</strong> ครั้งก่อนบัญชีจะถูกระงับ)
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             <div className="f-group">
               <label className="f-label">Username</label>
               <div className="f-row">
@@ -149,6 +317,7 @@ function Login() {
                   maxLength={50}
                   onChange={handleUsernameChange}
                   autoComplete="username"
+                  disabled={isLocked || isSubmitting}
                 />
               </div>
               {usernameError && <p className="f-error-text">{usernameError}</p>}
@@ -164,8 +333,9 @@ function Login() {
                   value={password}
                   onChange={handlePasswordChange}
                   autoComplete="current-password"
+                  disabled={isLocked || isSubmitting}
                 />
-                <span className="eye-icon" onClick={() => setShowPassword(!showPassword)}>
+                <span className="eye-icon" onClick={() => !isLocked && setShowPassword(!showPassword)}>
                   {showPassword ? <FaEye /> : <FaEyeSlash />}
                 </span>
               </div>
@@ -178,18 +348,21 @@ function Login() {
                 id="remember"
                 checked={remember}
                 onChange={(e) => setRemember(e.target.checked)}
+                disabled={isLocked || isSubmitting}
               />
               <label htmlFor="remember">Remember me</label>
             </div>
 
-            <button type="submit" className="btn" disabled={isSubmitting}>
-              {isSubmitting ? 'Signing in...' : 'Access Control'}
+            <button type="submit" className="btn" disabled={isLocked || isSubmitting}>
+              {isSubmitting ? 'Signing in...' : isLocked ? `Locked (${formatCountdown(lockoutSeconds)})` : 'Access Control'}
             </button>
           </form>
 
-          <p className="forgot">
-            <span onClick={() => navigate('/forgot-password')}>Forgot password?</span>
-          </p>
+          {!isLocked && (
+            <p className="forgot">
+              <span onClick={() => navigate('/forgot-password')}>Forgot password?</span>
+            </p>
+          )}
         </div>
       </motion.div>
     </div>
