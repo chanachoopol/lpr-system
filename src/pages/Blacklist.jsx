@@ -147,8 +147,8 @@ function Blacklist() {
     setIsLoadingRegistered(true)
     try {
       const data = isBlacklistTab
-        ? await getBlacklistAPI({ villageId: selectedVillageId || undefined, pageSize: 200 })
-        : await getWhitelistAPI({ villageId: selectedVillageId || undefined, pageSize: 200 })
+        ? await getBlacklistAPI({ villageId: selectedVillageId || undefined, pageSize: 100 })
+        : await getWhitelistAPI({ villageId: selectedVillageId || undefined, pageSize: 100 })
 
       setRegisteredList(data?.items || [])
       setRegisteredTotal(data?.total || (data?.items || []).length)

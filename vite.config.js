@@ -9,7 +9,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://abfc-1-10-249-32.ngrok-free.app',
+        target: 'https://9238-182-52-138-66.ngrok-free.app',
         changeOrigin: true,
         secure: false,
         cookieDomainRewrite: '', // ปลด domain ให้คุกกี้ผูกกับ Host/IP ที่เปิดใช้งานจริง (เช่น 192.168.x.x หรือ localhost)
