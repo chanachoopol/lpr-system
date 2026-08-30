@@ -31,6 +31,16 @@ import EmptyState from '../components/EmptyState'
 import ProvinceAutocomplete from '../components/ProvinceAutocomplete'
 import { isValidThaiProvince } from '../data/thaiProvinces'
 
+// Regex สำหรับป้ายทะเบียนไทย (รองรับป้ายปกติ, ป้ายมอเตอร์ไซค์, ป้ายประมูล/สระวรรณยุกต์, ตัวเลข และขีด)
+export const THAI_LICENSE_PLATE_REGEX = /^[0-9\u0E01-\u0E3A\u0E40-\u0E4E\s-]+$/
+
+export function isThaiLicensePlateValid(plate) {
+  if (!plate || typeof plate !== 'string') return false
+  const trimmed = plate.trim()
+  if (trimmed.length < 2 || trimmed.length > 15) return false
+  return THAI_LICENSE_PLATE_REGEX.test(trimmed)
+}
+
 const MANAGE_ROLES = ['user', 'admin', 'superadmin']
 const SEARCH_DEBOUNCE_MS = 350
 const ROWS_PER_PAGE = 10
@@ -350,20 +360,30 @@ function Blacklist() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // ตรวจสอบความถูกต้องสำหรับฟอร์ม Blacklist (disable button if incomplete)
+  // ตรวจสอบความถูกต้องสำหรับฟอร์ม Blacklist
   const isBlacklistFormValid = useMemo(() => {
-    const plateOk = formData.plate.trim().length >= 2
-    const provOk = isValidThaiProvince(formData.province)
-    const reasonOk = formData.reason.trim().length > 0
+    if (!isBlacklistTab) return true
+    const plateOk = isThaiLicensePlateValid(formData?.plate)
+    const provOk = isValidThaiProvince(formData?.province || '')
+    const reasonOk = (formData?.reason || '').trim().length > 0
     return plateOk && provOk && reasonOk
-  }, [formData])
+  }, [formData, isBlacklistTab])
+
+  // ตรวจสอบความถูกต้องสำหรับฟอร์ม Whitelist
+  const isWhitelistFormValid = useMemo(() => {
+    if (isBlacklistTab) return true
+    const nameOk = (formData?.name || '').trim().length > 0
+    const plateOk = isThaiLicensePlateValid(formData?.plate)
+    const provOk = isValidThaiProvince(formData?.province || '')
+    return nameOk && plateOk && provOk
+  }, [formData, isBlacklistTab])
 
   // บันทึกฟอร์ม เพิ่ม / แก้ไข
   async function handleFormSubmit(e) {
     e.preventDefault()
 
-    const trimmedPlate = formData.plate.trim()
-    const trimmedProvince = formData.province.trim()
+    const trimmedPlate = (formData?.plate || '').trim()
+    const trimmedProvince = (formData?.province || '').trim()
 
     if (!trimmedPlate) {
       Swal.fire({ icon: 'warning', title: 'กรุณากรอกป้ายทะเบียน', confirmButtonColor: 'var(--sidebar-bg)' })
@@ -371,6 +391,15 @@ function Blacklist() {
     }
     if (trimmedPlate.length < 2) {
       Swal.fire({ icon: 'warning', title: 'ป้ายทะเบียนสั้นเกินไป', text: 'ป้ายทะเบียนต้องมีอย่างน้อย 2 ตัวอักษร', confirmButtonColor: 'var(--sidebar-bg)' })
+      return
+    }
+    if (!isThaiLicensePlateValid(trimmedPlate)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'รูปแบบป้ายทะเบียนไม่ถูกต้อง',
+        text: 'ป้ายทะเบียนต้องประกอบด้วยตัวอักษรภาษาไทยหรือตัวเลขเท่านั้น (ห้ามมีอักขระพิเศษ)',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
       return
     }
 
@@ -897,15 +926,20 @@ function Blacklist() {
               )}
 
               <div className="bl-add-field">
-                <label>ป้ายทะเบียน (2 - 8 ตัวอักษร)</label>
+                <label>ป้ายทะเบียน (2 - 15 ตัวอักษร)</label>
                 <input
                   type="text"
                   name="plate"
-                  placeholder="เช่น 1กก1234 หรือ กข1234"
-                  maxLength={8}
+                  placeholder="เช่น 1กก1234, กข1234 หรือ โชคดี9999"
+                  maxLength={15}
                   value={formData.plate}
                   onChange={handleFormChange}
                 />
+                {formData.plate && !isThaiLicensePlateValid(formData.plate) && (
+                  <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    รูปแบบป้ายทะเบียนไม่ถูกต้อง (อนุญาตเฉพาะตัวอักษรไทย ตัวเลข สระ และขีด)
+                  </span>
+                )}
               </div>
 
               <div className="bl-add-field">
@@ -954,9 +988,12 @@ function Blacklist() {
                 <button
                   type="submit"
                   className="btn-confirm-add"
-                  disabled={isSubmitting || (isBlacklistTab && !isBlacklistFormValid)}
+                  disabled={
+                    isSubmitting ||
+                    (isBlacklistTab ? !isBlacklistFormValid : !isWhitelistFormValid)
+                  }
                   style={
-                    isBlacklistTab && !isBlacklistFormValid
+                    (isBlacklistTab ? !isBlacklistFormValid : !isWhitelistFormValid)
                       ? { opacity: 0.5, cursor: 'not-allowed' }
                       : {}
                   }
