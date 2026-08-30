@@ -979,6 +979,7 @@ function UserManagement() {
                                 key: 'reset-password',
                                 label: 'Reset Password',
                                 icon: <FaKey />,
+                                hidden: u.role === 'superadmin' || !u.is_verify,
                                 disabled: isAdminTargetingSuperadmin,
                                 title: isAdminTargetingSuperadmin
                                   ? 'ไม่มีสิทธิ์รีเซ็ตรหัสผ่าน Superadmin'

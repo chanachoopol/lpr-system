@@ -137,3 +137,70 @@ body {
   70%  { box-shadow: 0 0 0 14px rgba(220, 38, 38, 0); }
   100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
 }
+
+/* ==================== Password Strength Meter ==================== */
+.pw-strength-meter {
+  margin-top: 6px;
+  padding: 10px 14px;
+  background: rgba(27, 42, 71, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(27, 42, 71, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.pw-strength-bar-track {
+  height: 5px;
+  width: 100%;
+  background: rgba(27, 42, 71, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.pw-strength-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.pw-strength-label {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.pw-strength-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pw-strength-checklist li {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'DM Sans', sans-serif;
+  line-height: 1.4;
+}
+
+.pw-strength-checklist li svg {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.pw-check-pass {
+  color: rgb(22, 163, 74);
+  font-weight: 500;
+}
+
+.pw-check-fail {
+  color: rgb(148, 163, 184);
+  font-weight: 400;
+}

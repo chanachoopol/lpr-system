@@ -525,7 +525,7 @@ export async function markNotificationReadAPI(notificationId) {
 }
 
 export async function markAllNotificationsReadAPI() {
-  const response = await api.post('/api/notifications/read-all')
+  const response = await api.patch('/api/notifications/read-all')
   return response.data
 }
 // ==================== SSE Presence ====================
