@@ -51,8 +51,8 @@ function validateUserForm(data, isCurrentUserAdmin) {
     errors.username = 'Username ต้องมีอย่างน้อย 4 ตัวอักษร'
   } else if (u.length > 36) {
     errors.username = 'Username ต้องไม่เกิน 36 ตัวอักษร'
-  } else if (!/^[a-zA-Z0-9_]+$/.test(u)) {
-    errors.username = 'Username ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ _ เท่านั้น'
+  } else if (!/^[a-zA-Z0-9@._-]+$/.test(u)) {
+    errors.username = 'Username ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ @, -, _ เท่านั้น'
   }
 
   const fn = (data.fullname || '').trim()
@@ -1152,14 +1152,16 @@ function UserManagement() {
                 <input
                   type="text"
                   name="username"
-                  placeholder="กรอก Username เช่น somchaik (4-36 ตัวอักษร)"
+                  placeholder="เช่น user_01, admin-polo, john@polo (4-36 ตัวอักษร)"
                   maxLength={36}
                   value={formData.username}
                   onChange={handleFormChange}
                   className={(touchedFields.username || hasSubmittedUserForm) && userFormErrors.username ? 'um-input-error' : ''}
                 />
-                {(touchedFields.username || hasSubmittedUserForm) && userFormErrors.username && (
+                {(touchedFields.username || hasSubmittedUserForm) && userFormErrors.username ? (
                   <p className="um-field-error">{userFormErrors.username}</p>
+                ) : (
+                  <p className="um-role-hint">อนุญาตเฉพาะตัวอักษรภาษาอังกฤษ, ตัวเลข, @, - และ _</p>
                 )}
               </div>
 
