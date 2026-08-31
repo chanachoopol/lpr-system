@@ -615,6 +615,41 @@ function UserManagement() {
     }
   }
 
+  // ส่งอีเมลคำเชิญตั้งรหัสผ่านให้ผู้ใช้อีกครั้ง
+  async function handleResendInvite(user) {
+    const result = await Swal.fire({
+      icon: 'question',
+      title: 'ส่งคำเชิญอีกครั้ง?',
+      html: `ต้องการส่งอีเมลคำเชิญเพื่อตั้งรหัสผ่านให้ <strong>${user.username}</strong>${user.email ? ` (${user.email})` : ''} อีกครั้งใช่หรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: 'ส่งคำเชิญ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'rgb(37, 99, 235)',
+      cancelButtonColor: 'var(--sidebar-bg)'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      await resendInviteAPI(user.id)
+      Swal.fire({
+        icon: 'success',
+        title: 'ส่งคำเชิญสำเร็จ',
+        text: `ระบบได้ส่งลิงก์ตั้งรหัสผ่านไปยังอีเมลของ "${user.username}" เรียบร้อยแล้ว`,
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } catch (error) {
+      console.error(error)
+      const backendMessage = error.response?.data?.detail
+      Swal.fire({
+        icon: 'error',
+        title: 'ส่งคำเชิญไม่สำเร็จ',
+        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาดในการส่งคำเชิญ กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    }
+  }
+
   function openAddVillageModal() {
     setEditingVillage(null)
     setVillageFormData(EMPTY_VILLAGE_FORM)
