@@ -106,23 +106,40 @@ useEffect(() => {
   useEffect(() => {
     if (!latestDetection) return
 
+    const detVillageId = latestDetection.village_id || latestDetection.camera?.village_id
     // superadmin scope global ได้ทุกหมู่บ้าน — ถ้ากำลังเลือกดูหมู่บ้านเดียวอยู่ ให้กรองให้ตรง
-    if (selectedVillageId && latestDetection.camera?.village_id
-        && latestDetection.camera.village_id !== selectedVillageId) {
+    if (selectedVillageId && detVillageId && detVillageId !== selectedVillageId) {
       return
     }
 
+    const detId = latestDetection.detection_id || latestDetection.id || `det-${Date.now()}`
+
     setHistory((prev) => {
-  if (prev.some((item) => item.id === latestDetection.detection_id)) return prev
-  const newItem = {
-    id: latestDetection.detection_id,
-    time_detect: latestDetection.time_detect,
-    license_plate: latestDetection.license_plate,
-    province: latestDetection.province,
-    color: latestDetection.color
-  }
-  return [newItem, ...prev].slice(0, 10) // 👈 เดิมใช้ RECENT_HISTORY_LIMIT ตอนนี้ hardcode ให้ตรงกับ latestLimit ที่ยิงไป
-})
+      if (
+        prev.some(
+          (item) =>
+            item.id === detId ||
+            (item.license_plate === latestDetection.license_plate &&
+              item.time_detect === latestDetection.time_detect)
+        )
+      ) {
+        return prev
+      }
+      const newItem = {
+        id: detId,
+        time_detect: latestDetection.time_detect || latestDetection.created_at || new Date().toISOString(),
+        license_plate: latestDetection.license_plate,
+        province: latestDetection.province,
+        color: latestDetection.color,
+        is_blacklist: latestDetection.is_blacklist || latestDetection.is_black_list || latestDetection.blacklist,
+        is_whitelist: latestDetection.is_whitelist || latestDetection.is_white_list || latestDetection.whitelist,
+        image_full: latestDetection.image_full || latestDetection.image_url,
+        image_crop: latestDetection.image_crop || latestDetection.crop_url,
+        camera_id: latestDetection.camera_id,
+        camera: latestDetection.camera
+      }
+      return [newItem, ...prev].slice(0, 10)
+    })
   }, [latestDetection, selectedVillageId])
 
   // ---------- Modal ดูรายละเอียด/รูปภาพ (pattern เดียวกับ History.jsx) ----------

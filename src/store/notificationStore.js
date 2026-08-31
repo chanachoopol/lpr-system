@@ -12,6 +12,7 @@ import {
   getDetectionsAPI,
   getCameraByIdAPI
 } from '../data/api'
+import useAuthStore from './authStore'
 
 const RECONNECT_DELAY_MS = 3000
 const NOTIF_PAGE_SIZE = 20
@@ -22,9 +23,7 @@ let eventSource = null
 let reconnectTimer = null
 let isManuallyClosed = false
 
-// ---------- คิวของ Blacklist Alert (module-level เพราะต้อง persist ข้ามการ re-render ของทุก component) ----------
-let blacklistAlertQueue = []
-let isBlacklistAlertShowing = false
+// ---------- คิวของ Blacklist Alert (จัดการผ่าน Zustand Store เพื่อ render เป็น 3D Stacked Cards) ----------
 
 function formatAlertDateTime(isoString) {
   if (!isoString) return '-'
@@ -65,76 +64,6 @@ async function fetchBlacklistDetectionDetail(alertData) {
   }
 }
 
-// แสดง Blacklist Alert ทีละอันจากคิว — modal นี้ตั้งใจปิดไม่ได้ด้วยการคลิกนอกกรอบ/กด Esc
-// ต้องกด "รับทราบ" เท่านั้น เพราะเป็นการแจ้งเตือนอันตรายตามที่ตกลงกันไว้
-async function showNextBlacklistAlert() {
-  if (isBlacklistAlertShowing) return
-  const next = blacklistAlertQueue.shift()
-  if (!next) return
-
-  isBlacklistAlertShowing = true
-
-  // ไปขอรายละเอียด detection จริงจาก backend มาเสริม (รูป/ชื่อกล้อง) — ถ้าหาไม่เจอ/พลาด
-  // ก็ fallback ไปใช้ field เท่าที่ alert payload มีมาให้ (license_plate ยืนยันแล้วว่ามีแน่นอน)
-  const detail = await fetchBlacklistDetectionDetail(next)
-  const merged = { ...next, ...detail }
-
-  let imageUrl = null
-  const imageSource = merged.image_full || merged.image_crop
-  if (imageSource) {
-    try {
-      imageUrl = await getAuthedImageURL(imageSource)
-    } catch (error) {
-      console.error('โหลดรูปภาพ blacklist alert ไม่สำเร็จ:', error)
-    }
-  }
-
-  const remainingCount = blacklistAlertQueue.length
-  const hasStacked = remainingCount > 0
-
-  const stackedBadgeHtml = hasStacked
-    ? `
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:6px 12px; background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.2); border-radius:10px;">
-        <span style="font-size:12px; font-weight:700; color:rgb(220,38,38);">🚨 กำลังแสดงรายการ</span>
-        <span style="font-size:12px; font-weight:700; color:rgb(220,38,38); background:#ffffff; padding:2px 10px; border-radius:12px; border:1px solid rgba(220,38,38,0.2); box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-          ซ้อนอยู่ +${remainingCount} รายการ
-        </span>
-      </div>
-    `
-    : ''
-
-  const imageHtml = imageUrl
-    ? `<img src="${imageUrl}" alt="ภาพรถที่ตรวจจับได้" style="width:100%; max-height:220px; object-fit:cover; border-radius:12px; margin-bottom:14px; border:1px solid rgba(220,38,38,0.2);" />`
-    : `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:rgba(220,38,38,0.06); border-radius:12px; margin-bottom:14px; color:rgb(148,163,184); font-size:13px;">ไม่มีรูปภาพ</div>`
-
-  Swal.fire({
-    icon: 'error',
-    title: 'พบรถต้องสงสัย (Blacklist)',
-    html: `
-      <div style="text-align:left; font-family:'DM Sans', sans-serif; font-size:14px; line-height:1.8;">
-        ${stackedBadgeHtml}
-        ${imageHtml}
-        <p><strong>ป้ายทะเบียน:</strong> ${merged.license_plate || '-'}</p>
-        <p><strong>จังหวัด:</strong> ${merged.province || '-'}</p>
-        <p><strong>กล้อง:</strong> ${merged.camera_name || '-'}</p>
-        <p><strong>เวลา:</strong> ${formatAlertDateTime(merged.time_detect)}</p>
-        ${next.reason ? `<p><strong>เหตุผล:</strong> ${next.reason}</p>` : ''}
-      </div>
-    `,
-    confirmButtonText: hasStacked ? `รับทราบ (เหลืออีก ${remainingCount} รายการ)` : 'รับทราบ',
-    confirmButtonColor: 'rgb(220, 38, 38)',
-    allowOutsideClick: false,
-    allowEscapeKey: false,
-    showCloseButton: false,
-    width: 460,
-    customClass: { popup: hasStacked ? 'blacklist-alert-popup has-stacked-alerts' : 'blacklist-alert-popup' }
-  }).then(() => {
-    if (imageUrl) URL.revokeObjectURL(imageUrl)
-    isBlacklistAlertShowing = false
-    showNextBlacklistAlert()
-  })
-}
-
 function formatAlertTime(isoString) {
   if (!isoString) return '-'
   return new Date(isoString).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
@@ -173,6 +102,54 @@ const useNotificationStore = create((set, get) => ({
   isLoadingNotifications: false,
   latestDetection: null,
   isConnected: false,
+  activeBlacklistAlerts: [],
+
+  pushBlacklistAlert: (alert) => {
+    if (!alert) return
+
+    // 1. กรอง Role: ไม่แจ้งเตือน superadmin — แจ้งเฉพาะ admin และ user ประจำหมู่บ้านเท่านั้น
+    const currentUser = useAuthStore.getState().user
+    if (!currentUser || currentUser.role === 'superadmin') {
+      return
+    }
+
+    // 2. ถ้ามี village_id ให้กรองเฉพาะกล้องในหมู่บ้านของตนเอง
+    if (currentUser.village_id && alert.village_id && currentUser.village_id !== alert.village_id) {
+      return
+    }
+
+    set((state) => {
+      if (state.activeBlacklistAlerts.length >= MAX_BLACKLIST_QUEUE) return state
+
+      // 3. Deduplication Guard: ป้องกันไม่ให้ Alert เดียวกันเด้งซ้อน 2 ใบ (จากทั้ง detection_created และ blacklist_alert)
+      const alertDetId = alert.detection_id || alert.id
+      const isDuplicate = state.activeBlacklistAlerts.some((existing) => {
+        const existingDetId = existing.detection_id || existing.id
+        if (alertDetId && existingDetId) {
+          return alertDetId === existingDetId
+        }
+        const samePlate = existing.license_plate && existing.license_plate === alert.license_plate
+        if (samePlate) {
+          const t1 = new Date(existing.time_detect || 0).getTime()
+          const t2 = new Date(alert.time_detect || 0).getTime()
+          if (Math.abs(t1 - t2) < 8000) return true
+        }
+        return false
+      })
+
+      if (isDuplicate) {
+        return state
+      }
+
+      return { activeBlacklistAlerts: [...state.activeBlacklistAlerts, alert] }
+    })
+  },
+
+  dismissFrontBlacklistAlert: () => {
+    set((state) => ({
+      activeBlacklistAlerts: state.activeBlacklistAlerts.slice(1)
+    }))
+  },
 
   fetchNotifications: async () => {
     set({ isLoadingNotifications: true })
@@ -214,28 +191,57 @@ const useNotificationStore = create((set, get) => ({
           const data = JSON.parse(e.data)
           set({ latestDetection: data })
 
-          if (data.is_whitelist) {
-            toast.success(
-              `Whitelist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`,
-              { icon: '🏠', duration: 6000 }
-            )
-            get().fetchNotifications()
-            get().fetchUnreadCount()
+          const currentUser = useAuthStore.getState().user
+          const isSuperadmin = currentUser?.role === 'superadmin'
+
+          // ตรวจสอบหมู่บ้าน: แจ้งเตือนเฉพาะกล้องในหมู่บ้านของตนเอง ไม่แจ้งเตือนข้ามหมู่บ้าน
+          const detVillageId = data.village_id || data.camera?.village_id
+          const isSameVillage = !currentUser?.village_id || !detVillageId || currentUser.village_id === detVillageId
+
+          if (data.is_blacklist || data.is_black_list || data.blacklist) {
+            // ไม่แจ้งเตือน superadmin และไม่แจ้งเตือนข้ามหมู่บ้าน
+            if (!isSuperadmin && isSameVillage) {
+              get().pushBlacklistAlert({
+                ...data,
+                _stackId: `alert-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                time_detect: data.time_detect || data.created_at || new Date().toISOString()
+              })
+            }
+          } else if (data.is_whitelist || data.is_white_list || data.whitelist) {
+            // Whitelist Toast: ไม่แจ้งเตือน superadmin และไม่แจ้งเตือนข้ามหมู่บ้าน
+            if (!isSuperadmin && isSameVillage) {
+              toast.success(
+                `Whitelist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`,
+                { icon: '🏠', duration: 6000 }
+              )
+            }
           }
         } catch (err) {
           console.error('parse detection_created error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
         }
       })
 
-      // Blacklist — toast แจ้งเตือนแบบเดิม + modal บล็อกหน้าจอพร้อมรูปถ่าย (ดึงจาก getDetectionsAPI จริง)
+      // Blacklist — modal 3D Stacked Alerts กลางจอทันที (ไม่ใช้ toast มุมขวา)
       es.addEventListener('blacklist_alert', (e) => {
         try {
           const data = JSON.parse(e.data)
-          toast.error(`Blacklist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`)
+          const currentUser = useAuthStore.getState().user
+          const isSuperadmin = currentUser?.role === 'superadmin'
+          const detVillageId = data.village_id || data.camera?.village_id
+          const isSameVillage = !currentUser?.village_id || !detVillageId || currentUser.village_id === detVillageId
 
-          if (blacklistAlertQueue.length < MAX_BLACKLIST_QUEUE) {
-            blacklistAlertQueue.push(data)
-            showNextBlacklistAlert()
+          if (!isSuperadmin && isSameVillage) {
+            const alertItem = {
+              ...data,
+              _stackId: `alert-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+              time_detect: data.time_detect || data.created_at || new Date().toISOString()
+            }
+
+            // เด้ง Pop-up กลางจอทันที
+            get().pushBlacklistAlert(alertItem)
           }
         } catch (err) {
           console.error('parse blacklist_alert error:', err)
@@ -325,9 +331,7 @@ const useNotificationStore = create((set, get) => ({
 
   reset: () => {
     get().disconnect()
-    blacklistAlertQueue = []
-    isBlacklistAlertShowing = false
-    set({ notifications: [], unreadCount: 0, latestDetection: null })
+    set({ notifications: [], unreadCount: 0, latestDetection: null, activeBlacklistAlerts: [] })
   }
 }))
 

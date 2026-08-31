@@ -38,6 +38,17 @@ function toDateParam(date) {
   return `${y}-${m}-${d}`
 }
 
+const STORAGE_KEY_BLACKLIST_HISTORY = 'lpr_historical_blacklist_plates'
+
+function getHistoricalBlacklistPlates() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_BLACKLIST_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
 // คำนวณว่าจะโชว์เลขหน้าไหนบ้าง (จำกัดไม่ให้ยาวเกินไปเวลามีหลายสิบหน้า)
 // เช่น อยู่หน้า 8 จาก 27 หน้า จะโชว์ [7, 8, 9, 10] แทนที่จะโชว์ 1-27 ทั้งหมด
 function getVisiblePageNumbers(current, total, maxVisible) {
@@ -333,11 +344,16 @@ function History() {
                   </tr>
                 ) : historyData.length > 0 ? (
                   historyData.map((item, index) => {
+                    const histMap = getHistoricalBlacklistPlates()
+                    const cleanPlate = (item.license_plate || '').replace(/\s+/g, '')
+                    const cleanProv = (item.province || '').trim()
                     const isBlacklist = Boolean(
                       item.is_blacklist ||
                       item.is_blacklisted ||
                       item.category === 'blacklist' ||
-                      item.type === 'blacklist'
+                      item.type === 'blacklist' ||
+                      histMap[`${cleanPlate}|${cleanProv}`] ||
+                      histMap[cleanPlate]
                     )
                     return (
                       <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>

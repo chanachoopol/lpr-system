@@ -338,7 +338,21 @@ export async function getDetectionsAPI(params) {
 }
 
 export async function getAuthedImageURL(imageEndpointUrl) {
-  const response = await api.get(imageEndpointUrl, { responseType: 'blob' })
+  if (!imageEndpointUrl) return null
+
+  // แปลง absolute URL (เช่น http://localhost:8000/api/...) ให้เป็น relative path (/api/...)
+  // เพื่อให้วิ่งผ่าน axios instance (`api`) และ Vite Proxy ไปยัง IP ของ Backend ได้ถูกต้องเสมอ
+  let cleanUrl = imageEndpointUrl
+  try {
+    if (typeof cleanUrl === 'string' && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
+      const parsed = new URL(cleanUrl)
+      cleanUrl = parsed.pathname + parsed.search
+    }
+  } catch (e) {
+    // fallback ใช้ imageEndpointUrl เดิม
+  }
+
+  const response = await api.get(cleanUrl, { responseType: 'blob' })
   return URL.createObjectURL(response.data)
 }
 

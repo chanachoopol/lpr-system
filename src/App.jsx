@@ -22,6 +22,7 @@ import ChangePassword from './pages/ChangePassword'
 import Profile from './pages/Profile'
 import usePresenceStore from './store/presenceStore'
 import RouteTracking from './pages/RouteTracking'
+import BlacklistAlertModal from './components/BlacklistAlertModal'
 function AnimatedRoutes() {
   const location = useLocation()
 
@@ -115,6 +116,7 @@ function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+      <BlacklistAlertModal />
       <AnimatedRoutes />
     </BrowserRouter>
   )

@@ -173,7 +173,24 @@ function Blacklist() {
     fetchRegistered()
   }, [fetchRegistered])
 
-  // ดึง Detections ทั้งหมด และ Match กับรายการ Registered
+const STORAGE_KEY_BLACKLIST_HISTORY = 'lpr_historical_blacklist_plates'
+
+function getHistoricalBlacklistPlates() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_BLACKLIST_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function saveHistoricalBlacklistPlates(map) {
+  try {
+    localStorage.setItem(STORAGE_KEY_BLACKLIST_HISTORY, JSON.stringify(map))
+  } catch (e) {}
+}
+
+  // ดึง Detections ทั้งหมด และ Match กับรายการ Registered (คงประวัติป้ายที่เคยลงทะเบียนแม้จะลบออกไปแล้ว)
   const fetchDetectionsAndMatch = useCallback(async () => {
     if (!user) return
     setIsLoadingDetections(true)
@@ -196,6 +213,9 @@ function Blacklist() {
       const regMapWithProv = new Map()
       const regMapAnyProv = new Map()
 
+      // เก็บแคชประวัติป้ายที่ต้องสงสัยย้อนหลัง เพื่อไม่ให้ประวัติการตรวจจับหายเมื่อลบป้ายออก
+      const histMap = isBlacklistTab ? getHistoricalBlacklistPlates() : {}
+
       regItems.forEach((item) => {
         const plate = normalizePlate(item.license_plate)
         if (!plate) return
@@ -205,7 +225,20 @@ function Blacklist() {
         } else {
           regMapAnyProv.set(plate, item)
         }
+
+        if (isBlacklistTab) {
+          const key = prov ? `${plate}|${prov}` : plate
+          histMap[key] = {
+            plate: item.license_plate,
+            province: item.province,
+            reason: item.reason || '-'
+          }
+        }
       })
+
+      if (isBlacklistTab) {
+        saveHistoricalBlacklistPlates(histMap)
+      }
 
       // 2. ดึง detections ทั้งหมด (ย้อนหลังและวันนี้)
       let allDetections = []
@@ -236,8 +269,29 @@ function Blacklist() {
             ...d,
             matchedReason: regEntry.reason || '-',
             matchedName: regEntry.name || '-',
-            matchedNote: regEntry.note || '-'
+            matchedNote: regEntry.note || '-',
+            isDeletedFromSystem: false
           })
+        } else if (isBlacklistTab) {
+          // ถ้าเป็นแท็บป้ายที่ต้องสงสัย และเคยมีประวัติลงทะเบียนในระบบมาก่อน (แต่ถูกลบไปแล้ว)
+          const histEntry = histMap[`${plate}|${prov}`] || histMap[plate]
+          if (histEntry) {
+            matched.push({
+              ...d,
+              matchedReason: histEntry.reason || '-',
+              matchedName: '-',
+              matchedNote: '-',
+              isDeletedFromSystem: true
+            })
+          } else if (d.is_blacklist) {
+            matched.push({
+              ...d,
+              matchedReason: d.reason || '-',
+              matchedName: '-',
+              matchedNote: '-',
+              isDeletedFromSystem: true
+            })
+          }
         }
       })
 
@@ -505,9 +559,12 @@ function Blacklist() {
 
     async function loadImages() {
       try {
+        const cropSource = selectedItem.image_crop || selectedItem.crop_url
+        const fullSource = selectedItem.image_full || selectedItem.image_url
+
         const [crop, full] = await Promise.all([
-          selectedItem.crop_url ? getAuthedImageURL(selectedItem.crop_url) : Promise.resolve(null),
-          selectedItem.image_url ? getAuthedImageURL(selectedItem.image_url) : Promise.resolve(null)
+          cropSource ? getAuthedImageURL(cropSource) : Promise.resolve(null),
+          fullSource ? getAuthedImageURL(fullSource) : Promise.resolve(null)
         ])
         if (!isCancelled) {
           setModalImages({ crop, full })
@@ -676,7 +733,22 @@ function Blacklist() {
                       <td>{getCameraName(item.camera_id)}</td>
                       <td>
                         {isBlacklistTab ? (
-                          <span className="bl-reason-badge">{item.matchedReason}</span>
+                          <div>
+                            <span className="bl-reason-badge">{item.matchedReason}</span>
+                            {item.isDeletedFromSystem && (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: '#94a3b8',
+                                  display: 'block',
+                                  marginTop: 3,
+                                  fontWeight: 500
+                                }}
+                              >
+                                (ป้ายนี้ถูกลบออกจากระบบแล้ว)
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span>{item.matchedName}</span>
                         )}
