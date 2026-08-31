@@ -8,6 +8,8 @@ import Layout from '../components/Layout'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import { getAuditLogsAPI } from '../data/api'
+import useAuthStore from '../store/authStore'
+import useVillageStore from '../store/villageStore'
 import '../styles/AuditLog.css'
 
 const PAGE_SIZE = 20
@@ -75,6 +77,10 @@ function endOfDayISO(date) {
 }
 
 function AuditLog() {
+  const { currentUser } = useAuthStore()
+  const { selectedVillageId } = useVillageStore()
+  const isSuperadmin = currentUser?.role === 'superadmin'
+
   const [logs, setLogs] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -93,17 +99,30 @@ function AuditLog() {
   const [failedLoginToday, setFailedLoginToday] = useState(0)
 
   const fetchLogs = useCallback(async () => {
+    if (!currentUser) return
     setIsLoading(true)
     try {
+      const targetVillageId = isSuperadmin ? (selectedVillageId || undefined) : currentUser?.village_id
       const data = await getAuditLogsAPI({
+        villageId: targetVillageId,
         action: actionFilter === 'all' ? undefined : actionFilter,
         createdAtFrom: dateFrom ? startOfDayISO(dateFrom) : undefined,
         createdAtTo: dateTo ? endOfDayISO(dateTo) : undefined,
         page,
         pageSize: PAGE_SIZE
       })
-      setLogs(data.items)
-      setTotal(data.total)
+
+      // ถ้าเป็น Admin ให้กรอง Audit Log ของ Superadmin ออกเสมอ
+      const visibleItems = isSuperadmin
+        ? data.items
+        : data.items.filter((item) => {
+            const role = item.role || item.user_role
+            const username = item.username?.toLowerCase()
+            return role !== 'superadmin' && username !== 'superadmin'
+          })
+
+      setLogs(visibleItems)
+      setTotal(isSuperadmin ? data.total : (data.total - (data.items.length - visibleItems.length)))
     } catch (error) {
       console.error(error)
       Swal.fire({
@@ -115,7 +134,7 @@ function AuditLog() {
     } finally {
       setIsLoading(false)
     }
-  }, [actionFilter, dateFrom, dateTo, page])
+  }, [currentUser, isSuperadmin, selectedVillageId, actionFilter, dateFrom, dateTo, page])
 
   useEffect(() => {
     fetchLogs()
@@ -129,17 +148,21 @@ function AuditLog() {
   // ดึงตัวเลข KPI ครั้งเดียวตอนเปิดหน้า (ใช้ page_size:1 เพราะสนใจแค่ total)
   useEffect(() => {
     async function fetchKpis() {
+      if (!currentUser) return
       setKpiLoading(true)
       try {
+        const targetVillageId = isSuperadmin ? (selectedVillageId || undefined) : currentUser?.village_id
         const [allTime, today, failedToday] = await Promise.all([
-          getAuditLogsAPI({ page: 1, pageSize: 1 }),
+          getAuditLogsAPI({ villageId: targetVillageId, page: 1, pageSize: 1 }),
           getAuditLogsAPI({
+            villageId: targetVillageId,
             page: 1,
             pageSize: 1,
             createdAtFrom: startOfDayISO(new Date()),
             createdAtTo: endOfDayISO(new Date())
           }),
           getAuditLogsAPI({
+            villageId: targetVillageId,
             page: 1,
             pageSize: 1,
             action: 'login_failed',
@@ -157,7 +180,7 @@ function AuditLog() {
       }
     }
     fetchKpis()
-  }, [])
+  }, [currentUser, isSuperadmin, selectedVillageId])
 
   function handleReset() {
     setActionFilter('all')

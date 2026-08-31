@@ -42,8 +42,8 @@ export function filterVisibleUsers(currentUser, userList) {
   if (currentUser.role === 'superadmin') return userList
 
   if (currentUser.role === 'admin') {
-    // เชื่อใจ backend ว่ากรองตาม villageId param ให้แล้ว — ไม่กรองซ้ำ
-    return userList
+    // Admin เห็นเฉพาะ user และ admin เท่านั้น — กรอง superadmin ออกเสมอ
+    return userList.filter((u) => u.role !== 'superadmin')
   }
 
   return userList.filter((u) => (u.user_id ?? u.id) === currentUser.id)

@@ -285,12 +285,23 @@ function UserManagement() {
     fetchLockedAccounts()
   }, [fetchLockedAccounts])
 
+  // คำนวณจำนวน Online Now: Superadmin เห็นทุกคนทั่วระบบ / Admin เห็นเฉพาะ User และ Admin ในหมู่บ้านตนเอง
+  const onlineCount = useMemo(() => {
+    if (isSuperadmin) {
+      return onlineUserIds.size
+    }
+    return users.filter((u) => u.role !== 'superadmin' && onlineUserIds.has(u.id)).length
+  }, [isSuperadmin, onlineUserIds, users])
+
   // map user_id -> unlocked_at (เวลาที่จะปลดล็อคอัตโนมัติ) เพื่อ lookup เร็วๆ ตอน render ตาราง
   const lockedMap = useMemo(() => {
     const map = new Map()
-    lockedAccounts.forEach((entry) => map.set(entry.user_id, entry.unlocked_at))
+    lockedAccounts.forEach((entry) => {
+      if (!isSuperadmin && entry.role === 'superadmin') return
+      map.set(entry.user_id, entry.unlocked_at)
+    })
     return map
-  }, [lockedAccounts])
+  }, [lockedAccounts, isSuperadmin])
 
   // ดึงหมู่บ้านทั้งหมด (รวม inactive) — เฉพาะ superadmin เท่านั้นที่เห็นตารางนี้
   // แยกจาก useVillageStore เพราะ store นั้นดึงมาแค่ active สำหรับ dropdown เลือกหมู่บ้าน
@@ -837,7 +848,7 @@ function UserManagement() {
             <div className="um-kpi-icon green"><FaCircleCheck /></div>
             <div className="um-kpi-info">
               <p className="um-kpi-label">Online Now</p>
-              <h2 className="um-kpi-val">{onlineUserIds.size.toLocaleString()}</h2>
+              <h2 className="um-kpi-val">{onlineCount.toLocaleString()}</h2>
             </div>
           </div>
           <div className="um-kpi-card">
@@ -900,7 +911,7 @@ function UserManagement() {
               <option value="all">All Roles</option>
               <option value="user">User</option>
               <option value="admin">Admin</option>
-              <option value="superadmin">Superadmin</option>
+              {isSuperadmin && <option value="superadmin">Superadmin</option>}
             </select>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all">All Status</option>
