@@ -5,7 +5,7 @@ import {
 } from 'react-icons/fa'
 import { FaCircleCheck, FaCircleXmark, FaXmark } from 'react-icons/fa6'
 import { SiLine } from 'react-icons/si'
-import { getUserContactsDetailAPI, getUserAvatarBlobURL } from '../data/api'
+import { getUserContactsDetailAPI, getUserAvatarBlobURL, getUserDetailAPI } from '../data/api'
 import useVillageStore from '../store/villageStore'
 import Spinner from './Spinner'
 import '../styles/UserProfileModal.css'
@@ -37,13 +37,20 @@ function roleLabel(role) {
 }
 
 function UserProfileModal({ user, onClose }) {
-  const { getVillageName } = useVillageStore()
+  const { villages, getVillageName, fetchVillages } = useVillageStore()
+  const [userData, setUserData] = useState(null)
   const [detail, setDetail] = useState(null)
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showFullAvatarModal, setShowFullAvatarModal] = useState(false)
 
   const userId = user?.id ?? user?.user_id
+
+  useEffect(() => {
+    if (villages.length === 0) {
+      fetchVillages()
+    }
+  }, [villages.length, fetchVillages])
 
   useEffect(() => {
     if (!userId) return
@@ -53,14 +60,16 @@ function UserProfileModal({ user, onClose }) {
     async function loadData() {
       setIsLoading(true)
       try {
-        const [contactData, avatar] = await Promise.all([
+        const [contactData, avatar, userFullData] = await Promise.all([
           getUserContactsDetailAPI(userId).catch(() => null),
-          getUserAvatarBlobURL(userId).catch(() => null)
+          getUserAvatarBlobURL(userId).catch(() => null),
+          getUserDetailAPI(userId).catch(() => null)
         ])
 
         if (!isCancelled) {
           if (contactData) setDetail(contactData)
           if (avatar) setAvatarUrl(avatar)
+          if (userFullData) setUserData(userFullData)
         }
       } catch (err) {
         console.error(err)
@@ -81,10 +90,29 @@ function UserProfileModal({ user, onClose }) {
 
   if (!user) return null
 
-  const displayFullname = user.fullname || detail?.fullname || user.username
-  const displayVillage = user.village_id
-    ? (getVillageName(user.village_id) || user.village_name || detail?.village_name || 'กำลังโหลด...')
-    : 'ทุกหมู่บ้าน (Superadmin)'
+  const activeUser = userData || user
+  const displayFullname = activeUser?.fullname || detail?.fullname || activeUser?.username || user?.username
+  const targetVillageId = activeUser?.village_id ?? activeUser?.villageId ?? user?.village_id ?? user?.villageId ?? detail?.village_id
+  let displayVillage = '-'
+
+  if (targetVillageId) {
+    const vName = getVillageName(targetVillageId)
+    displayVillage = (vName && vName !== '-')
+      ? vName
+      : (activeUser?.village_name || user?.village_name || detail?.village_name || `หมู่บ้าน #${targetVillageId}`)
+  } else if (activeUser?.village_name || user?.village_name || detail?.village_name) {
+    displayVillage = activeUser?.village_name || user?.village_name || detail?.village_name
+  } else if (activeUser?.role === 'superadmin' || user?.role === 'superadmin') {
+    displayVillage = 'ทุกหมู่บ้าน (Superadmin)'
+  } else {
+    displayVillage = '-'
+  }
+
+  const isUserVerified = activeUser?.is_verify ?? user?.is_verify ?? false
+  const isUserActive = activeUser?.is_active ?? user?.is_active ?? true
+  const userRole = activeUser?.role || user?.role || 'user'
+  const userCreatedAt = activeUser?.created_at || user?.created_at || detail?.created_at
+  const displayEmail = activeUser?.email || user?.email || detail?.email || '-'
 
   const contactsList = detail?.contacts || []
 
@@ -120,17 +148,17 @@ function UserProfileModal({ user, onClose }) {
 
             <div className="um-pm-header-info">
               <h3 className="um-pm-fullname">{displayFullname}</h3>
-              <p className="um-pm-username">@{user.username || detail?.username}</p>
+              <p className="um-pm-username">@{activeUser.username || user.username || detail?.username}</p>
 
               <div className="um-pm-badges">
-                <span className={`pf-role-badge pf-role-${user.role}`}>
-                  <FaShieldAlt /> {roleLabel(user.role)}
+                <span className={`pf-role-badge pf-role-${userRole}`}>
+                  <FaShieldAlt /> {roleLabel(userRole)}
                 </span>
-                <span className={`pf-status-badge ${user.is_active ? 'active' : 'inactive'}`}>
-                  {user.is_active ? <FaCircleCheck /> : <FaCircleXmark />}
-                  {user.is_active ? 'Active' : 'Inactive'}
+                <span className={`pf-status-badge ${isUserActive ? 'active' : 'inactive'}`}>
+                  {isUserActive ? <FaCircleCheck /> : <FaCircleXmark />}
+                  {isUserActive ? 'Active' : 'Inactive'}
                 </span>
-                {!user.is_verify && (
+                {!isUserVerified && (
                   <span className="pf-status-badge unverified">Unverified</span>
                 )}
               </div>
@@ -145,7 +173,7 @@ function UserProfileModal({ user, onClose }) {
                 <span className="um-pm-info-icon"><FaEnvelope /></span>
                 <div>
                   <p className="um-pm-info-label">Email</p>
-                  <p className="um-pm-info-value">{user.email || detail?.email || '-'}</p>
+                  <p className="um-pm-info-value">{displayEmail}</p>
                 </div>
               </div>
 
@@ -161,7 +189,7 @@ function UserProfileModal({ user, onClose }) {
                 <span className="um-pm-info-icon"><FaCalendarAlt /></span>
                 <div>
                   <p className="um-pm-info-label">สมัครสมาชิกเมื่อ</p>
-                  <p className="um-pm-info-value">{formatDateThai(user.created_at || detail?.created_at)}</p>
+                  <p className="um-pm-info-value">{formatDateThai(userCreatedAt)}</p>
                 </div>
               </div>
 

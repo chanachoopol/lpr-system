@@ -16,7 +16,6 @@ import Spinner from '../components/Spinner'
 const LOCKOUT_UNTIL_KEY = 'lpr_login_lockout_until'
 const FAILED_ATTEMPTS_KEY = 'lpr_login_failed_attempts'
 const MAX_ATTEMPTS = 5
-const LOCKOUT_DURATION_SEC = 300 // 5 นาที
 
 function Login() {
   const navigate = useNavigate()
@@ -40,6 +39,8 @@ function Login() {
       try {
         const storedUntil = localStorage.getItem(LOCKOUT_UNTIL_KEY)
         const storedAttempts = parseInt(localStorage.getItem(FAILED_ATTEMPTS_KEY) || '0', 10)
+        const currentAttempts = isNaN(storedAttempts) ? 0 : storedAttempts
+        setFailedAttempts(currentAttempts)
 
         if (storedUntil) {
           const remainingMs = parseInt(storedUntil, 10) - Date.now()
@@ -47,18 +48,13 @@ function Login() {
             const remainingSec = Math.ceil(remainingMs / 1000)
             setIsLocked(true)
             setLockoutSeconds(remainingSec)
-            setFailedAttempts(MAX_ATTEMPTS)
             return
           } else {
-            // หมดเวลาแล้ว ล้างข้อมูลออก
+            // หมดเวลาแล้ว ล้างเฉพาะ lockout_until (ยังคงเก็บ failed_attempts ไว้คำนวณรอบถัดไป)
             localStorage.removeItem(LOCKOUT_UNTIL_KEY)
-            localStorage.removeItem(FAILED_ATTEMPTS_KEY)
             setIsLocked(false)
             setLockoutSeconds(0)
-            setFailedAttempts(0)
           }
-        } else {
-          setFailedAttempts(isNaN(storedAttempts) ? 0 : storedAttempts)
         }
       } catch (err) {
         console.error('อ่านสถานะ lockout จาก localStorage ไม่สำเร็จ:', err)
@@ -86,10 +82,8 @@ function Login() {
       setLockoutSeconds((prev) => {
         if (prev <= 1) {
           setIsLocked(false)
-          setFailedAttempts(0)
           try {
             localStorage.removeItem(LOCKOUT_UNTIL_KEY)
-            localStorage.removeItem(FAILED_ATTEMPTS_KEY)
           } catch {}
           clearInterval(timer)
           return 0
@@ -142,7 +136,7 @@ function Login() {
       Swal.fire({
         icon: 'warning',
         title: 'บัญชีถูกระงับการใช้งานชั่วคราว',
-        text: `กรุณารอสักครู่ (${formatCountdown(lockoutSeconds)} นาที) ก่อนลองใหม่อีกครั้ง`,
+        text: `กรุณารอสักครู่ (${lockoutSeconds} วินาที) ก่อนลองใหม่อีกครั้ง`,
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
@@ -212,22 +206,21 @@ function Login() {
         localStorage.setItem(FAILED_ATTEMPTS_KEY, String(newFailedCount))
       } catch {}
 
-      const remainingAttempts = Math.max(0, MAX_ATTEMPTS - newFailedCount)
-
-      // ถ้า backend แจ้งว่าถูกล็อค หรือล็อกอินผิดสะสมครบ 5 ครั้ง
-      if (isBackendLocked || newFailedCount >= MAX_ATTEMPTS) {
-        const lockUntil = Date.now() + (LOCKOUT_DURATION_SEC * 1000)
+      // เริ่มล็อคตั้งแต่ครั้งที่ 6 เป็นต้นไป (ครั้งที่ 6 = 5s, ครั้งที่ 7 = 10s, ครั้งที่ 8 = 15s ...)
+      if (isBackendLocked || newFailedCount >= 6) {
+        const durationSec = Math.max(5, (newFailedCount - 5) * 5)
+        const lockUntil = Date.now() + (durationSec * 1000)
         try {
           localStorage.setItem(LOCKOUT_UNTIL_KEY, String(lockUntil))
         } catch {}
 
         setIsLocked(true)
-        setLockoutSeconds(LOCKOUT_DURATION_SEC)
+        setLockoutSeconds(durationSec)
 
         await Swal.fire({
           icon: 'error',
           title: 'บัญชีถูกระงับชั่วคราว',
-          text: 'คุณกรอกรหัสผ่านไม่ถูกต้องเกินจำนวนครั้งที่กำหนด ระบบได้ระงับการเข้าสู่ระบบชั่วคราวเป็นเวลา 5 นาที กรุณารอจนกว่าจะครบเวลาที่กำหนด',
+          text: `คุณกรอกรหัสผ่านไม่ถูกต้องเกินจำนวนครั้งที่กำหนด ระบบได้ระงับการเข้าสู่ระบบชั่วคราวเป็นเวลา ${durationSec} วินาที กรุณารอจนกว่าจะครบเวลาที่กำหนด`,
           confirmButtonText: 'รับทราบ',
           confirmButtonColor: 'var(--sidebar-bg)',
           allowOutsideClick: false,
@@ -236,23 +229,40 @@ function Login() {
         return
       }
 
-      // รอบที่ 1-2: แสดงข้อความปกติ / รอบที่ 3-4: ค่อยแจ้งเตือนจำนวนครั้งที่เหลือ
-      const errorMessage =
-        newFailedCount >= 3
-          ? `Username หรือ Password ไม่ถูกต้อง (เหลือโอกาสอีก ${remainingAttempts} ครั้งก่อนบัญชีจะถูกระงับ)`
-          : 'Username หรือ Password ไม่ถูกต้อง'
+      // ครั้งที่ 5: เหลือโอกาสอีก 1 ครั้ง
+      if (newFailedCount === 5) {
+        await Swal.fire({
+          icon: 'error',
+          title: 'เข้าสู่ระบบไม่สำเร็จ',
+          text: 'Username หรือ Password ไม่ถูกต้อง (เหลือโอกาสอีก 1 ครั้งก่อนบัญชีจะถูกระงับ)',
+          confirmButtonText: 'ลองอีกครั้ง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+        return
+      }
 
+      // ครั้งที่ 4: เหลือโอกาสอีก 2 ครั้ง
+      if (newFailedCount === 4) {
+        await Swal.fire({
+          icon: 'error',
+          title: 'เข้าสู่ระบบไม่สำเร็จ',
+          text: 'Username หรือ Password ไม่ถูกต้อง (เหลือโอกาสอีก 2 ครั้งก่อนบัญชีจะถูกระงับ)',
+          confirmButtonText: 'ลองอีกครั้ง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+        return
+      }
+
+      // ครั้งที่ 1-3: แสดงข้อความปกติ
       await Swal.fire({
         icon: 'error',
         title: 'เข้าสู่ระบบไม่สำเร็จ',
-        text: errorMessage,
+        text: 'Username หรือ Password ไม่ถูกต้อง',
         confirmButtonText: 'ลองอีกครั้ง',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     }
   }
-
-  const MAX_ATTEMPTS = 5
 
   return (
     <div className="bg">
@@ -292,15 +302,15 @@ function Login() {
                 <div className="lockout-info">
                   <strong>บัญชีถูกระงับการใช้งานชั่วคราว</strong>
                   <p>
-                    สามารถลองใหม่ได้ในอีก <span className="lockout-timer">{formatCountdown(lockoutSeconds)}</span> นาที
+                    สามารถลองใหม่ได้ในอีก {lockoutSeconds} วินาที
                   </p>
                 </div>
               </div>
-            ) : failedAttempts >= 3 ? (
+            ) : failedAttempts >= 4 && failedAttempts <= 5 ? (
               <div className="login-warning-banner">
                 <div className="warning-info">
                   <p>
-                    รหัสผ่านไม่ถูกต้อง (เหลือโอกาสอีก <strong>{Math.max(0, MAX_ATTEMPTS - failedAttempts)}</strong> ครั้งก่อนบัญชีจะถูกระงับ)
+                    รหัสผ่านไม่ถูกต้อง (เหลือโอกาสอีก {6 - failedAttempts} ครั้งก่อนบัญชีจะถูกระงับ)
                   </p>
                 </div>
               </div>
