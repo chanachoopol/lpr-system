@@ -14,7 +14,7 @@ import {
   uploadUserAvatarAPI, deleteUserAvatarAPI, getUserAvatarBlobURL,
   updateUserFullnameAPI, requestEmailChangeAPI
 } from '../data/api'
-import { getEmailErrorMessage as validateEmailFormat } from '../utils/passwordPolicy'
+import { getEmailErrorMessage as validateEmailFormat, getNameErrorMessage, filterThaiEnglishName, stripEmoji } from '../utils/passwordPolicy'
 import useVillageStore from '../store/villageStore'
 import '../styles/Profile.css'
 
@@ -93,8 +93,8 @@ function Profile() {
   const [contactFormError, setContactFormError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef(null)
-  const [avatarUrl, setAvatarUrl] = useState(null)
-  const [isLoadingAvatar, setIsLoadingAvatar] = useState(true)
+  const avatarUrl = useAuthStore((state) => state.avatarUrl)
+  const [isLoadingAvatar, setIsLoadingAvatar] = useState(!avatarUrl)
   const [avatarDraft, setAvatarDraft] = useState(null)
   const [avatarDraftFile, setAvatarDraftFile] = useState(null)
   const [showAvatarPreviewModal, setShowAvatarPreviewModal] = useState(false)
@@ -142,24 +142,68 @@ function Profile() {
     setIsLoadingAvatar(true)
     try {
       const url = await getUserAvatarBlobURL(currentUser.id)
-      setAvatarUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url })
       useAuthStore.getState().setAvatarUrl(url)
-    } catch (error) { console.error('โหลดรูปโปรไฟล์ไม่สำเร็จ:', error) }
-    finally { setIsLoadingAvatar(false) }
+    } catch (error) {
+      console.error('โหลดรูปโปรไฟล์ไม่สำเร็จ:', error)
+    } finally {
+      setIsLoadingAvatar(false)
+    }
   }, [currentUser?.id])
+
   useEffect(() => {
-    loadAvatar()
-    return () => { setAvatarUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return prev }) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadAvatar])
+    if (!avatarUrl) {
+      loadAvatar()
+    } else {
+      setIsLoadingAvatar(false)
+    }
+  }, [loadAvatar, avatarUrl])
+
+  const ALLOWED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg']
+  const ALLOWED_IMAGE_MIME_TYPES = ['image/png', 'image/jpeg']
 
   function handleAvatarFileChange(e) {
-    const file = e.target.files?.[0]; e.target.value = ''; if (!file) return
-    if (!file.type.startsWith('image/')) { Swal.fire({ icon: 'warning', title: 'ไฟล์ไม่ถูกต้อง', text: 'กรุณาเลือกไฟล์รูปภาพเท่านั้น', confirmButtonColor: 'var(--sidebar-bg)' }); return }
-    if (file.size > 5 * 1024 * 1024) { Swal.fire({ icon: 'warning', title: 'ไฟล์มีขนาดใหญ่เกินไป', text: 'กรุณาเลือกไฟล์รูปภาพขนาดไม่เกิน 5MB', confirmButtonColor: 'var(--sidebar-bg)' }); return }
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    const ext = (file.name.split('.').pop() || '').toLowerCase()
+    const isMimeValid = ALLOWED_IMAGE_MIME_TYPES.includes(file.type)
+    const isExtValid = ALLOWED_IMAGE_EXTENSIONS.includes(ext)
+
+    if (!isMimeValid || !isExtValid) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์ไม่ถูกต้อง',
+        text: 'ระบบรองรับเฉพาะไฟล์รูปภาพนามสกุล .PNG และ .JPEG (.JPG) เท่านั้น',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์มีขนาดใหญ่เกินไป',
+        text: 'กรุณาเลือกไฟล์รูปภาพขนาดไม่เกิน 5MB',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
     const reader = new FileReader()
-    reader.onload = () => { setAvatarDraft(reader.result); setAvatarDraftFile(file); setShowAvatarPreviewModal(true) }
-    reader.onerror = () => { Swal.fire({ icon: 'error', title: 'อ่านไฟล์ไม่สำเร็จ', text: 'กรุณาลองเลือกไฟล์ใหม่อีกครั้ง', confirmButtonColor: 'var(--sidebar-bg)' }) }
+    reader.onload = () => {
+      setAvatarDraft(reader.result)
+      setAvatarDraftFile(file)
+      setShowAvatarPreviewModal(true)
+    }
+    reader.onerror = () => {
+      Swal.fire({
+        icon: 'error',
+        title: 'อ่านไฟล์ไม่สำเร็จ',
+        text: 'กรุณาลองเลือกไฟล์ใหม่อีกครั้ง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    }
     reader.readAsDataURL(file)
   }
   async function confirmAvatarChange() {
@@ -183,7 +227,6 @@ function Profile() {
     if (!result.isConfirmed) return
     try {
       await deleteUserAvatarAPI(currentUser.id)
-      setAvatarUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
       useAuthStore.getState().setAvatarUrl(null)
       Swal.fire({ icon: 'success', title: 'ลบรูปโปรไฟล์แล้ว', showConfirmButton: false, timer: 1200 })
     } catch (error) { console.error(error); Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: 'เกิดข้อผิดพลาด กรุณาลองใหม่', confirmButtonColor: 'var(--sidebar-bg)' }) }
@@ -192,17 +235,15 @@ function Profile() {
   function openFullnameEdit() { setFullnameDraft(profile.fullname || ''); setFullnameError(''); setIsEditingFullname(true) }
   function cancelFullnameEdit() { setIsEditingFullname(false); setFullnameError('') }
   function handleFullnameDraftChange(e) {
-    const val = e.target.value; setFullnameDraft(val)
+    const val = filterThaiEnglishName(e.target.value)
+    setFullnameDraft(val)
     if (!val.trim()) setFullnameError('กรุณากรอกชื่อ-นามสกุล')
-    else if (val.trim().length < 2) setFullnameError('ชื่อ-นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร')
-    else if (val.trim().length > 50) setFullnameError('ชื่อ-นามสกุลต้องไม่เกิน 50 ตัวอักษร')
-    else setFullnameError('')
+    else setFullnameError(getNameErrorMessage(val))
   }
   async function submitFullname() {
     const trimmed = fullnameDraft.trim()
-    if (!trimmed) { setFullnameError('กรุณากรอกชื่อ-นามสกุล'); return }
-    if (trimmed.length < 2) { setFullnameError('ชื่อ-นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร'); return }
-    if (trimmed.length > 50) { setFullnameError('ชื่อ-นามสกุลต้องไม่เกิน 50 ตัวอักษร'); return }
+    const errorMsg = getNameErrorMessage(trimmed)
+    if (errorMsg) { setFullnameError(errorMsg); return }
     if (trimmed === profile.fullname) { setIsEditingFullname(false); return }
     setIsSavingFullname(true)
     try {
@@ -221,15 +262,23 @@ function Profile() {
   function openEmailModal() { setEmailDraft(''); setEmailError(''); setShowEmailModal(true) }
   async function handleEmailSubmit(e) {
     e.preventDefault()
-    const trimmed = emailDraft.trim()
+    const trimmed = stripEmoji(emailDraft).trim()
     const errorMsg = validateEmailFormat(trimmed)
     if (errorMsg) { setEmailError(errorMsg); return }
     if (trimmed.toLowerCase() === (profile.email || '').toLowerCase()) { setEmailError('อีเมลใหม่ต้องไม่ซ้ำกับอีเมลเดิม'); return }
     setIsSendingEmailLink(true)
     try {
       await requestEmailChangeAPI(currentUser.id, trimmed)
-      setPendingNewEmail(trimmed); setShowEmailModal(false); setEmailDraft(''); setEmailError('')
-      Swal.fire({ icon: 'success', title: 'ส่งลิงก์ยืนยันแล้ว', html: `เราได้ส่งลิงก์ยืนยันไปที่ <strong>${trimmed}</strong> แล้ว<br/>กรุณาตรวจสอบกล่องข้อความและกดลิงก์เพื่อยืนยัน`, confirmButtonColor: 'var(--sidebar-bg)' })
+      setPendingNewEmail(trimmed)
+      setShowEmailModal(false)
+      setEmailDraft('')
+      setEmailError('')
+      Swal.fire({
+        icon: 'success',
+        title: 'ส่งลิงก์ยืนยันแล้ว',
+        html: 'หากอีเมลถูกต้อง เราจะส่งลิงก์สำหรับทำการยืนยันเปลี่ยนอีเมลไปที่อีเมลนั้นโดยเร็วที่สุด<br/>หากคุณไม่ได้รับอีเมลกรุณาตรวจสอบกล่องจดหมายขยะ',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
     } catch (error) {
       console.error(error)
       const msg = error.response?.data?.detail
@@ -365,7 +414,13 @@ function Profile() {
             <div className="pf-avatar-lg">
               {isLoadingAvatar ? <Spinner text="" /> : avatarUrl ? <img src={avatarUrl} alt="Profile" className="pf-avatar-img" /> : <FaUser />}
             </div>
-            <input type="file" ref={fileInputRef} accept="image/*" style={{ display: 'none' }} onChange={handleAvatarFileChange} />
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".png, .jpg, .jpeg, image/png, image/jpeg"
+              style={{ display: 'none' }}
+              onChange={handleAvatarFileChange}
+            />
           </div>
 
           <div className="pf-header-info">

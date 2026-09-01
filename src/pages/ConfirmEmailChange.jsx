@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FaArrowLeft } from 'react-icons/fa'
-import { FaCircleCheck, FaCircleXmark } from 'react-icons/fa6'
+import { FaCircleCheck } from 'react-icons/fa6'
 import { motion } from 'framer-motion'
 import bg1 from '../assets/bg-login/bg1.webp'
 import '../styles/Login.css'
@@ -92,14 +91,8 @@ function ConfirmEmailChange() {
 
             {status === 'error' && (
               <>
-                <div className="fp-sent-icon invalid">
-                  <FaCircleXmark />
-                </div>
-                <h2 className="r-title">ยืนยันไม่สำเร็จ</h2>
+                <h2 className="r-title" style={{ color: '#ef4444' }}>ยืนยันไม่สำเร็จ</h2>
                 <p className="r-sub">{errorMessage}</p>
-                <button type="button" className="fp-back" onClick={() => navigate('/profile')} style={{ marginTop: 16 }}>
-                  <FaArrowLeft /> กลับไปหน้าโปรไฟล์
-                </button>
               </>
             )}
           </div>

@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { FaBell, FaChevronDown, FaUser, FaMoon, FaSun, FaBars, FaSignOutAlt, FaCheck } from 'react-icons/fa'
+import { FaBell, FaChevronDown, FaUser, FaBars, FaSignOutAlt, FaCheck } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import useNotificationStore from '../store/notificationStore'
-import { useThemeStore } from '../store/themeStore'
 import VillageSelector from './VillageSelector'
 import Swal from 'sweetalert2'
 import { FaTriangleExclamation, FaVideo, FaArrowRight, FaKey, FaIdCard, FaLock } from 'react-icons/fa6'
-
 
 function Navbar({ title, onToggle }) {
   const { user, avatarUrl, logout } = useAuthStore()
@@ -18,9 +16,6 @@ function Navbar({ title, onToggle }) {
   const { notifications, unreadCount, markAllRead, markRead, fetchNotifications } = useNotificationStore()
   const dropdownRef = useRef(null)
   const notifRef = useRef(null)
-  const { theme, toggleTheme } = useThemeStore()
-
-  
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -34,11 +29,6 @@ function Navbar({ title, onToggle }) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
- function handleToggleMode() {
-    toggleTheme()
-    setShowDropdown(false)
-  }
 
   async function handleLogout() {
     const result = await Swal.fire({
@@ -167,12 +157,6 @@ function Navbar({ title, onToggle }) {
           <FaChevronDown className="nb-chevron" />
 
           <div className={`nb-dropdown ${showDropdown ? 'show' : ''}`}>
-            <button className="nb-dropdown-item" onClick={handleToggleMode}>
-              <span className="nb-dropdown-icon">
-                {theme === 'dark' ? <FaSun /> : <FaMoon />}
-              </span>
-              <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-            </button>
             <button
                 className="nb-dropdown-item"
                 onClick={() => { navigate('/profile'); setShowDropdown(false) }}

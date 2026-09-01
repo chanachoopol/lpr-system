@@ -20,7 +20,11 @@ function MapView({ cameras = [] }) {
       if (isCancelled || !mapRef.current || mapInstanceRef.current) return
       if (!window.longdo || typeof window.longdo.Map !== 'function') return
 
-      const map = new window.longdo.Map({ placeholder: mapRef.current, language: 'th' })
+      const map = new window.longdo.Map({
+        placeholder: mapRef.current,
+        language: 'th',
+        ...(window.longdo.Ui?.HIDDEN ? { ui: window.longdo.Ui.HIDDEN } : {})
+      })
       mapInstanceRef.current = map
 
       map.Event.bind('ready', () => {
@@ -29,12 +33,16 @@ function MapView({ cameras = [] }) {
         map.zoom(17, true)
 
         try {
-          map.Ui.Crosshair.visible(false)
-          map.Ui.Zoombar.visible(false)
-          map.Ui.Toolbar.visible(false)
-          map.Ui.Geolocation.visible(false)
-          map.Ui.LayerSelector.visible(false)
-          map.Ui.Fullscreen.visible(false)
+          if (map.Ui) {
+            map.Ui.Crosshair?.visible(false)
+            map.Ui.Zoombar?.visible(false)
+            map.Ui.DPad?.visible(false)
+            map.Ui.Scale?.visible(false)
+            map.Ui.Toolbar?.visible(false)
+            map.Ui.Geolocation?.visible(false)
+            map.Ui.LayerSelector?.visible(false)
+            map.Ui.Fullscreen?.visible(false)
+          }
         } catch (error) {
           console.warn('ซ่อน UI ของแผนที่ไม่สำเร็จ:', error)
         }

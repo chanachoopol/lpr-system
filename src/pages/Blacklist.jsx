@@ -30,6 +30,7 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import ProvinceAutocomplete from '../components/ProvinceAutocomplete'
 import { isValidThaiProvince } from '../data/thaiProvinces'
+import { isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji } from '../utils/passwordPolicy'
 
 // Regex สำหรับป้ายทะเบียนไทย (รองรับป้ายปกติ, ป้ายมอเตอร์ไซค์, ป้ายประมูล/สระวรรณยุกต์, ตัวเลข และขีด)
 export const THAI_LICENSE_PLATE_REGEX = /^[0-9\u0E01-\u0E3A\u0E40-\u0E4E\s-]+$/
@@ -411,7 +412,11 @@ function saveHistoricalBlacklistPlates(map) {
 
   function handleFormChange(e) {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    if (name === 'name') {
+      setFormData((prev) => ({ ...prev, name: filterThaiEnglishName(value) }))
+      return
+    }
+    setFormData((prev) => ({ ...prev, [name]: stripEmoji(value) }))
   }
 
   // ตรวจสอบความถูกต้องสำหรับฟอร์ม Blacklist
@@ -426,7 +431,7 @@ function saveHistoricalBlacklistPlates(map) {
   // ตรวจสอบความถูกต้องสำหรับฟอร์ม Whitelist
   const isWhitelistFormValid = useMemo(() => {
     if (isBlacklistTab) return true
-    const nameOk = (formData?.name || '').trim().length > 0
+    const nameOk = isThaiEnglishNameValid(formData?.name)
     const plateOk = isThaiLicensePlateValid(formData?.plate)
     const provOk = isValidThaiProvince(formData?.province || '')
     return nameOk && plateOk && provOk
@@ -436,7 +441,7 @@ function saveHistoricalBlacklistPlates(map) {
   async function handleFormSubmit(e) {
     e.preventDefault()
 
-    const trimmedPlate = (formData?.plate || '').trim()
+    const trimmedPlate = stripEmoji(formData?.plate || '').trim()
     const trimmedProvince = (formData?.province || '').trim()
 
     if (!trimmedPlate) {
@@ -473,8 +478,18 @@ function saveHistoricalBlacklistPlates(map) {
         return
       }
     } else {
-      if (!formData.name.trim()) {
-        Swal.fire({ icon: 'warning', title: 'กรุณากรอกชื่อเจ้าของรถ / บ้านเลขที่', confirmButtonColor: 'var(--sidebar-bg)' })
+      const trimmedName = stripEmoji(formData.name || '').trim()
+      if (!trimmedName) {
+        Swal.fire({ icon: 'warning', title: 'กรุณากรอกชื่อเจ้าของรถ', confirmButtonColor: 'var(--sidebar-bg)' })
+        return
+      }
+      if (!isThaiEnglishNameValid(trimmedName)) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'รูปแบบชื่อไม่ถูกต้อง',
+          text: 'ชื่อเจ้าของรถต้องเป็นภาษาไทยหรือภาษาอังกฤษเท่านั้น (2-50 ตัวอักษร)',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
         return
       }
     }

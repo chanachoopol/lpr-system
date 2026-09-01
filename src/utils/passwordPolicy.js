@@ -114,3 +114,37 @@ export function getEmailErrorMessage(email = '') {
   if (!isEmailValid(trimmed)) return 'รูปแบบอีเมลไม่ถูกต้อง'
   return ''
 }
+
+// ==================== Emoji Sanitizer & Name Policy ====================
+export const EMOJI_REGEX = /\p{Extended_Pictographic}/gu
+
+export function stripEmoji(text = '') {
+  if (!text || typeof text !== 'string') return text || ''
+  return text.replace(EMOJI_REGEX, '')
+}
+
+// ชื่อ-นามสกุล / ชื่อเจ้าของรถ: รับเฉพาะภาษาไทย, ภาษาอังกฤษ, จุด (.) และช่องว่าง
+export const THAI_ENGLISH_NAME_REGEX = /^[a-zA-Zก-๙\s.]+$/
+
+export function isThaiEnglishNameValid(name = '') {
+  if (!name || typeof name !== 'string') return false
+  const clean = stripEmoji(name).trim()
+  if (clean.length < 2 || clean.length > 50) return false
+  return THAI_ENGLISH_NAME_REGEX.test(clean)
+}
+
+export function filterThaiEnglishName(text = '') {
+  if (!text || typeof text !== 'string') return ''
+  return stripEmoji(text).replace(/[^a-zA-Zก-๙\s.]/g, '')
+}
+
+export function getNameErrorMessage(name = '') {
+  const clean = stripEmoji(name).trim()
+  if (!clean) return 'กรุณากรอกชื่อ-นามสกุล'
+  if (clean.length < 2) return 'ชื่อ-นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร'
+  if (clean.length > 50) return 'ชื่อ-นามสกุลต้องไม่เกิน 50 ตัวอักษร'
+  if (!THAI_ENGLISH_NAME_REGEX.test(clean)) {
+    return 'ชื่อ-นามสกุลต้องเป็นภาษาไทยหรือภาษาอังกฤษเท่านั้น'
+  }
+  return ''
+}

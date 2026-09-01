@@ -5,7 +5,6 @@ import '../styles/Layout.css'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
-import CookieNotice from './CookieNotice'
 
 function Layout({ children, title }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -69,8 +68,6 @@ function Layout({ children, title }) {
         </motion.div>
       </main>
     </div>
-
-    <CookieNotice />
   </div>
 )
 }

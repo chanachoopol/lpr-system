@@ -6,6 +6,7 @@ import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
 import { changePasswordAPI } from '../data/api'
+import { stripEmoji } from '../utils/passwordPolicy'
 import '../styles/ChangePassword.css'
 
 // ใช้เงื่อนไขชุดเดียวกับหน้า Set New Password (Resetpassword.jsx) ทุกอย่าง
@@ -69,7 +70,7 @@ function ChangePassword() {
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target
-    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
+    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : stripEmoji(value) }))
   }
 
   async function handleSubmit(e) {

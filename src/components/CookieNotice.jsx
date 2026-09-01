@@ -29,9 +29,8 @@ function CookieNotice() {
       <div className="cookie-notice-content">
         <span className="cookie-notice-icon"><FaCookieBite /></span>
         <p className="cookie-notice-text">
-          เว็บไซต์นี้ใช้คุกกี้ที่จำเป็นต่อการเข้าสู่ระบบ เพื่อให้คุณไม่ต้อง login ซ้ำทุกครั้งที่เปิดเว็บ
-          (เก็บไว้สูงสุด 7 วัน หากเลือก "จดจำการเข้าสู่ระบบ") คุกกี้นี้ไม่สามารถถูกปิดได้
-          เนื่องจากจำเป็นต่อการทำงานพื้นฐานของระบบ
+          เว็บไซต์นี้ใช้คุกกี้ที่จำเป็น (Strictly Necessary Cookies) สำหรับการเข้าสู่ระบบและรักษาความปลอดภัย
+          โดยจะจดจำการเข้าสู่ระบบสูงสุด 7 วันเมื่อเลือก &ldquo;Remember Me&rdquo; คุกกี้นี้จำเป็นต่อการทำงานของระบบ
         </p>
       </div>
       <button className="cookie-notice-btn" onClick={handleDismiss}>

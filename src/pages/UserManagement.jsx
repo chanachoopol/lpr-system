@@ -26,9 +26,8 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import UserProfileModal from '../components/UserProfileModal'
 import ActionMenu from '../components/ActionMenu'
-import PasswordStrengthMeter from '../components/PasswordStrengthMeter'
 import { filterVisibleUsers } from '../utils/Permissions'
-import { isEmailValid, isPasswordValid } from '../utils/passwordPolicy'
+import { isEmailValid, isPasswordValid, isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji } from '../utils/passwordPolicy'
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
@@ -55,13 +54,15 @@ function validateUserForm(data, isCurrentUserAdmin) {
     errors.username = 'Username ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ @, -, _ เท่านั้น'
   }
 
-  const fn = (data.fullname || '').trim()
+  const fn = stripEmoji(data.fullname || '').trim()
   if (!fn) {
     errors.fullname = 'กรุณากรอกชื่อ-นามสกุล'
   } else if (fn.length < 2) {
     errors.fullname = 'ชื่อ-นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร'
   } else if (fn.length > 50) {
     errors.fullname = 'ชื่อ-นามสกุลต้องไม่เกิน 50 ตัวอักษร'
+  } else if (!isThaiEnglishNameValid(fn)) {
+    errors.fullname = 'ชื่อ-นามสกุลต้องเป็นภาษาไทยหรือภาษาอังกฤษเท่านั้น'
   }
 
   const em = (data.email || '').trim()
@@ -343,11 +344,15 @@ function UserManagement() {
   function handleFormChange(e) {
     const { name, value } = e.target
     setTouchedFields((prev) => ({ ...prev, [name]: true }))
+    if (name === 'fullname') {
+      setFormData((prev) => ({ ...prev, fullname: filterThaiEnglishName(value) }))
+      return
+    }
     if (name === 'phone') {
       setFormData((prev) => ({ ...prev, phone: formatPhoneInput(value) }))
       return
     }
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({ ...prev, [name]: stripEmoji(value) }))
   }
 
   async function handleFormSubmit(e) {

@@ -242,28 +242,26 @@ useEffect(() => {
     }
 
     runSearch(queryFromURL, searchFrom, searchTo).then((groups) => {
-      if (!provinceFromURL || !dateFromURL) return; // ข้อมูลไม่พอจะ auto-select แค่โชว์ list ปกติ
+      if (!groups || groups.length === 0) return;
 
-      // ⚠️ ASSUMPTION: group.date มาจาก dateKeyOf()/dateGroup.date ของ backend ซึ่งควรเป็น
-      // รูปแบบ YYYY-MM-DD เดียวกับที่ History.jsx ส่งมา (toDateParam) — ถ้า backend ส่งคนละ format
-      // ต้องปรับจุดนี้ให้ normalize ก่อนเทียบ
-      const matchedGroup = groups.find(
-        (g) => g.province === provinceFromURL && g.date === dateFromURL
-      );
+      // 1. ถ้ามี province หรือ date ระบุมา ให้พยายามหาคู่ที่ตรงกัน
+      let matchedGroup = null;
+      if (provinceFromURL || dateFromURL) {
+        matchedGroup = groups.find(
+          (g) =>
+            (!provinceFromURL || g.province === provinceFromURL) &&
+            (!dateFromURL || g.date === dateFromURL)
+        );
+      }
 
-      if (matchedGroup) {
-        handleSelectVehicle(matchedGroup);
-      } else {
-        Swal.fire({
-          icon: 'info',
-          title: 'ไม่พบข้อมูลที่ตรงกัน',
-          text: 'กรุณาเลือกจากรายการด้านล่าง',
-          confirmButtonColor: 'var(--sidebar-bg)'
-        });
+      // 2. ถ้าไม่ตรงเป๊ะ หรือไม่ได้ระบุ province/date มา ให้เลือก group แรก (ล่าสุด) อัตโนมัติทันที
+      const targetToSelect = matchedGroup || groups[0];
+      if (targetToSelect) {
+        handleSelectVehicle(targetToSelect);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
   const selectedGroup = useMemo(
     () =>

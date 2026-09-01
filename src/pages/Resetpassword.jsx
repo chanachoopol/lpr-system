@@ -11,6 +11,7 @@ import { setPasswordAPI, verifySetPasswordTokenAPI } from '../data/api'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
 import useAuthStore from '../store/authStore'
 import Spinner from '../components/Spinner'
+import { stripEmoji } from '../utils/passwordPolicy'
 
 // ต้องตรงกับ rule ฝั่ง backend (อ้างอิงจาก error message จริง: "Password must be at least 8 characters long")
 // เพิ่มเงื่อนไข complexity ฝั่ง frontend: ต้องมีตัวอักษร + ตัวเลข + อักขระพิเศษ อย่างน้อยอย่างละ 1 ตัว
@@ -249,7 +250,7 @@ function ResetPassword() {
                   className="f-box"
                   placeholder="กรอกรหัสผ่านใหม่ (เช่น Abcd1234!)"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  onChange={(e) => setNewPassword(stripEmoji(e.target.value))}
                   autoComplete="new-password"
                   maxLength={MAX_PASSWORD_LENGTH}
                 />
@@ -282,7 +283,7 @@ function ResetPassword() {
                   className="f-box"
                   placeholder="พิมพ์รหัสผ่านใหม่อีกครั้งเพื่อยืนยัน"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => setConfirmPassword(stripEmoji(e.target.value))}
                   autoComplete="new-password"
                   maxLength={MAX_PASSWORD_LENGTH}
                 />

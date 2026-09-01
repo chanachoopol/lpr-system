@@ -1,5 +1,5 @@
 import { useNavigate, Navigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import Swal from 'sweetalert2'
 import { motion } from 'framer-motion'
@@ -10,8 +10,9 @@ import { loginAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
-import { isUsernameValid, getUsernameErrorMessage, isLoginPasswordValid, getPasswordErrorMessage } from '../utils/passwordPolicy'
+import { isUsernameValid, getUsernameErrorMessage, isLoginPasswordValid, getPasswordErrorMessage, stripEmoji } from '../utils/passwordPolicy'
 import Spinner from '../components/Spinner'
+import CookieNotice from '../components/CookieNotice'
 
 const LOCKOUT_UNTIL_KEY = 'lpr_login_lockout_until'
 const FAILED_ATTEMPTS_KEY = 'lpr_login_failed_attempts'
@@ -27,6 +28,7 @@ function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [usernameError, setUsernameError] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const formRef = useRef(null)
 
   // Rate Limit / Lockout tracking (Sync ข้ามทุกแท็บ & ป้องกัน Refresh F5)
   const [failedAttempts, setFailedAttempts] = useState(0)
@@ -95,6 +97,22 @@ function Login() {
     return () => clearInterval(timer)
   }, [isLocked, lockoutSeconds])
 
+  // ดักจับการกดปุ่ม Enter ทุกจุดบนหน้า Login
+  useEffect(() => {
+    function handleGlobalKeyDown(e) {
+      if (e.key === 'Enter') {
+        if (Swal.isVisible() || isLocked || isSubmitting) return
+        const activeTag = document.activeElement?.tagName?.toLowerCase()
+        if (activeTag === 'button' && document.activeElement?.type !== 'submit') return
+
+        formRef.current?.requestSubmit()
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [isLocked, isSubmitting])
+
   function formatCountdown(sec) {
     const m = Math.floor(sec / 60)
     const s = sec % 60
@@ -115,7 +133,7 @@ function Login() {
   }
 
   function handleUsernameChange(e) {
-    const val = e.target.value
+    const val = stripEmoji(e.target.value)
     setUsername(val)
     if (val.length > 36) {
       setUsernameError('Username ต้องไม่เกิน 36 ตัวอักษร')
@@ -125,7 +143,8 @@ function Login() {
   }
 
   function handlePasswordChange(e) {
-    setPassword(e.target.value)
+    const val = stripEmoji(e.target.value)
+    setPassword(val)
     if (passwordError) setPasswordError('')
   }
 
@@ -295,7 +314,7 @@ function Login() {
           <h2 className="r-title">Welcome back !</h2>
           <p className="r-sub">Sign in to access the system</p>
 
-          <form onSubmit={handleSubmit}>
+          <form ref={formRef} onSubmit={handleSubmit}>
             {/* Lockout & Progressive Warning Banner (No Emojis) */}
             {isLocked ? (
               <div className="login-lockout-banner">
@@ -321,6 +340,7 @@ function Login() {
               <div className="f-row">
                 <input
                   type="text"
+                  autoFocus
                   className={`f-box ${usernameError ? 'f-box-error' : ''}`}
                   placeholder="กรอก Username ของคุณ"
                   value={username}
@@ -364,7 +384,7 @@ function Login() {
             </div>
 
             <button type="submit" className="btn" disabled={isLocked || isSubmitting}>
-              {isSubmitting ? 'Signing in...' : isLocked ? `Locked (${formatCountdown(lockoutSeconds)})` : 'Access Control'}
+              {isSubmitting ? 'Signing in...' : isLocked ? `Locked (${formatCountdown(lockoutSeconds)})` : 'Login'}
             </button>
           </form>
 
@@ -375,6 +395,7 @@ function Login() {
           )}
         </div>
       </motion.div>
+      <CookieNotice />
     </div>
   )
 }
