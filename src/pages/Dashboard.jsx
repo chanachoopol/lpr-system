@@ -12,7 +12,7 @@ import { FaXmark } from 'react-icons/fa6'
 import '../styles/Dashboard.css'
 import '../styles/History.css' // 👈 ใช้ style ของ modal ดูรูป (modal-img-section, image-fullscreen-overlay ฯลฯ) ร่วมกับหน้า History
 
-const RECENT_HISTORY_LIMIT = 10
+const RECENT_HISTORY_LIMIT = 5
 
 function toDateParam(date) {
   const y = date.getFullYear()
@@ -87,10 +87,10 @@ const fetchDashboard = useCallback(async () => {
   try {
     const data = await getTodayDashboardAPI({
       villageId: selectedVillageId || undefined,
-      latestLimit: 10
+      latestLimit: RECENT_HISTORY_LIMIT
     })
     setDailyData(data)
-    setHistory(data.latest_detections || [])
+    setHistory((data.latest_detections || []).slice(0, RECENT_HISTORY_LIMIT))
   } catch (error) {
     console.error(error)
   } finally {
@@ -138,7 +138,7 @@ useEffect(() => {
         camera_id: latestDetection.camera_id,
         camera: latestDetection.camera
       }
-      return [newItem, ...prev].slice(0, 10)
+      return [newItem, ...prev].slice(0, RECENT_HISTORY_LIMIT)
     })
   }, [latestDetection, selectedVillageId])
 
@@ -247,7 +247,6 @@ useEffect(() => {
               <table className="history-table">
                 <thead>
                   <tr>
-                    <th>#</th>
                     <th>Date</th>
                     <th>Time</th>
                     <th>License Plate</th>
@@ -260,12 +259,12 @@ useEffect(() => {
                 <tbody>
                   {isLoadingHistory ? (
                     <tr>
-                      <td colSpan="8">
+                      <td colSpan="7">
                         <Spinner text="กำลังโหลด..." />
                       </td>
                     </tr>
                   ) : history.length > 0 ? (
-                    history.map((item, index) => {
+                    history.map((item) => {
                       const isBlacklist = Boolean(
                         item.is_blacklist ||
                         item.is_blacklisted ||
@@ -274,7 +273,6 @@ useEffect(() => {
                       )
                       return (
                         <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
-                          <td>{index + 1}</td>
                           <td>{formatDate(item.time_detect)}</td>
                           <td>{formatTime(item.time_detect)}</td>
                           <td className="plate-text">{item.license_plate}</td>
@@ -291,7 +289,7 @@ useEffect(() => {
                     })
                   ) : (
                     <tr>
-                      <td colSpan="8">
+                      <td colSpan="7">
                         <EmptyState icon={<FaCar />} title="No data available" />
                       </td>
                     </tr>
