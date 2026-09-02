@@ -262,6 +262,23 @@ useEffect(() => {
     setDirectionPage(1)
   }
 
+  // ปิด modal / fullscreen เมื่อกดปุ่ม Escape
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        if (fullscreenImage) {
+          setFullscreenImage(null)
+        } else if (selectedItem) {
+          closeModal()
+        } else if (directionModal) {
+          closeDirectionModal()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fullscreenImage, selectedItem, directionModal])
+
   function handleGoToRouteTracking(item) {
     if (!item) return
     const params = new URLSearchParams({

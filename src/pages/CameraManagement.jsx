@@ -298,6 +298,19 @@ function CameraManagement() {
     resetOnvifPanel()
   }
 
+  // ปิด form modal เมื่อกดปุ่ม Escape
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        if (showFormModal && !isSubmitting) {
+          closeFormModal()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showFormModal, isSubmitting])
+
   function handleFormChange(e) {
     const { name, value, type, checked } = e.target
     if (name === 'lat' || name === 'long') {

@@ -260,6 +260,25 @@ function Profile() {
   }
 
   function openEmailModal() { setEmailDraft(''); setEmailError(''); setShowEmailModal(true) }
+
+  // ปิด modal / popup ต่าง ๆ เมื่อกดปุ่ม Escape
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        if (showFullAvatarModal) {
+          setShowFullAvatarModal(false)
+        } else if (showAvatarPreviewModal && !isSavingAvatar) {
+          cancelAvatarPreview()
+        } else if (showContactModal && !isSubmitting) {
+          setShowContactModal(false)
+        } else if (showEmailModal && !isSendingEmailLink) {
+          setShowEmailModal(false)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showFullAvatarModal, showAvatarPreviewModal, isSavingAvatar, showContactModal, isSubmitting, showEmailModal, isSendingEmailLink])
   async function handleEmailSubmit(e) {
     e.preventDefault()
     const trimmed = stripEmoji(emailDraft).trim()

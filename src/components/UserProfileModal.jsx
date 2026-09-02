@@ -88,6 +88,20 @@ function UserProfileModal({ user, onClose }) {
     }
   }, [userId])
 
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        if (showFullAvatarModal) {
+          setShowFullAvatarModal(false)
+        } else if (onClose) {
+          onClose()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showFullAvatarModal, onClose])
+
   if (!user) return null
 
   const activeUser = userData || user

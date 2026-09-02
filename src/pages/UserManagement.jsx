@@ -735,6 +735,25 @@ function UserManagement() {
     }
   }
 
+  // ปิด modal ต่าง ๆ เมื่อกดปุ่ม Escape
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        if (profileUser) {
+          setProfileUser(null)
+        } else if (showFormModal && !isSubmitting) {
+          setShowFormModal(false)
+        } else if (resetTargetUser && !isResetting) {
+          setResetTargetUser(null)
+        } else if (showVillageModal && !isSubmittingVillage) {
+          setShowVillageModal(false)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [profileUser, showFormModal, isSubmitting, resetTargetUser, isResetting, showVillageModal, isSubmittingVillage])
+
   // Suspend / Activate พร้อมข้อความเตือนชัดเจน
   async function handleToggleVillageActive(village) {
     const willActivate = !village.is_active

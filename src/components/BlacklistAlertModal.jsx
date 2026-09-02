@@ -160,6 +160,16 @@ function BlacklistAlertModal() {
   const activeAlerts = useNotificationStore((state) => state.activeBlacklistAlerts)
   const dismissFrontAlert = useNotificationStore((state) => state.dismissFrontBlacklistAlert)
 
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape' && activeAlerts && activeAlerts.length > 0) {
+        dismissFrontAlert()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeAlerts, dismissFrontAlert])
+
   if (!activeAlerts || activeAlerts.length === 0) {
     return null
   }

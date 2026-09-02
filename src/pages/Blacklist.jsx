@@ -658,6 +658,25 @@ function saveHistoricalWhitelistPlates(map) {
     setSelectedItem(null)
   }
 
+  // ปิด modal / fullscreen / form เมื่อกดปุ่ม Escape
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        if (fullscreenImage) {
+          setFullscreenImage(null)
+        } else if (selectedItem) {
+          closeModal()
+        } else if (showFormModal && !isSubmitting) {
+          setShowFormModal(false)
+        } else if (showRegisteredModal) {
+          setShowRegisteredModal(false)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fullscreenImage, selectedItem, showFormModal, showRegisteredModal, isSubmitting, modalImages])
+
   function handleGoToRouteTracking(item) {
     if (!item) return
     const params = new URLSearchParams({

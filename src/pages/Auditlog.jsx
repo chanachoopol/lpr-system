@@ -144,6 +144,17 @@ function AuditLog() {
     setPage(1)
   }, [actionFilter, dateFrom, dateTo])
 
+  // ปิด modal ดูรายละเอียด Log Detail เมื่อกดปุ่ม Escape
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        setSelectedLog(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   // ดึงตัวเลข KPI ครั้งเดียวตอนเปิดหน้า (ใช้ page_size:1 เพราะสนใจแค่ total)
   useEffect(() => {
     async function fetchKpis() {

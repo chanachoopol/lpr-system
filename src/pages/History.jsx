@@ -248,6 +248,22 @@ function History() {
     if (modalImages.full) URL.revokeObjectURL(modalImages.full)
     setSelectedItem(null)
   }
+
+  // ปิด modal / fullscreen เมื่อกดปุ่ม Escape
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        if (fullscreenImage) {
+          setFullscreenImage(null)
+        } else if (selectedItem) {
+          closeModal()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fullscreenImage, selectedItem, modalImages])
+
   function handleGoToRouteTracking(item) {
     if (!item) return
     const params = new URLSearchParams({
