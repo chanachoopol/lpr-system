@@ -101,6 +101,7 @@ const useNotificationStore = create((set, get) => ({
   unreadCount: 0,
   isLoadingNotifications: false,
   latestDetection: null,
+  latestCameraEvent: null,
   isConnected: false,
   activeBlacklistAlerts: [],
 
@@ -254,6 +255,14 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('camera_verified', (e) => {
         try {
           const data = JSON.parse(e.data)
+          set({
+            latestCameraEvent: {
+              type: 'verified',
+              camera_id: data.camera_id || data.id,
+              is_active: data.is_active,
+              ...data
+            }
+          })
           toast.success(`Camera Synced${data.camera_name ? ` — ${data.camera_name}` : ''}`)
         } catch (err) {
           console.error('parse camera_verified error:', err)
@@ -264,13 +273,39 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
-      es.addEventListener('camera_verification_failed', () => {
+      es.addEventListener('camera_verification_failed', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          set({
+            latestCameraEvent: {
+              type: 'verification_failed',
+              camera_id: data.camera_id || data.id,
+              is_active: data.is_active,
+              ...data
+            }
+          })
+        } catch (err) {
+          console.error('parse camera_verification_failed error:', err)
+        }
         toast('Camera Verification Failed')
         get().fetchNotifications()
         get().fetchUnreadCount()
       })
 
-      es.addEventListener('camera_sync_failed', () => {
+      es.addEventListener('camera_sync_failed', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          set({
+            latestCameraEvent: {
+              type: 'sync_failed',
+              camera_id: data.camera_id || data.id,
+              failed_services: data.failed_services,
+              ...data
+            }
+          })
+        } catch (err) {
+          console.error('parse camera_sync_failed error:', err)
+        }
         toast('Camera Sync Failed')
         get().fetchNotifications()
         get().fetchUnreadCount()
@@ -331,7 +366,7 @@ const useNotificationStore = create((set, get) => ({
 
   reset: () => {
     get().disconnect()
-    set({ notifications: [], unreadCount: 0, latestDetection: null, activeBlacklistAlerts: [] })
+    set({ notifications: [], unreadCount: 0, latestDetection: null, latestCameraEvent: null, activeBlacklistAlerts: [] })
   }
 }))
 
