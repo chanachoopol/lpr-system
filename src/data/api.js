@@ -534,7 +534,7 @@ export async function getUnreadNotificationCountAPI() {
 }
 
 export async function markNotificationReadAPI(notificationId) {
-  const response = await api.post(`/api/notifications/${notificationId}/read`)
+  const response = await api.patch(`/api/notifications/${notificationId}/read`)
   return response.data
 }
 
@@ -612,8 +612,10 @@ export async function probeOnvifCameraAPI({ host, port, username, password }) {
   })
   return response.data
 }
-export async function deleteVillageAPI(villageId) {
-  const response = await api.delete(`/api/villages/${villageId}`)
+export async function deleteVillageAPI(villageId, confirm = true) {
+  const response = await api.delete(`/api/villages/${villageId}`, {
+    params: { confirm }
+  })
   return response.data
 }
 // ==================== User Avatar APIs ====================

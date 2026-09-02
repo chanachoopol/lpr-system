@@ -125,7 +125,15 @@ function Dashboard() {
     fetchCameras()
   }, [fetchCameras])
 
-  // หาชื่อกล้องจาก camera_id + แสดงหมายเหตุหากกล้องถูกลบออกจากระบบไปแล้ว
+  // คืนเฉพาะชื่อกล้องสำหรับแสดงในตาราง
+  function getCameraNameOnly(cameraId, directName) {
+    const currentCam = cameras.find((c) => String(c.id) === String(cameraId))
+    if (currentCam) return currentCam.name
+    const hist = getHistoricalCameras()
+    return directName || (cameraId ? hist[cameraId] : null) || 'กล้องที่ไม่ทราบชื่อ'
+  }
+
+  // หาชื่อกล้องจาก camera_id + แสดงหมายเหตุหากกล้องถูกลบออกจากระบบไปแล้ว (ใช้ในหน้าต่าง View รายละเอียด)
   function renderCameraDisplay(cameraId, directName) {
     const currentCam = cameras.find((c) => String(c.id) === String(cameraId))
     if (currentCam) {
@@ -420,7 +428,6 @@ useEffect(() => {
                     <th>Time</th>
                     <th>License Plate</th>
                     <th>Province</th>
-                    <th>Color</th>
                     <th>Camera</th>
                     <th>Action</th>
                   </tr>
@@ -428,7 +435,7 @@ useEffect(() => {
                 <tbody>
                   {isLoadingHistory ? (
                     <tr>
-                      <td colSpan="7">
+                      <td colSpan="6">
                         <Spinner text="กำลังโหลด..." />
                       </td>
                     </tr>
@@ -446,8 +453,7 @@ useEffect(() => {
                           <td>{formatTime(item.time_detect)}</td>
                           <td className="plate-text">{item.license_plate}</td>
                           <td>{item.province}</td>
-                          <td>{item.color}</td>
-                          <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
+                          <td>{getCameraNameOnly(item.camera_id, item.camera_name || item.camera?.name)}</td>
                           <td>
                             <button className="btn-view" onClick={() => setSelectedItem(item)}>
                               <FaEye /> View
@@ -458,7 +464,7 @@ useEffect(() => {
                     })
                   ) : (
                     <tr>
-                      <td colSpan="7">
+                      <td colSpan="6">
                         <EmptyState icon={<FaCar />} title="No data available" />
                       </td>
                     </tr>
@@ -528,7 +534,7 @@ useEffect(() => {
                             </td>
                             <td>{item.province || '-'}</td>
                             <td>{item.color || '-'}</td>
-                            <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
+                            <td>{getCameraNameOnly(item.camera_id, item.camera_name || item.camera?.name)}</td>
                             <td>
                               <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
                                 <FaEye /> View
@@ -550,7 +556,7 @@ useEffect(() => {
 
               {/* Pagination (สไตล์ Blacklist) */}
               {Math.ceil(directionTotal / 10) > 1 && (
-                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
+                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
                   <button
                     className="page-btn"
                     disabled={directionPage === 1 || isLoadingDirection}
@@ -643,6 +649,10 @@ useEffect(() => {
                 <div className="modal-info-row">
                   <span className="info-label">Province</span>
                   <span>{selectedItem.province}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="info-label">Color</span>
+                  <span>{selectedItem.color || '-'}</span>
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Time</span>

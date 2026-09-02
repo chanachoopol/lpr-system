@@ -19,15 +19,17 @@ import {
   getCameraStatusAPI,
   probeOnvifCameraAPI
 } from '../data/api'
+import { hasEmoji } from '../utils/passwordPolicy'
 
 // หมายเหตุ field ของ backend: lat/long (ไม่ใช่ lon), ไม่มี status online/offline
 // มีแค่ is_active (เปิด/ปิดใช้งานกล้อง)
 // stream_ai = แหล่งสตรีมที่ป้อนเข้า (RTSP) — ส่วน stream_url เป็นค่าที่ backend generate ให้เอง ห้ามส่งตอน create/update
-// direction = ทิศทางกล้อง (ยืนยันจาก Swagger: enum "entry" | "exit" เท่านั้น)
+// direction = ทิศทางกล้อง (enum "entry" | "exit" | "internal")
 const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', direction: 'entry', isActive: true, villageId: '' }
 const DIRECTION_LABELS = {
-  entry: 'ขาเข้า',
-  exit: 'ขาออก'
+  entry: 'entry',
+  exit: 'exit',
+  internal: 'internal'
 }
 
 // ฟอร์ม ONVIF — เป็นแค่ตัวช่วยหา RTSP URI ไม่ใช่ field ที่ backend เก็บถาวร (session state เท่านั้น)
@@ -335,6 +337,16 @@ function CameraManagement() {
     const trimmedName = formData.name.trim()
     const trimmedStreamAi = formData.streamAi.trim()
 
+    if (hasEmoji(formData.name)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ชื่อกล้องไม่ถูกต้อง',
+        text: 'ขออภัย ไม่อนุญาตให้ใช้อีโมจิในชื่อกล้อง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
     if (!trimmedName) {
       Swal.fire({
         icon: 'warning',
@@ -382,6 +394,16 @@ function CameraManagement() {
         icon: 'warning',
         title: 'พิกัด Longitude ไม่ถูกต้อง',
         text: 'Longitude ต้องเป็นตัวเลขระหว่าง -180 ถึง 180',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
+    if (hasEmoji(formData.streamAi)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Stream Source ไม่ถูกต้อง',
+        text: 'ขออภัย ไม่อนุญาตให้ใช้อีโมจิในช่อง Stream Source',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
@@ -752,6 +774,11 @@ function CameraManagement() {
                   value={formData.name}
                   onChange={handleFormChange}
                 />
+                {hasEmoji(formData.name) && (
+                  <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    ขออภัย ไม่อนุญาตให้ใช้อีโมจิในชื่อกล้อง
+                  </span>
+                )}
               </div>
               <div className="cm-form-row">
                 <div className="cm-form-field">
@@ -786,6 +813,11 @@ function CameraManagement() {
                   onChange={handleFormChange}
                   disabled={!!editingCamera}
                 />
+                {hasEmoji(formData.streamAi) && (
+                  <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    ขออภัย ไม่อนุญาตให้ใช้อีโมจิในช่อง Stream Source
+                  </span>
+                )}
                 {editingCamera ? (
                   <p className="cm-description" style={{ margin: '4px 0 0' }}>
                     ไม่สามารถแก้ไขลิงก์สตรีมของกล้องที่เพิ่มไว้แล้วได้ หากต้องการเปลี่ยนแหล่งสตรีม กรุณาลบกล้องนี้แล้วเพิ่มใหม่
@@ -911,8 +943,9 @@ function CameraManagement() {
               <div className="cm-form-field">
                 <label>Direction (ทิศทาง)</label>
                 <select name="direction" value={formData.direction} onChange={handleFormChange}>
-                  <option value="entry">ขาเข้า (Entry)</option>
-                  <option value="exit">ขาออก (Exit)</option>
+                  <option value="entry">entry</option>
+                  <option value="exit">exit</option>
+                  <option value="internal">internal</option>
                 </select>
               </div>
               {editingCamera && (

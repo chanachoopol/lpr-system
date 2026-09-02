@@ -12,6 +12,7 @@ import { FaCalendarAlt } from 'react-icons/fa'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import useVillageStore from '../store/villageStore'
+import useNotificationStore from '../store/notificationStore'
 
 const ROWS_PER_PAGE = 10
 const SEARCH_DEBOUNCE_MS = 400
@@ -97,6 +98,7 @@ function getVisiblePageNumbers(current, total, maxVisible) {
 function History() {
   const { user } = useAuthStore()
   const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
+  const latestDetection = useNotificationStore((state) => state.latestDetection)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
@@ -216,6 +218,79 @@ function History() {
 
     fetchHistory()
   }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, selectedDate, currentPage, selectedVillageId])
+
+  // Real-time SSE (อัปเดตประวัติรถที่ตรวจจับได้ทันทีเมื่อมี event detection_created, blacklist_alert, whitelist_alert)
+  useEffect(() => {
+    if (!latestDetection) return
+
+    const detVillageId = latestDetection.village_id || latestDetection.camera?.village_id
+    if (selectedVillageId && detVillageId && String(detVillageId) !== String(selectedVillageId)) {
+      return
+    }
+
+    if (selectedCamera !== 'all') {
+      const camId = latestDetection.camera_id || latestDetection.camera?.id
+      if (String(camId) !== String(selectedCamera)) return
+    }
+
+    if (selectedDirection !== 'all') {
+      const dir = (latestDetection.direction || latestDetection.camera?.direction || '').toLowerCase()
+      if (dir !== selectedDirection.toLowerCase()) return
+    }
+
+    const rawPlate = latestDetection.license_plate || ''
+    if (debouncedSearch && !rawPlate.toLowerCase().includes(debouncedSearch.toLowerCase())) {
+      return
+    }
+
+    const color = latestDetection.color || ''
+    if (debouncedColor && !color.toLowerCase().includes(debouncedColor.toLowerCase())) {
+      return
+    }
+
+    const detId = latestDetection.detection_id || latestDetection.id || `det-${Date.now()}`
+
+    setHistoryData((prev) => {
+      const exists = prev.some(
+        (item) =>
+          item.id === detId ||
+          (item.license_plate === rawPlate && item.time_detect === latestDetection.time_detect)
+      )
+      if (exists) return prev
+
+      const newRecord = {
+        id: detId,
+        time_detect: latestDetection.time_detect || latestDetection.created_at || new Date().toISOString(),
+        license_plate: rawPlate,
+        province: latestDetection.province || '-',
+        color: color || '-',
+        camera_id: latestDetection.camera_id || latestDetection.camera?.id,
+        camera_name: latestDetection.camera_name || latestDetection.camera?.name,
+        camera: latestDetection.camera,
+        direction: latestDetection.direction,
+        village_id: detVillageId,
+        is_blacklist: Boolean(
+          latestDetection.is_blacklist ||
+          latestDetection.is_black_list ||
+          latestDetection.is_blacklisted ||
+          latestDetection.category === 'blacklist' ||
+          latestDetection.type === 'blacklist'
+        ),
+        is_whitelist: Boolean(
+          latestDetection.is_whitelist ||
+          latestDetection.is_white_list ||
+          latestDetection.is_whitelisted ||
+          latestDetection.category === 'whitelist' ||
+          latestDetection.type === 'whitelist'
+        ),
+        image_full: latestDetection.image_full || latestDetection.image_url,
+        image_crop: latestDetection.image_crop || latestDetection.image_crop_url || latestDetection.crop_url
+      }
+
+      return [newRecord, ...prev]
+    })
+    setTotalItems((prev) => prev + 1)
+  }, [latestDetection, selectedVillageId, selectedCamera, selectedDirection, debouncedSearch, debouncedColor])
 
   // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
   useEffect(() => {

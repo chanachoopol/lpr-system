@@ -118,6 +118,11 @@ export function getEmailErrorMessage(email = '') {
 // ==================== Emoji Sanitizer & Name Policy ====================
 export const EMOJI_REGEX = /\p{Extended_Pictographic}/gu
 
+export function hasEmoji(text = '') {
+  if (!text || typeof text !== 'string') return false
+  return /\p{Extended_Pictographic}/u.test(text)
+}
+
 export function stripEmoji(text = '') {
   if (!text || typeof text !== 'string') return text || ''
   return text.replace(EMOJI_REGEX, '')

@@ -71,6 +71,7 @@ function formatAlertTime(isoString) {
 
 const NOTIF_META = {
   blacklist_alert:            { icon: 'blacklist', title: 'Blacklist Detected' },
+  whitelist_alert:            { icon: 'whitelist', title: 'Whitelist Detected' },
   camera_verified:            { icon: 'camera',    title: 'Camera Sync Success' },
   camera_verification_failed: { icon: 'camera',    title: 'Camera Verification Failed' },
   camera_sync_failed:         { icon: 'camera',    title: 'Camera Sync Failed' },
@@ -86,6 +87,7 @@ function mapNotification(n) {
   const meta = NOTIF_META[n.action] || { icon: 'general', title: formatActionTitle(n.action) }
   return {
     id: n.id,
+    action: n.action,
     type: meta.icon,
     title: meta.title,
     detail: n.detail,
@@ -93,6 +95,38 @@ function mapNotification(n) {
     location: n.payload?.camera_name || n.payload?.location || null,
     time: formatAlertTime(n.created_at),
     read: n.is_read
+  }
+}
+
+// Set สำหรับจำ ID การตรวจจับล่าสุด เพื่อป้องกันการยิง Toast หรือ 3D Modal Alert ซ้ำซ้อน 2 รอบ
+const recentlyAlertedDetectionIds = new Set()
+
+function triggerWhitelistToast(data, shouldAlert) {
+  const detKey = `wl-${data.detection_id || data.id || `${data.license_plate}-${data.time_detect}`}`
+  if (recentlyAlertedDetectionIds.has(detKey)) return
+  recentlyAlertedDetectionIds.add(detKey)
+  setTimeout(() => recentlyAlertedDetectionIds.delete(detKey), 10000)
+
+  if (shouldAlert) {
+    toast.success(
+      `Whitelist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`,
+      { icon: '🏠', duration: 6000 }
+    )
+  }
+}
+
+function triggerBlacklistModalAlert(data, shouldAlert, pushAlertFn) {
+  const detKey = `bl-${data.detection_id || data.id || `${data.license_plate}-${data.time_detect}`}`
+  if (recentlyAlertedDetectionIds.has(detKey)) return
+  recentlyAlertedDetectionIds.add(detKey)
+  setTimeout(() => recentlyAlertedDetectionIds.delete(detKey), 10000)
+
+  if (shouldAlert) {
+    pushAlertFn({
+      ...data,
+      _stackId: `alert-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      time_detect: data.time_detect || data.created_at || new Date().toISOString()
+    })
   }
 }
 
@@ -156,7 +190,15 @@ const useNotificationStore = create((set, get) => ({
     set({ isLoadingNotifications: true })
     try {
       const data = await getNotificationsAPI({ page: 1, pageSize: NOTIF_PAGE_SIZE })
-      set({ notifications: data.items.map(mapNotification) })
+      const currentUser = useAuthStore.getState().user
+      const isRegularUser = currentUser?.role === 'user'
+
+      let items = (data.items || []).map(mapNotification)
+      // กรองการแจ้งเตือน: ถ้าเป็น role user ไม่ต้องแสดงการแจ้งเตือนเกี่ยวกับกล้องและความปลอดภัย
+      if (isRegularUser) {
+        items = items.filter((n) => n.type !== 'camera' && n.type !== 'security')
+      }
+      set({ notifications: items })
     } catch (error) {
       console.error('โหลดการแจ้งเตือนไม่สำเร็จ:', error)
     } finally {
@@ -194,28 +236,35 @@ const useNotificationStore = create((set, get) => ({
 
           const currentUser = useAuthStore.getState().user
           const isSuperadmin = currentUser?.role === 'superadmin'
-
-          // ตรวจสอบหมู่บ้าน: แจ้งเตือนเฉพาะกล้องในหมู่บ้านของตนเอง ไม่แจ้งเตือนข้ามหมู่บ้าน
+          const userVillageId = currentUser?.village_id
           const detVillageId = data.village_id || data.camera?.village_id
-          const isSameVillage = !currentUser?.village_id || !detVillageId || currentUser.village_id === detVillageId
 
-          if (data.is_blacklist || data.is_black_list || data.blacklist) {
-            // ไม่แจ้งเตือน superadmin และไม่แจ้งเตือนข้ามหมู่บ้าน
-            if (!isSuperadmin && isSameVillage) {
-              get().pushBlacklistAlert({
-                ...data,
-                _stackId: `alert-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-                time_detect: data.time_detect || data.created_at || new Date().toISOString()
-              })
-            }
-          } else if (data.is_whitelist || data.is_white_list || data.whitelist) {
-            // Whitelist Toast: ไม่แจ้งเตือน superadmin และไม่แจ้งเตือนข้ามหมู่บ้าน
-            if (!isSuperadmin && isSameVillage) {
-              toast.success(
-                `Whitelist Detected${data.license_plate ? ` — ${data.license_plate}` : ''}`,
-                { icon: '🏠', duration: 6000 }
-              )
-            }
+          // เงื่อนไข 1: ไม่แจ้งเตือน superadmin (แจ้งเตือนเฉพาะ admin และ user เท่านั้น)
+          // เงื่อนไข 2: ไม่แจ้งเตือนข้ามหมู่บ้าน (ต้องเป็นหมู่บ้านเดียวกันเท่านั้น)
+          const isSameVillage = !userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)
+          const shouldAlert = !isSuperadmin && isSameVillage
+
+          const isBlacklist = Boolean(
+            data.is_blacklist ||
+            data.is_black_list ||
+            data.is_blacklisted ||
+            data.category === 'blacklist' ||
+            data.type === 'blacklist' ||
+            data.blacklist
+          )
+          const isWhitelist = Boolean(
+            data.is_whitelist ||
+            data.is_white_list ||
+            data.is_whitelisted ||
+            data.category === 'whitelist' ||
+            data.type === 'whitelist' ||
+            data.whitelist
+          )
+
+          if (isBlacklist) {
+            triggerBlacklistModalAlert(data, shouldAlert, get().pushBlacklistAlert)
+          } else if (isWhitelist) {
+            triggerWhitelistToast(data, shouldAlert)
           }
         } catch (err) {
           console.error('parse detection_created error:', err)
@@ -229,23 +278,38 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('blacklist_alert', (e) => {
         try {
           const data = JSON.parse(e.data)
+          set({ latestDetection: data })
           const currentUser = useAuthStore.getState().user
           const isSuperadmin = currentUser?.role === 'superadmin'
+          const userVillageId = currentUser?.village_id
           const detVillageId = data.village_id || data.camera?.village_id
-          const isSameVillage = !currentUser?.village_id || !detVillageId || currentUser.village_id === detVillageId
+          const isSameVillage = !userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)
+          const shouldAlert = !isSuperadmin && isSameVillage
 
-          if (!isSuperadmin && isSameVillage) {
-            const alertItem = {
-              ...data,
-              _stackId: `alert-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-              time_detect: data.time_detect || data.created_at || new Date().toISOString()
-            }
-
-            // เด้ง Pop-up กลางจอทันที
-            get().pushBlacklistAlert(alertItem)
-          }
+          triggerBlacklistModalAlert(data, shouldAlert, get().pushBlacklistAlert)
         } catch (err) {
           console.error('parse blacklist_alert error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
+        }
+      })
+
+      // Whitelist — Toast แจ้งเตือนมุมขวา + ส่งต่อข้อมูล Real-time
+      es.addEventListener('whitelist_alert', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          set({ latestDetection: data })
+          const currentUser = useAuthStore.getState().user
+          const isSuperadmin = currentUser?.role === 'superadmin'
+          const userVillageId = currentUser?.village_id
+          const detVillageId = data.village_id || data.camera?.village_id
+          const isSameVillage = !userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)
+          const shouldAlert = !isSuperadmin && isSameVillage
+
+          triggerWhitelistToast(data, shouldAlert)
+        } catch (err) {
+          console.error('parse whitelist_alert error:', err)
         } finally {
           get().fetchNotifications()
           get().fetchUnreadCount()
@@ -263,10 +327,13 @@ const useNotificationStore = create((set, get) => ({
               ...data
             }
           })
-          toast.success(`Camera Synced${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+          const currentUser = useAuthStore.getState().user
+          // แจ้งเตือนเฉพาะผู้มีสิทธิ์จัดการกล้อง (admin และ superadmin)
+          if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
+            toast.success(`Camera Synced${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+          }
         } catch (err) {
           console.error('parse camera_verified error:', err)
-          toast.success('Camera Synced')
         } finally {
           get().fetchNotifications()
           get().fetchUnreadCount()
@@ -284,12 +351,16 @@ const useNotificationStore = create((set, get) => ({
               ...data
             }
           })
+          const currentUser = useAuthStore.getState().user
+          if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
+            toast.error(`Camera Verification Failed${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+          }
         } catch (err) {
           console.error('parse camera_verification_failed error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
         }
-        toast('Camera Verification Failed')
-        get().fetchNotifications()
-        get().fetchUnreadCount()
       })
 
       es.addEventListener('camera_sync_failed', (e) => {
@@ -303,12 +374,16 @@ const useNotificationStore = create((set, get) => ({
               ...data
             }
           })
+          const currentUser = useAuthStore.getState().user
+          if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
+            toast.error(`Camera Sync Failed${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+          }
         } catch (err) {
           console.error('parse camera_sync_failed error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
         }
-        toast('Camera Sync Failed')
-        get().fetchNotifications()
-        get().fetchUnreadCount()
       })
 
       es.onopen = () => set({ isConnected: true })

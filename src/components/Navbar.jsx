@@ -49,17 +49,33 @@ function Navbar({ title, onToggle }) {
   }
 
   function handleNotifClick(notif) {
-  markRead(notif.id)
-  setShowNotifications(false)
+    markRead(notif.id)
+    setShowNotifications(false)
 
-  if (notif.type === 'blacklist' || notif.type === 'whitelist') {
-    navigate('/blacklist')
-  } else if (notif.type === 'camera') {
-    navigate('/cameras')
-  } else if (notif.type === 'security') {
-    navigate('/audit-logs')
+    const isWhitelist =
+      notif.type === 'whitelist' ||
+      notif.action === 'whitelist_alert' ||
+      (notif.title && notif.title.toLowerCase().includes('whitelist'))
+
+    const isBlacklist =
+      notif.type === 'blacklist' ||
+      notif.action === 'blacklist_alert' ||
+      (notif.title && notif.title.toLowerCase().includes('blacklist'))
+
+    if (isWhitelist) {
+      navigate('/blacklist?tab=whitelist')
+    } else if (isBlacklist) {
+      navigate('/blacklist?tab=blacklist')
+    } else if (notif.type === 'camera' || notif.action?.startsWith('camera_')) {
+      if (user?.role === 'admin' || user?.role === 'superadmin') {
+        navigate('/cameras')
+      }
+    } else if (notif.type === 'security' || notif.action?.includes('bruteforce') || notif.action?.includes('security')) {
+      if (user?.role === 'admin' || user?.role === 'superadmin') {
+        navigate('/audit-logs')
+      }
+    }
   }
-}
 
   return (
     <header className="navbar">

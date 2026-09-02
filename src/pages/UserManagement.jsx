@@ -27,7 +27,7 @@ import EmptyState from '../components/EmptyState'
 import UserProfileModal from '../components/UserProfileModal'
 import ActionMenu from '../components/ActionMenu'
 import { filterVisibleUsers } from '../utils/Permissions'
-import { isEmailValid, isPasswordValid, isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji } from '../utils/passwordPolicy'
+import { isEmailValid, isPasswordValid, isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji, hasEmoji } from '../utils/passwordPolicy'
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
@@ -89,8 +89,11 @@ function validateUserForm(data, isCurrentUserAdmin) {
 
 function validateVillageForm(data) {
   const errors = {}
-  const n = (data.name || '').trim()
-  if (!n) {
+  const rawName = data.name || ''
+  const n = rawName.trim()
+  if (hasEmoji(rawName)) {
+    errors.name = 'ขออภัย ไม่อนุญาตให้ใช้อีโมจิในชื่อหมู่บ้าน'
+  } else if (!n) {
     errors.name = 'กรุณากรอกชื่อหมู่บ้าน'
   } else if (n.length < 2) {
     errors.name = 'ชื่อหมู่บ้านต้องมีอย่างน้อย 2 ตัวอักษร'
@@ -98,8 +101,11 @@ function validateVillageForm(data) {
     errors.name = 'ชื่อหมู่บ้านต้องไม่เกิน 36 ตัวอักษร'
   }
 
-  const addr = (data.address || '').trim()
-  if (!addr) {
+  const rawAddr = data.address || ''
+  const addr = rawAddr.trim()
+  if (hasEmoji(rawAddr)) {
+    errors.address = 'ขออภัย ไม่อนุญาตให้ใช้อีโมจิในที่อยู่หมู่บ้าน'
+  } else if (!addr) {
     errors.address = 'กรุณากรอกที่อยู่ของหมู่บ้าน'
   } else if (addr.length < 5) {
     errors.address = 'ที่อยู่ของหมู่บ้านต้องมีอย่างน้อย 5 ตัวอักษร'
@@ -800,22 +806,56 @@ function UserManagement() {
   async function handleDeleteVillage(village) {
     const result = await Swal.fire({
       icon: 'warning',
-      title: 'ยืนยันการลบหมู่บ้าน',
-      html: `ต้องการลบหมู่บ้าน <strong>${village.name}</strong> ใช่หรือไม่?<br/>การลบไม่สามารถย้อนกลับได้`,
+      title: 'ยืนยันการลบโครงการหมู่บ้าน',
+      html: `
+        <div style="text-align: left; font-size: 14px; line-height: 1.6; color: var(--text-main, #334155);">
+          <p style="margin-bottom: 8px;">คุณต้องการลบโครงการ <strong>${village.name}</strong> ใช่หรือไม่?</p>
+          <p style="margin-bottom: 14px; color: #64748b; font-size: 13px;">
+            หากท่านยืนยันที่จะลบ กรุณาทำเครื่องหมายถูกในช่องสี่เหลี่ยมด้านล่าง ไม่เช่นนั้นจะไม่สามารถทำการลบได้
+          </p>
+          <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; font-size: 14px; font-weight: 500; padding: 10px 14px; background: rgba(27, 42, 71, 0.04); border: 1px solid rgba(27, 42, 71, 0.15); border-radius: 8px;">
+            <input type="checkbox" id="swal-confirm-delete-village" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--sidebar-bg, #1b2a47);" />
+            <span style="color: var(--text-main, #1b2a47);">ยืนยันที่จะลบ</span>
+          </label>
+        </div>
+      `,
       showCancelButton: true,
-      confirmButtonText: 'ลบ',
+      confirmButtonText: 'ยืนยันการลบ',
       cancelButtonText: 'ยกเลิก',
       confirmButtonColor: 'rgb(220, 38, 38)',
-      cancelButtonColor: 'var(--sidebar-bg)'
+      cancelButtonColor: 'var(--sidebar-bg, #64748b)',
+      focusCancel: true,
+      didOpen: () => {
+        const confirmBtn = Swal.getConfirmButton()
+        const checkbox = document.getElementById('swal-confirm-delete-village')
+        if (confirmBtn && checkbox) {
+          confirmBtn.disabled = true
+          confirmBtn.style.opacity = '0.5'
+          confirmBtn.style.cursor = 'not-allowed'
+          checkbox.addEventListener('change', (e) => {
+            confirmBtn.disabled = !e.target.checked
+            confirmBtn.style.opacity = e.target.checked ? '1' : '0.5'
+            confirmBtn.style.cursor = e.target.checked ? 'pointer' : 'not-allowed'
+          })
+        }
+      },
+      preConfirm: () => {
+        const checkbox = document.getElementById('swal-confirm-delete-village')
+        if (!checkbox || !checkbox.checked) {
+          Swal.showValidationMessage('กรุณาทำเครื่องหมายถูกเพื่อยืนยันการลบ')
+          return false
+        }
+        return true
+      }
     })
 
     if (!result.isConfirmed) return
 
     try {
-      await deleteVillageAPI(village.id)
+      await deleteVillageAPI(village.id, true)
       Swal.fire({
         icon: 'success',
-        title: 'ลบหมู่บ้านแล้ว',
+        title: 'ลบโครงการหมู่บ้านแล้ว',
         showConfirmButton: false,
         timer: 1500
       })

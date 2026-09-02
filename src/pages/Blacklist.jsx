@@ -12,6 +12,7 @@ import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import useNotificationStore from '../store/notificationStore'
 import {
   getBlacklistAPI,
   createBlacklistAPI,
@@ -92,7 +93,8 @@ function Blacklist() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthStore()
-  const { villages, selectedVillageId } = useVillageStore()
+  const { villages, selectedVillageId, getVillageName } = useVillageStore()
+  const latestDetection = useNotificationStore((state) => state.latestDetection)
   const isSuperAdmin = user?.role === 'superadmin'
   const canManage = MANAGE_ROLES.includes(user?.role)
 
@@ -399,6 +401,84 @@ function saveHistoricalWhitelistPlates(map) {
   useEffect(() => {
     fetchDetectionsAndMatch()
   }, [fetchDetectionsAndMatch])
+
+  // ---------- Real-time SSE Merge เข้าตาราง Detection Records และ KPI Cards ----------
+  useEffect(() => {
+    if (!latestDetection) return
+
+    const detVillageId = latestDetection.village_id || latestDetection.camera?.village_id
+    if (selectedVillageId && detVillageId && String(detVillageId) !== String(selectedVillageId)) {
+      return
+    }
+
+    const rawPlate = latestDetection.license_plate || ''
+    const plateNorm = normalizePlate(rawPlate)
+    if (!plateNorm) return
+
+    const prov = (latestDetection.province || '').trim()
+    const isBlacklistEvent = Boolean(
+      latestDetection.is_blacklist ||
+      latestDetection.is_black_list ||
+      latestDetection.is_blacklisted ||
+      latestDetection.category === 'blacklist' ||
+      latestDetection.type === 'blacklist' ||
+      latestDetection.blacklist
+    )
+    const isWhitelistEvent = Boolean(
+      latestDetection.is_whitelist ||
+      latestDetection.is_white_list ||
+      latestDetection.is_whitelisted ||
+      latestDetection.category === 'whitelist' ||
+      latestDetection.type === 'whitelist' ||
+      latestDetection.whitelist
+    )
+
+    // Match กับรายชื่อที่ลงทะเบียนไว้ในปัจจุบัน
+    const matchedReg = registeredList.find((r) => {
+      const rPlate = normalizePlate(r.license_plate)
+      if (rPlate !== plateNorm) return false
+      const rProv = (r.province || '').trim()
+      return !rProv || !prov || rProv === prov
+    })
+
+    const isMatchForThisTab = isBlacklistTab
+      ? (isBlacklistEvent || Boolean(matchedReg))
+      : (isWhitelistEvent || Boolean(matchedReg))
+
+    if (!isMatchForThisTab) return
+
+    const detId = latestDetection.detection_id || latestDetection.id || `det-${Date.now()}`
+
+    setMatchingDetections((prev) => {
+      const exists = prev.some(
+        (item) =>
+          item.id === detId ||
+          (normalizePlate(item.license_plate) === plateNorm &&
+            item.time_detect === latestDetection.time_detect)
+      )
+      if (exists) return prev
+
+      const newRecord = {
+        id: detId,
+        time_detect: latestDetection.time_detect || latestDetection.created_at || new Date().toISOString(),
+        license_plate: rawPlate,
+        province: latestDetection.province || '-',
+        color: latestDetection.color || '-',
+        camera_id: latestDetection.camera_id || latestDetection.camera?.id,
+        camera_name: latestDetection.camera_name || latestDetection.camera?.name,
+        camera: latestDetection.camera,
+        village_id: detVillageId,
+        image_full: latestDetection.image_full || latestDetection.image_url,
+        image_crop: latestDetection.image_crop || latestDetection.image_crop_url || latestDetection.crop_url,
+        matchedReason: matchedReg?.reason || latestDetection.reason || (isBlacklistTab ? 'ตรวจพบบัญชีดำ' : '-'),
+        matchedName: matchedReg?.name || latestDetection.name || (isBlacklistTab ? '-' : 'ยานพาหนะลูกบ้าน'),
+        matchedNote: matchedReg?.note || latestDetection.note || '-',
+        isDeletedFromSystem: !matchedReg
+      }
+
+      return [newRecord, ...prev]
+    })
+  }, [latestDetection, isBlacklistTab, selectedVillageId, registeredList])
 
   // คำนวณยอดที่ตรวจจับได้ "วันนี้"
   const foundTodayCount = useMemo(() => {
@@ -836,6 +916,7 @@ function saveHistoricalWhitelistPlates(map) {
                   <th>License Plate</th>
                   <th>Province</th>
                   <th>Color</th>
+                  {isSuperAdmin && <th>Village</th>}
                   <th>Camera</th>
                   <th>{isBlacklistTab ? 'Reason' : 'Resident Name'}</th>
                   <th>Action</th>
@@ -844,7 +925,7 @@ function saveHistoricalWhitelistPlates(map) {
               <tbody>
                 {isLoadingDetections ? (
                   <tr>
-                    <td colSpan={9}>
+                    <td colSpan={isSuperAdmin ? 10 : 9}>
                       <Spinner text="กำลังโหลดประวัติการตรวจจับ..." />
                     </td>
                   </tr>
@@ -861,6 +942,14 @@ function saveHistoricalWhitelistPlates(map) {
                       </td>
                       <td>{item.province || '-'}</td>
                       <td>{item.color || '-'}</td>
+                      {isSuperAdmin && (
+                        <td>
+                          {getVillageName(
+                            item.village_id ||
+                            cameras.find((c) => String(c.id) === String(item.camera_id))?.village_id
+                          ) || '-'}
+                        </td>
+                      )}
                       <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
                       <td>
                         {isBlacklistTab ? (
@@ -917,7 +1006,7 @@ function saveHistoricalWhitelistPlates(map) {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={9}>
+                    <td colSpan={isSuperAdmin ? 10 : 9}>
                       <EmptyState
                         icon={isBlacklistTab ? <FaTriangleExclamation /> : <FaCheck />}
                         title={`ไม่พบประวัติการตรวจจับ ${isBlacklistTab ? 'Blacklist' : 'Whitelist'}`}
@@ -1007,6 +1096,7 @@ function saveHistoricalWhitelistPlates(map) {
                       <tr>
                         <th>License Plate</th>
                         <th>Province</th>
+                        {isSuperAdmin && <th>Village</th>}
                         <th>Reason</th>
                         <th>Date Added</th>
                         {canManage && <th>Action</th>}
@@ -1015,6 +1105,7 @@ function saveHistoricalWhitelistPlates(map) {
                       <tr>
                         <th>License Plate</th>
                         <th>Province</th>
+                        {isSuperAdmin && <th>Village</th>}
                         <th>Name</th>
                         <th>Note</th>
                         <th>Date Added</th>
@@ -1025,7 +1116,7 @@ function saveHistoricalWhitelistPlates(map) {
                   <tbody>
                     {isLoadingRegistered ? (
                       <tr>
-                        <td colSpan={canManage ? 5 : 4}>
+                        <td colSpan={(isBlacklistTab ? 4 : 5) + (canManage ? 1 : 0) + (isSuperAdmin ? 1 : 0)}>
                           <Spinner text="กำลังโหลดรายชื่อ..." />
                         </td>
                       </tr>
@@ -1037,6 +1128,9 @@ function saveHistoricalWhitelistPlates(map) {
                               <span className="bl-plate-badge">{item.license_plate}</span>
                             </td>
                             <td>{item.province || '-'}</td>
+                            {isSuperAdmin && (
+                              <td>{getVillageName(item.village_id || item.villageId) || '-'}</td>
+                            )}
                             <td>
                               <span className="bl-reason-badge">{item.reason}</span>
                             </td>
@@ -1068,6 +1162,9 @@ function saveHistoricalWhitelistPlates(map) {
                               <span className="bl-plate-badge whitelist">{item.license_plate}</span>
                             </td>
                             <td>{item.province || '-'}</td>
+                            {isSuperAdmin && (
+                              <td>{getVillageName(item.village_id || item.villageId) || '-'}</td>
+                            )}
                             <td>{item.name || '-'}</td>
                             <td>{item.note || '-'}</td>
                             <td>{formatDate(item.created_at)}</td>
@@ -1096,7 +1193,7 @@ function saveHistoricalWhitelistPlates(map) {
                       )
                     ) : (
                       <tr>
-                        <td colSpan={canManage ? 5 : 4}>
+                        <td colSpan={(isBlacklistTab ? 4 : 5) + (canManage ? 1 : 0) + (isSuperAdmin ? 1 : 0)}>
                           <EmptyState
                             icon={isBlacklistTab ? <FaTriangleExclamation /> : <FaCheck />}
                             title={`ไม่มีข้อมูล ${isBlacklistTab ? 'Blacklist' : 'Whitelist'} ในระบบ`}
@@ -1325,6 +1422,17 @@ function saveHistoricalWhitelistPlates(map) {
                   <span className="info-label">Camera</span>
                   <span>{renderCameraDisplay(selectedItem.camera_id, selectedItem.camera_name || selectedItem.camera?.name)}</span>
                 </div>
+                {isSuperAdmin && (
+                  <div className="modal-info-row">
+                    <span className="info-label">Village</span>
+                    <span>
+                      {getVillageName(
+                        selectedItem.village_id ||
+                        cameras.find((c) => String(c.id) === String(selectedItem.camera_id))?.village_id
+                      ) || '-'}
+                    </span>
+                  </div>
+                )}
                 <div className="modal-info-row">
                   <span className="info-label">
                     {isBlacklistTab ? 'Blacklist Reason' : 'Resident Name'}
