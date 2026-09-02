@@ -5,6 +5,7 @@ import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import { renderVillageDisplay } from '../components/VillageDisplay'
 import usePresenceStore from '../store/presenceStore'
 import {
   getUsersAPI,
@@ -135,6 +136,7 @@ function formatDate(isoString) {
 function UserManagement() {
   const { user: currentUser } = useAuthStore()
   const { villages, selectedVillageId, fetchVillages, getVillageName } = useVillageStore()
+  const renderVillage = (id, directName) => renderVillageDisplay(id, directName, villages)
 
   // สถานะ Online/Offline — แยกจาก is_active (Active/Inactive) โดยสิ้นเชิง
   // is_active มาจาก DB (ปิด/เปิดใช้งานบัญชีผ่านปุ่ม toggle) ส่วน online มาจาก SSE presence stream แบบ real-time
@@ -990,6 +992,7 @@ function UserManagement() {
                 <tr>
                   <th>Username</th>
                   <th>Role</th>
+                  {isSuperadmin && <th>Village</th>}
                   <th>Status</th>
                   <th>Online</th>
                   <th>Verified</th>
@@ -999,7 +1002,7 @@ function UserManagement() {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={7}><Spinner text="Loading users..." /></td></tr>
+                  <tr><td colSpan={isSuperadmin ? 8 : 7}><Spinner text="Loading users..." /></td></tr>
                 ) : users.length > 0 ? (
                   users.map((u) => {
                     const isSelf = u.id === currentUser?.id
@@ -1014,6 +1017,15 @@ function UserManagement() {
                           </div>
                         </td>
                         <td><span className={`um-badge um-badge-${u.role}`}>{u.role}</span></td>
+                        {isSuperadmin && (
+                          <td>
+                            {u.role === 'superadmin' ? (
+                              <span style={{ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>Global</span>
+                            ) : (
+                              renderVillage(u.village_id, u.village_name || u.village?.name)
+                            )}
+                          </td>
+                        )}
                         <td>
                           <span className={`um-status-dot ${u.is_active ? 'active' : 'inactive'}`}></span>
                           {u.is_active ? 'Active' : 'Inactive'}
@@ -1117,7 +1129,7 @@ function UserManagement() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={isSuperadmin ? 8 : 7}>
                       <EmptyState icon={<FaUsers />} title="No users found" description="Try changing the filter or search keyword" />
                     </td>
                   </tr>

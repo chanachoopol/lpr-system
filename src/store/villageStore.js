@@ -1,6 +1,47 @@
 import { create } from 'zustand'
 import { getVillagesAPI } from '../data/api'
 
+const STORAGE_KEY_VILLAGES_HISTORY = 'lpr_historical_villages'
+
+export function getHistoricalVillages() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_VILLAGES_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+export function saveHistoricalVillages(villagesList) {
+  try {
+    if (!Array.isArray(villagesList)) return
+    const existing = getHistoricalVillages()
+    let changed = false
+    villagesList.forEach((v) => {
+      if (v && v.id && v.name) {
+        if (existing[v.id] !== v.name) {
+          existing[v.id] = v.name
+          changed = true
+        }
+      }
+    })
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_VILLAGES_HISTORY, JSON.stringify(existing))
+    }
+  } catch (e) {}
+}
+
+export function getVillageInfo(villageId, currentVillages = []) {
+  if (!villageId) return { name: '-', isDeleted: false }
+  const current = currentVillages.find((v) => String(v.id) === String(villageId))
+  if (current) return { name: current.name, isDeleted: false }
+  const hist = getHistoricalVillages()
+  if (hist[villageId]) {
+    return { name: hist[villageId], isDeleted: true }
+  }
+  return { name: 'หมู่บ้านที่ไม่ทราบชื่อ', isDeleted: true }
+}
+
 // เก็บรายชื่อหมู่บ้านทั้งหมด + หมู่บ้านที่กำลังดูอยู่ (สำหรับ superadmin สลับดูได้)
 // admin/user ธรรมดา: selectedVillageId จะถูกล็อกไว้ที่หมู่บ้านของตัวเองเสมอ
 const useVillageStore = create((set, get) => ({
@@ -12,11 +53,13 @@ const useVillageStore = create((set, get) => ({
   // เรียกครั้งเดียวหลัง login/โหลดแอป — ใช้ได้ทั้ง superadmin (ทำ dropdown)
   // และ admin/user (lookup ชื่อหมู่บ้านตัวเองมาโชว์)
   fetchVillages: async (force = false) => {
-  if (get().hasFetched && !force) return
+    if (get().hasFetched && !force) return
     set({ isLoadingVillages: true })
     try {
       const data = await getVillagesAPI({ isActive: true, pageSize: 100 })
-      set({ villages: data.items, hasFetched: true })
+      const items = Array.isArray(data?.items) ? data.items : []
+      set({ villages: items, hasFetched: true })
+      saveHistoricalVillages(items)
     } catch (error) {
       console.error('โหลดรายชื่อหมู่บ้านไม่สำเร็จ:', error)
     } finally {
@@ -40,8 +83,11 @@ const useVillageStore = create((set, get) => ({
 
   // หาชื่อหมู่บ้านจาก id — คืน '-' ถ้ายังไม่โหลดหรือหาไม่เจอ
   getVillageName: (villageId) => {
-    const village = get().villages.find((v) => v.id === villageId)
-    return village ? village.name : '-'
+    if (!villageId) return '-'
+    const village = get().villages.find((v) => String(v.id) === String(villageId))
+    if (village) return village.name
+    const hist = getHistoricalVillages()
+    return hist[villageId] || '-'
   },
 
   // เรียกตอน logout — เคลียร์ทุกอย่างกันข้อมูลหมู่บ้านของ user เก่าค้าง

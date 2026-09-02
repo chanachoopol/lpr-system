@@ -3,8 +3,34 @@ import { refreshTokenAPI, logoutAPI, getMyProfileAPI, getUserAvatarBlobURL } fro
 import useVillageStore from './villageStore'
 import useNotificationStore from './notificationStore'
 
-const ACCESS_TOKEN_LIFETIME_MS = 300 * 60 * 1000 // 300 นาที ตามที่ backend ยืนยัน (ACCESS_TOKEN_EXPIRE_MINUTES)
 const REFRESH_BUFFER_MS = 60 * 1000 // ขอ token ใหม่ก่อนหมดอายุจริง 60 วิ กัน network latency/clock skew
+
+// ถอดรหัสอ่านเวลาคงเหลือของ JWT Token จาก Claim 'exp' ที่ Backend เป็นผู้กำหนด (Single Source of Truth)
+function getTokenRemainingMs(token) {
+  if (!token || typeof token !== 'string') return null
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return null
+    const base64Url = parts[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    const payload = JSON.parse(jsonPayload)
+    if (payload.exp && typeof payload.exp === 'number') {
+      const expiryTimestampMs = payload.exp * 1000
+      const currentTimestampMs = Date.now()
+      const remainingMs = expiryTimestampMs - currentTimestampMs
+      return remainingMs > 0 ? remainingMs : 0
+    }
+  } catch (error) {
+    console.error('Failed to parse JWT exp payload:', error)
+  }
+  return null
+}
 
 let refreshTimerId = null
 
@@ -70,14 +96,23 @@ const useAuthStore = create((set, get) => ({
 
   getAccessToken: () => get().accessToken,
 
-  // ตั้ง timer ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริง (แนวคิดเดียวกับ scheduleNext ใน useCameraStream.js)
-  scheduleRefresh: () => {
+  // ตั้ง timer ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริงแบบ Dynamic โดยอ่านค่า exp จากตัว Token (Backend SSOT)
+  scheduleRefresh: (explicitToken) => {
     clearRefreshTimer()
+    const token = explicitToken || get().accessToken
+    const remainingMs = getTokenRemainingMs(token)
+
+    // ถ้าแกะค่า exp ได้: ขอ token ใหม่ล่วงหน้าก่อนหมดอายุ 60 วินาที (แต่อย่างน้อย 5 วินาทีก่อนหมด)
+    // ถ้าแกะไม่ได้ (fallback): 14 นาที
+    const delayMs = remainingMs !== null
+      ? Math.max(remainingMs - REFRESH_BUFFER_MS, 5000)
+      : 14 * 60 * 1000
+
     refreshTimerId = setTimeout(() => {
       get().refreshAccessToken().catch(() => {
         // เงียบไว้ตรงนี้พอ — refreshAccessToken เคลียร์ state ให้เองแล้วถ้าพัง
       })
-    }, ACCESS_TOKEN_LIFETIME_MS - REFRESH_BUFFER_MS)
+    }, delayMs)
   },
 
   // ขอ access_token ใหม่ผ่าน refresh_token cookie — ใช้ทั้งตอน silent refresh (timer)

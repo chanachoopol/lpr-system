@@ -12,6 +12,7 @@ import { FaCalendarAlt } from 'react-icons/fa'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import useVillageStore from '../store/villageStore'
+import { renderVillageDisplay } from '../components/VillageDisplay'
 import useNotificationStore from '../store/notificationStore'
 
 const ROWS_PER_PAGE = 10
@@ -97,7 +98,9 @@ function getVisiblePageNumbers(current, total, maxVisible) {
 
 function History() {
   const { user } = useAuthStore()
-  const { selectedVillageId } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
+  const { selectedVillageId, villages } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
+  const isSuperAdmin = user?.role === 'superadmin'
+  const renderVillage = (id, directName) => renderVillageDisplay(id, directName, villages)
   const latestDetection = useNotificationStore((state) => state.latestDetection)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -508,6 +511,7 @@ function History() {
                   <th>License Plate</th>
                   <th>Province</th>
                   <th>Color</th>
+                  {isSuperAdmin && <th>Village</th>}
                   <th>Camera</th>
                   <th>Direction</th>
                   <th>Action</th>
@@ -516,7 +520,7 @@ function History() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan="9">
+                    <td colSpan={isSuperAdmin ? 10 : 9}>
                       <Spinner text="Loading history..." />
                     </td>
                   </tr>
@@ -541,6 +545,16 @@ function History() {
                         <td className="plate-text">{item.license_plate}</td>
                         <td>{item.province}</td>
                         <td>{item.color}</td>
+                        {isSuperAdmin && (
+                          <td>
+                            {renderVillage(
+                              item.village_id ||
+                                item.camera?.village_id ||
+                                cameras.find((c) => String(c.id) === String(item.camera_id))?.village_id,
+                              item.village_name || item.village?.name
+                            )}
+                          </td>
+                        )}
                         <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
                         <td>
                           {item.direction ? (
@@ -561,7 +575,7 @@ function History() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="9">
+                    <td colSpan={isSuperAdmin ? 10 : 9}>
                       <EmptyState
                         icon={<FaSearch />}
                         title="No records found"
@@ -667,6 +681,21 @@ function History() {
                 <div className="modal-info-row">
                   <span className="info-label">Province</span>
                   <span>{selectedItem.province}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="info-label">Color</span>
+                  <span>{selectedItem.color || '-'}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="info-label">Village</span>
+                  <span>
+                    {renderVillage(
+                      selectedItem.village_id ||
+                        selectedItem.camera?.village_id ||
+                        cameras.find((c) => String(c.id) === String(selectedItem.camera_id))?.village_id,
+                      selectedItem.village_name || selectedItem.village?.name
+                    )}
+                  </span>
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Time</span>

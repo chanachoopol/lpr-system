@@ -12,6 +12,7 @@ import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import { renderVillageDisplay } from '../components/VillageDisplay'
 import useNotificationStore from '../store/notificationStore'
 import {
   getBlacklistAPI,
@@ -94,6 +95,7 @@ function Blacklist() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthStore()
   const { villages, selectedVillageId, getVillageName } = useVillageStore()
+  const renderVillage = (id, directName) => renderVillageDisplay(id, directName, villages)
   const latestDetection = useNotificationStore((state) => state.latestDetection)
   const isSuperAdmin = user?.role === 'superadmin'
   const canManage = MANAGE_ROLES.includes(user?.role)
@@ -944,10 +946,10 @@ function saveHistoricalWhitelistPlates(map) {
                       <td>{item.color || '-'}</td>
                       {isSuperAdmin && (
                         <td>
-                          {getVillageName(
-                            item.village_id ||
-                            cameras.find((c) => String(c.id) === String(item.camera_id))?.village_id
-                          ) || '-'}
+                          {renderVillage(
+                            item.village_id || cameras.find((c) => String(c.id) === String(item.camera_id))?.village_id,
+                            item.village_name || item.village?.name
+                          )}
                         </td>
                       )}
                       <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
@@ -1129,7 +1131,7 @@ function saveHistoricalWhitelistPlates(map) {
                             </td>
                             <td>{item.province || '-'}</td>
                             {isSuperAdmin && (
-                              <td>{getVillageName(item.village_id || item.villageId) || '-'}</td>
+                              <td>{renderVillage(item.village_id || item.villageId, item.village_name || item.villageName)}</td>
                             )}
                             <td>
                               <span className="bl-reason-badge">{item.reason}</span>
@@ -1163,7 +1165,7 @@ function saveHistoricalWhitelistPlates(map) {
                             </td>
                             <td>{item.province || '-'}</td>
                             {isSuperAdmin && (
-                              <td>{getVillageName(item.village_id || item.villageId) || '-'}</td>
+                              <td>{renderVillage(item.village_id || item.villageId, item.village_name || item.villageName)}</td>
                             )}
                             <td>{item.name || '-'}</td>
                             <td>{item.note || '-'}</td>
@@ -1426,10 +1428,10 @@ function saveHistoricalWhitelistPlates(map) {
                   <div className="modal-info-row">
                     <span className="info-label">Village</span>
                     <span>
-                      {getVillageName(
-                        selectedItem.village_id ||
-                        cameras.find((c) => String(c.id) === String(selectedItem.camera_id))?.village_id
-                      ) || '-'}
+                      {renderVillage(
+                        selectedItem.village_id || cameras.find((c) => String(c.id) === String(selectedItem.camera_id))?.village_id,
+                        selectedItem.village_name || selectedItem.village?.name
+                      )}
                     </span>
                   </div>
                 )}

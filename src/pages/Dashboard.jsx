@@ -5,6 +5,7 @@ import MapView from '../components/Map'
 import { getTodayDashboardAPI, getCameraListAPI, getAuthedImageURL, getDetectionsAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import { renderVillageDisplay } from '../components/VillageDisplay'
 import useNotificationStore from '../store/notificationStore'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
@@ -94,7 +95,7 @@ function formatDate(isoString) {
 function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const { selectedVillageId } = useVillageStore()
+  const { selectedVillageId, villages } = useVillageStore()
   const latestDetection = useNotificationStore((state) => state.latestDetection)
 
   
@@ -653,6 +654,18 @@ useEffect(() => {
                 <div className="modal-info-row">
                   <span className="info-label">Color</span>
                   <span>{selectedItem.color || '-'}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="info-label">Village</span>
+                  <span>
+                    {renderVillageDisplay(
+                      selectedItem.village_id ||
+                        selectedItem.camera?.village_id ||
+                        cameras.find((c) => String(c.id) === String(selectedItem.camera_id))?.village_id,
+                      selectedItem.village_name || selectedItem.village?.name,
+                      villages
+                    )}
+                  </span>
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Time</span>
