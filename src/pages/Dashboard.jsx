@@ -431,14 +431,13 @@ useEffect(() => {
                       <th>Province</th>
                       <th>Color</th>
                       <th>Camera</th>
-                      <th>Status</th>
                       <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isLoadingDirection ? (
                       <tr>
-                        <td colSpan={9}>
+                        <td colSpan={8}>
                           <Spinner text="กำลังโหลดข้อมูล..." />
                         </td>
                       </tr>
@@ -450,54 +449,28 @@ useEffect(() => {
                           item.category === 'blacklist' ||
                           item.type === 'blacklist'
                         )
-                        const isWhitelist = Boolean(
-                          item.is_whitelist ||
-                          item.is_whitelisted ||
-                          item.category === 'whitelist' ||
-                          item.type === 'whitelist'
-                        )
                         return (
                           <tr key={item.id || index} className={isBlacklist ? 'history-row-blacklist' : ''}>
                             <td>{(directionPage - 1) * 10 + index + 1}</td>
                             <td>{formatDate(item.time_detect)}</td>
                             <td>{formatTime(item.time_detect)}</td>
-                            <td>
-                              <span className={`bl-plate-badge ${isWhitelist ? 'whitelist' : ''}`}>
-                                {item.license_plate}
-                              </span>
+                            <td className="bold-plate" style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                              {item.license_plate}
                             </td>
                             <td>{item.province || '-'}</td>
                             <td>{item.color || '-'}</td>
                             <td>{item.camera_name || getCameraName(item.camera_id)}</td>
                             <td>
-                              {isBlacklist ? (
-                                <span className="bl-status-badge blacklist">Blacklist</span>
-                              ) : isWhitelist ? (
-                                <span className="bl-status-badge whitelist">Whitelist</span>
-                              ) : (
-                                <span className="bl-status-badge normal">ทั่วไป</span>
-                              )}
-                            </td>
-                            <td>
-                              <div className="bl-action-row">
-                                <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
-                                  <FaEye /> View
-                                </button>
-                                <button
-                                  className="btn-bl-route"
-                                  onClick={() => handleGoToRouteTracking(item)}
-                                  title="ดูเส้นทาง"
-                                >
-                                  <FaRoute /> Route
-                                </button>
-                              </div>
+                              <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
+                                <FaEye /> View
+                              </button>
                             </td>
                           </tr>
                         )
                       })
                     ) : (
                       <tr>
-                        <td colSpan={9}>
+                        <td colSpan={8}>
                           <EmptyState icon={<FaCar />} title="ไม่มีข้อมูลรถในช่วงเวลานี้" />
                         </td>
                       </tr>
@@ -547,7 +520,17 @@ useEffect(() => {
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Vehicle Detail</h3>
+              <div className="modal-header-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <h3>Vehicle Detail</h3>
+                <button
+                  type="button"
+                  className="btn-route-tracking"
+                  onClick={() => handleGoToRouteTracking(selectedItem)}
+                  title="ดูเส้นทาง"
+                >
+                  <FaRoute /> Route Tracking
+                </button>
+              </div>
               <button className="modal-close" onClick={closeModal}>
                 <FaXmark />
               </button>

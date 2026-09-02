@@ -4,40 +4,42 @@
 .monitor-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding-bottom: 24px;
+  gap: 12px;
+  padding-top: 4px;
+  padding-bottom: 0;
 }
 
 /* แถบเลือกกล้องด้านบน */
 .camera-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px 24px; 
+  gap: 12px;
+  padding: 10px 18px;
+  border-radius: 14px;
 }
 
 .camera-icon {
   color: #1b2a47;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .camera-bar label {
   font-weight: 600;
   color: #1b2a47;
   text-transform: uppercase;
-  font-size: 13px;
+  font-size: 12.5px;
   letter-spacing: 0.5px;
 }
 
 .camera-select {
   flex: 1;
-  max-width: 400px;
-  padding: 10px 16px;
-  border-radius: 12px;
+  max-width: 380px;
+  padding: 8px 14px;
+  border-radius: 10px;
   border: 1px solid rgba(27, 42, 71, 0.15);
   background: rgba(255, 255, 255, 0.7);
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
   color: #1b2a47;
   outline: none;
@@ -50,29 +52,33 @@
   background: #ffffff;
 }
 
-/* โครงสร้างเนื้อหา 2 ฝั่ง */
+/* โครงสร้างเนื้อหา 2 ฝั่ง (แบ่งฝั่งละ 50% ความสูงเท่ากันเป๊ะ) */
 .monitor-content {
   display: grid;
-  grid-template-columns: 1.2fr 1fr; 
-  gap: 20px;
+  grid-template-columns: 1fr 1fr; 
+  gap: 16px;
+  align-items: stretch;
 }
 
 .monitor-left {
   display: flex;
   flex-direction: column;
-  padding: 24px;
+  justify-content: center;
+  padding: 14px;
+  border-radius: 18px;
+  height: 100%;
 }
 
 /* กรอบวิดีโอ */
 .video-wrapper {
   position: relative;
   width: 100%;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   background: #0f172a; 
   aspect-ratio: 16/9;
-  box-shadow: 0 8px 24px rgba(27, 42, 71, 0.1);
-  border: 4px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.08);
+  border: 3px solid rgba(255, 255, 255, 0.5);
 }
 
 .live-video {
@@ -84,23 +90,23 @@
 
 .video-overlay {
   position: absolute;
-  top: 16px;
-  left: 16px;
+  top: 12px;
+  left: 12px;
 }
 
 .live-badge {
   background: rgba(239, 68, 68, 0.9);
   color: white;
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   animation: pulse 2s infinite; 
 }
 
@@ -114,28 +120,35 @@
 .monitor-right {
   display: flex;
   flex-direction: column;
-  padding: 28px;
+  padding: 16px 20px;
+  border-radius: 18px;
+  height: 100%;
+}
+
+.monitor-right .card-title {
+  margin-bottom: 10px;
 }
 
 /* พื้นที่แสดงป้ายทะเบียน */
 .plate-showcase {
   background: rgba(27, 42, 71, 0.03);
   border: 1px dashed rgba(27, 42, 71, 0.2);
-  border-radius: 16px;
-  padding: 24px;
+  border-radius: 12px;
+  padding: 10px 14px;
   display: flex;
   justify-content: center;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .thai-plate {
   background: linear-gradient(to bottom, #ffffff 0%, #eef2f6 100%);
-  border: 3px solid #1b2a47;
-  border-radius: 12px;
-  padding: 16px 40px;
+  border: 2.5px solid #1b2a47;
+  border-radius: 10px;
+  padding: 6px 28px;
   text-align: center;
-  box-shadow: 0 8px 20px rgba(27, 42, 71, 0.12);
-  min-width: 260px;
+  box-shadow: 0 4px 14px rgba(27, 42, 71, 0.08);
+  min-width: 200px;
+  max-width: 240px;
   position: relative;
 }
 
@@ -143,28 +156,28 @@
   content: '';
   position: absolute;
   top: 50%;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   background: #cbd5e1;
   border-radius: 50%;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
   transform: translateY(-50%);
 }
-.thai-plate::before { left: 12px; }
-.thai-plate::after { right: 12px; }
+.thai-plate::before { left: 10px; }
+.thai-plate::after { right: 10px; }
 
 .plate-number {
   font-family: 'Prompt', sans-serif;
-  font-size: 38px;
+  font-size: 26px;
   font-weight: 700;
   color: #1b2a47;
-  margin-bottom: 2px;
-  line-height: 1;
+  margin-bottom: 0px;
+  line-height: 1.1;
 }
 
 .plate-province {
   font-family: 'Prompt', sans-serif;
-  font-size: 15px;
+  font-size: 12.5px;
   font-weight: 500;
   color: #1b2a47;
 }
@@ -172,11 +185,24 @@
 .table-container {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
+  max-height: 480px;
+}
+
+.table-container .history-table th {
+  padding: 12px 14px;
+  font-size: 13.5px;
+}
+
+.table-container .history-table td {
+  padding: 11px 14px;
+  font-size: 14px;
 }
 
 .bold-plate {
   font-family: 'Prompt', sans-serif; 
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 15px;
   color: #1b2a47;
 }
 

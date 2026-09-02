@@ -37,6 +37,7 @@ function CameraGridTile({ camera }) {
             <video
               ref={videoRef}
               className="live-video"
+              controls={true}
               muted={true}
               style={{ display: isVideoLoading ? 'none' : 'block' }}
             />

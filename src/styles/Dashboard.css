@@ -136,16 +136,20 @@
   transition: background 0.15s ease;
 }
 
-.history-table tr.history-row-blacklist td {
-  background: rgba(239, 68, 68, 0.08);
+.history-table tr.history-row-blacklist td,
+.bl-table tr.history-row-blacklist td {
+  background: rgba(239, 68, 68, 0.09) !important;
 }
 
-.history-table tr.history-row-blacklist:hover td {
-  background: rgba(239, 68, 68, 0.15);
+.history-table tr.history-row-blacklist:hover td,
+.bl-table tr.history-row-blacklist:hover td {
+  background: rgba(239, 68, 68, 0.16) !important;
 }
 
-.history-table tr.history-row-blacklist .plate-text {
-  color: rgb(220, 38, 38);
+.history-table tr.history-row-blacklist .plate-text,
+.bl-table tr.history-row-blacklist .plate-text,
+.bl-table tr.history-row-blacklist .bold-plate {
+  color: rgb(220, 38, 38) !important;
   font-weight: 700;
 }
 
