@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import useVillageStore from '../store/villageStore'
 
 const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af611860ee1d100bc5d530'
 const CARD_WIDTH = 240
-const CARD_GAP = 12 // ระยะห่างระหว่างหมุดกับการ์ด
+const CARD_GAP = 14 // ระยะห่างระหว่างหมุดกับการ์ด (14px)
 
 function MapView({ cameras = [] }) {
+  const navigate = useNavigate()
+  const getVillageName = useVillageStore((state) => state.getVillageName)
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([]) // เก็บ marker object ไว้ map camera_id -> ตำแหน่งพิกัด
@@ -48,13 +52,13 @@ function MapView({ cameras = [] }) {
         }
 
         setIsMapReady(true)
+
+        try {
+          map.Event.bind('zoom', () => setHoveredCamera(null))
+        } catch (error) {
+          console.warn('ผูก event ปิดการ์ด hover ไม่สำเร็จ:', error)
+        }
       })
-try {
-  map.Event.bind('location', () => setHoveredCamera(null))
-  map.Event.bind('zoom', () => setHoveredCamera(null))
-} catch (error) {
-  console.warn('ผูก event ปิดการ์ด hover ไม่สำเร็จ:', error)
-}
     } 
 
     if (!window.longdo) {
@@ -83,7 +87,8 @@ try {
     }
   }, [])
 
-  // คำนวณตำแหน่งการ์ดให้ลอยไปทาง "บน-ขวา" ของหมุดที่ hover พร้อม clamp กันล้นกรอบ container
+  // คำนวณตำแหน่งการ์ด: ลอยอยู่เหนือหัวหมุด 14px จัดกึ่งกลางพอดี (ไม่บังหมุด 100%)
+  // ถ้าชนขอบบน จะสลับไปลอยอยู่ใต้ปลายหมุด 14px อัตโนมัติ
   const computeCardPosition = useCallback((pinEl) => {
     const container = mapRef.current
     if (!container || !pinEl) return null
@@ -91,27 +96,37 @@ try {
     const containerRect = container.getBoundingClientRect()
     const pinRect = pinEl.getBoundingClientRect()
 
-    let left = pinRect.right - containerRect.left + CARD_GAP
-    let top = pinRect.top - containerRect.top - 8 // เยื้องขึ้นเล็กน้อยจากหัวหมุด
+    const pinCenterX = pinRect.left + pinRect.width / 2 - containerRect.left
+    const pinTop = pinRect.top - containerRect.top
+    const pinBottom = pinRect.bottom - containerRect.top
+    const CARD_HEIGHT = 115
 
-    // ถ้าล้นขอบขวา ให้สลับไปโผล่ทางซ้ายของหมุดแทน
-    if (left + CARD_WIDTH > containerRect.width) {
-      left = pinRect.left - containerRect.left - CARD_WIDTH - CARD_GAP
+    // 1. ตำแหน่งแนวนอน: วางตรงกลางหมุดพอดี
+    let left = pinCenterX - CARD_WIDTH / 2
+
+    // ป้องกันหลุดขอบซ้าย-ขวา
+    if (left < 10) left = 10
+    if (left + CARD_WIDTH > containerRect.width - 10) {
+      left = Math.max(10, containerRect.width - CARD_WIDTH - 10)
     }
-    // กันหลุดขอบบน
-    if (top < 8) top = 8
-    // กันหลุดขอบล่าง (ประมาณความสูงการ์ด ~120px)
-    if (top + 120 > containerRect.height) {
-      top = containerRect.height - 120 - 8
+
+    // 2. ตำแหน่งแนวตั้ง: ลอยอยู่เหนือหัวหมุด 14px
+    let top = pinTop - CARD_HEIGHT - CARD_GAP
+
+    // ถ้าชนขอบบน: สลับไปอยู่ใต้ปลายหมุด 14px แทน
+    if (top < 10) {
+      top = pinBottom + CARD_GAP
     }
-    // กันหลุดขอบซ้ายกรณี container แคบมาก
-    if (left < 8) left = 8
+
+    // ป้องกันหลุดขอบล่าง
+    if (top + CARD_HEIGHT > containerRect.height - 10) {
+      top = Math.max(10, containerRect.height - CARD_HEIGHT - 10)
+    }
 
     return { top, left }
   }, [])
 
   // Event delegation: ผูกที่ container ครั้งเดียว ไม่ผูกกับแต่ละ marker ตรงๆ
-  // เพราะ Longdo re-render DOM ของ marker บ่อยตอน pan/zoom ทำให้ listener เดิมหลุด
   useEffect(() => {
     const container = mapRef.current
     if (!container) return
@@ -136,14 +151,25 @@ try {
       setHoveredCamera(null)
     }
 
+    function handleClick(e) {
+      const pinEl = e.target.closest('[data-camera-id]')
+      if (!pinEl) return
+      const cameraId = pinEl.getAttribute('data-camera-id')
+      if (cameraId) {
+        navigate(`/monitor?camera=${cameraId}`)
+      }
+    }
+
     container.addEventListener('mouseover', handleMouseOver)
     container.addEventListener('mouseout', handleMouseOut)
+    container.addEventListener('click', handleClick)
 
     return () => {
       container.removeEventListener('mouseover', handleMouseOver)
       container.removeEventListener('mouseout', handleMouseOut)
+      container.removeEventListener('click', handleClick)
     }
-  }, [cameras, computeCardPosition])
+  }, [cameras, computeCardPosition, navigate])
 
   useEffect(() => {
     const map = mapInstanceRef.current
@@ -214,40 +240,32 @@ try {
       {hoveredCamera && (
         <div
           className="map-hover-card"
-          style={{ top: hoveredCamera.style.top, left: hoveredCamera.style.left, width: CARD_WIDTH }}
+          style={{ top: hoveredCamera.style.top, left: hoveredCamera.style.left, width: CARD_WIDTH, cursor: 'pointer' }}
+          onClick={() => navigate(`/monitor?camera=${hoveredCamera.camera.id}`)}
+          title="คลิกเพื่อดูภาพสด"
         >
+          <div className="map-hover-card-village"> Village: 
+            {getVillageName(hoveredCamera.camera.village_id) || hoveredCamera.camera.village_name || hoveredCamera.camera.village?.name || '-'}
+          </div>
+
           <div className="map-hover-card-header">
-            <span
-              className="map-hover-card-icon"
-              style={{
-                background: hoveredCamera.camera.is_active ? 'rgba(22,163,74,0.1)' : 'rgba(220,38,38,0.1)',
-                color: hoveredCamera.camera.is_active ? '#16a34a' : '#dc2626'
-              }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                   fill="none" stroke="currentColor" strokeWidth="2.2"
-                   strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 7l-7 5 7 5V7z"></path>
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-              </svg>
-            </span>
             <strong className="map-hover-card-title">{hoveredCamera.camera.name}</strong>
           </div>
 
-          <div className="map-hover-card-coord">
-            📍 {Number(hoveredCamera.camera.lat).toFixed(6)}, {Number(hoveredCamera.camera.long).toFixed(6)}
+          <div className="map-hover-card-row">
+            <span className="map-hover-card-label">ทิศทาง:</span>
+            <span
+              className={`map-direction-badge ${
+                hoveredCamera.camera.direction === 'entry' ? 'entry' : hoveredCamera.camera.direction === 'exit' ? 'exit' : ''
+              }`}
+            >
+              {hoveredCamera.camera.direction === 'entry'
+                ? 'ขาเข้า (Entry)'
+                : hoveredCamera.camera.direction === 'exit'
+                ? 'ขาออก (Exit)'
+                : '-'}
+            </span>
           </div>
-
-          <span
-            className="map-hover-card-badge"
-            style={{
-              background: hoveredCamera.camera.is_active ? 'rgba(22,163,74,0.1)' : 'rgba(220,38,38,0.1)',
-              color: hoveredCamera.camera.is_active ? '#16a34a' : '#dc2626'
-            }}
-          >
-            <span className="map-hover-card-dot" />
-            {hoveredCamera.camera.is_active ? 'Active' : 'Inactive'}
-          </span>
         </div>
       )}
     </div>

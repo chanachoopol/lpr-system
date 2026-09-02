@@ -62,7 +62,7 @@ function Monitor() {
         setCameras(data)
 
         const cameraFromURL = searchParams.get('camera')
-        if (cameraFromURL && data.some((cam) => cam.id === cameraFromURL)) {
+        if (cameraFromURL && data.some((cam) => String(cam.id) === String(cameraFromURL))) {
           setSelectedCamera(cameraFromURL)
         } else if (data.length > 0) {
           setSelectedCamera(data[0].id)
