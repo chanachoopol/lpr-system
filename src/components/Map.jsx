@@ -6,12 +6,58 @@ const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af61186
 const CARD_WIDTH = 240
 const CARD_GAP = 14 // ระยะห่างระหว่างหมุดกับการ์ด (14px)
 
+// จัดมุมมองแผนที่ให้ครอบคลุมทุกหมุดกล้องอัตโนมัติ
+function fitMapToCameras(map, cameras) {
+  if (!map || !cameras || cameras.length === 0) return
+
+  const validPoints = cameras
+    .map((c) => ({ lat: Number(c.lat), lon: Number(c.long) }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+
+  if (validPoints.length === 0) return
+
+  if (validPoints.length === 1) {
+    map.location({ lon: validPoints[0].lon, lat: validPoints[0].lat }, true)
+    map.zoom(16, true)
+    return
+  }
+
+  const lons = validPoints.map((p) => p.lon)
+  const lats = validPoints.map((p) => p.lat)
+  const minLon = Math.min(...lons)
+  const maxLon = Math.max(...lons)
+  const minLat = Math.min(...lats)
+  const maxLat = Math.max(...lats)
+
+  // คำนวณจุดกึ่งกลาง + ระดับการซูมที่ครอบคลุมทุกจุดพร้อมระยะเผื่อขอบ (Safety Margin)
+  const centerLon = (minLon + maxLon) / 2
+  const centerLat = (minLat + maxLat) / 2
+  const maxSpan = Math.max(maxLon - minLon, maxLat - minLat)
+
+  let zoom = 15
+  if (maxSpan > 1.0) zoom = 7
+  else if (maxSpan > 0.5) zoom = 9
+  else if (maxSpan > 0.2) zoom = 10
+  else if (maxSpan > 0.1) zoom = 11
+  else if (maxSpan > 0.05) zoom = 12
+  else if (maxSpan > 0.02) zoom = 13
+  else if (maxSpan > 0.01) zoom = 14
+  else if (maxSpan > 0.004) zoom = 15
+  else if (maxSpan > 0.001) zoom = 16
+  else zoom = 16
+
+  map.location({ lon: centerLon, lat: centerLat }, true)
+  map.zoom(zoom, true)
+}
+
 function MapView({ cameras = [] }) {
   const navigate = useNavigate()
   const getVillageName = useVillageStore((state) => state.getVillageName)
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([]) // เก็บ marker object ไว้ map camera_id -> ตำแหน่งพิกัด
+  const camerasRef = useRef(cameras)
+  camerasRef.current = cameras
   const [isMapReady, setIsMapReady] = useState(false)
 
   // hoveredCamera = { camera, style: {top, left} } | null
@@ -33,8 +79,13 @@ function MapView({ cameras = [] }) {
 
       map.Event.bind('ready', () => {
         if (isCancelled) return
-        map.location({ lon: 100.632904, lat: 13.844849 }, true)
-        map.zoom(17, true)
+
+        if (camerasRef.current && camerasRef.current.length > 0) {
+          fitMapToCameras(map, camerasRef.current)
+        } else {
+          map.location({ lon: 100.632904, lat: 13.844849 }, true)
+          map.zoom(15, true)
+        }
 
         try {
           if (map.Ui) {
@@ -228,6 +279,9 @@ function MapView({ cameras = [] }) {
         map.Overlays.add(marker)
         markersRef.current.push(marker)
       })
+
+      // จัดขอบเขตแผนที่ให้ครอบคลุมทุกหมุดกล้องอัตโนมัติ
+      fitMapToCameras(map, cameras)
     } catch (error) {
       console.error('เกิดข้อผิดพลาดตอนปักหมุดกล้อง:', error)
     }

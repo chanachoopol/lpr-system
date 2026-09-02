@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   FaTriangleExclamation,
   FaTrashCan,
@@ -90,12 +90,21 @@ function getVisiblePageNumbers(currentPage, totalPages, maxVisible) {
 
 function Blacklist() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthStore()
   const { selectedVillageId } = useVillageStore()
   const canManage = MANAGE_ROLES.includes(user?.role)
 
-  const [activeTab, setActiveTab] = useState('blacklist')
+  const tabFromUrl = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(tabFromUrl === 'whitelist' ? 'whitelist' : 'blacklist')
   const isBlacklistTab = activeTab === 'blacklist'
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'whitelist' || tab === 'blacklist') {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
 
   // ---------- ข้อมูลรายชื่อที่ลงทะเบียนไว้ในระบบ (Registered Vehicles) ----------
   const [registeredList, setRegisteredList] = useState([])
@@ -354,6 +363,7 @@ function saveHistoricalBlacklistPlates(map) {
   // สลับแท็บ
   function handleTabChange(tab) {
     setActiveTab(tab)
+    setSearchParams({ tab }, { replace: true })
     setRegisteredSearch('')
     setDetectionSearch('')
     setDebouncedDetectionSearch('')

@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding-top: 10px;
   padding-bottom: 8px;
 }
 
@@ -26,6 +27,22 @@
 
 .stat-card:hover {
   transform: translateY(-3px);
+}
+
+.stat-card-clickable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.stat-card-clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(27, 42, 71, 0.08);
+  border-color: rgba(43, 127, 255, 0.35);
+}
+
+.stat-card-clickable:active {
+  transform: translateY(-1px);
 }
 
 .stat-label {
@@ -257,4 +274,141 @@
 .map-direction-badge.exit {
   background: rgba(234, 88, 12, 0.12);
   color: #ea580c;
+}
+
+/* ---------- Direction Detections Modal (Entry / Exit Today) ---------- */
+.direction-modal-content {
+  max-width: 900px !important;
+  width: 92% !important;
+}
+
+.direction-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.direction-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.direction-count-badge.entry {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
+}
+
+.direction-count-badge.exit {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.cat-badge-blacklist {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.cat-badge-whitelist {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.12);
+  color: #16a34a;
+}
+
+.cat-badge-general {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+}
+
+.direction-pagination-bar {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pagination-btn-group {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-pagination {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-main, #f8fafc);
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background: #3b82f6;
+  color: #ffffff;
+  border-color: #3b82f6;
+}
+
+.btn-pagination:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bl-direction-modal {
+  max-width: 900px !important;
+  width: 95% !important;
+}
+
+.bl-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.bl-status-badge.blacklist {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.bl-status-badge.whitelist {
+  background: rgba(16, 185, 129, 0.12);
+  color: #16a34a;
+}
+
+.bl-status-badge.normal {
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+  font-weight: 500;
 }
