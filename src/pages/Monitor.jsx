@@ -16,6 +16,36 @@ import useCameraStream from '../hooks/useCameraStream'
 const POLLING_INTERVAL_MS = 5000
 const GRID_VIEW_VALUE = 'all' // 👈 ค่าพิเศษของ selectedCamera สำหรับโหมด Grid View
 
+const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
+
+function getHistoricalCameras() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CAMERAS_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function saveHistoricalCameras(camerasList) {
+  try {
+    if (!Array.isArray(camerasList)) return
+    const existing = getHistoricalCameras()
+    let changed = false
+    camerasList.forEach((c) => {
+      if (c && c.id && c.name) {
+        if (existing[c.id] !== c.name) {
+          existing[c.id] = c.name
+          changed = true
+        }
+      }
+    })
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_CAMERAS_HISTORY, JSON.stringify(existing))
+    }
+  } catch (e) {}
+}
+
 function formatTime(isoString) {
   if (!isoString) return '-'
   return new Date(isoString).toLocaleTimeString('th-TH', {
@@ -60,6 +90,7 @@ function Monitor() {
       try {
         const data = await getCamerasAPI(selectedVillageId)
         setCameras(data)
+        saveHistoricalCameras(data)
 
         const cameraFromURL = searchParams.get('camera')
         if (cameraFromURL && data.some((cam) => String(cam.id) === String(cameraFromURL))) {

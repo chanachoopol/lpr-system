@@ -151,6 +151,7 @@ function Blacklist() {
       try {
         const data = await getCamerasAPI(selectedVillageId)
         setCameras(data || [])
+        saveHistoricalCameras(data)
       } catch (error) {
         console.error('โหลดกล้องไม่สำเร็จ:', error)
       }
@@ -158,9 +159,30 @@ function Blacklist() {
     fetchCameras()
   }, [user, selectedVillageId])
 
-  function getCameraName(cameraId) {
-    const cam = cameras.find((c) => c.id === cameraId)
-    return cam ? cam.name : '-'
+  // หาชื่อกล้องจาก camera_id + แสดงหมายเหตุหากกล้องถูกลบออกจากระบบไปแล้ว
+  function renderCameraDisplay(cameraId, directName) {
+    const currentCam = cameras.find((c) => String(c.id) === String(cameraId))
+    if (currentCam) {
+      return <span>{currentCam.name}</span>
+    }
+    const hist = getHistoricalCameras()
+    const name = directName || (cameraId ? hist[cameraId] : null) || 'กล้องที่ไม่ทราบชื่อ'
+    return (
+      <div>
+        <span>{name}</span>
+        <span
+          style={{
+            fontSize: 11,
+            color: '#94a3b8',
+            display: 'block',
+            marginTop: 2,
+            fontWeight: 500
+          }}
+        >
+          (กล้องนี้ถูกลบออกจากระบบแล้ว)
+        </span>
+      </div>
+    )
   }
 
   // ดึงรายการที่ลงทะเบียนทั้งหมด (Registered Blacklist/Whitelist)
@@ -187,6 +209,35 @@ function Blacklist() {
 
 const STORAGE_KEY_BLACKLIST_HISTORY = 'lpr_historical_blacklist_plates'
 const STORAGE_KEY_WHITELIST_HISTORY = 'lpr_historical_whitelist_plates'
+const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
+
+function getHistoricalCameras() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CAMERAS_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function saveHistoricalCameras(camerasList) {
+  try {
+    if (!Array.isArray(camerasList)) return
+    const existing = getHistoricalCameras()
+    let changed = false
+    camerasList.forEach((c) => {
+      if (c && c.id && c.name) {
+        if (existing[c.id] !== c.name) {
+          existing[c.id] = c.name
+          changed = true
+        }
+      }
+    })
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_CAMERAS_HISTORY, JSON.stringify(existing))
+    }
+  } catch (e) {}
+}
 
 function getHistoricalBlacklistPlates() {
   try {
@@ -810,7 +861,7 @@ function saveHistoricalWhitelistPlates(map) {
                       </td>
                       <td>{item.province || '-'}</td>
                       <td>{item.color || '-'}</td>
-                      <td>{getCameraName(item.camera_id)}</td>
+                      <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
                       <td>
                         {isBlacklistTab ? (
                           <div>
@@ -1272,7 +1323,7 @@ function saveHistoricalWhitelistPlates(map) {
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Camera</span>
-                  <span>{getCameraName(selectedItem.camera_id)}</span>
+                  <span>{renderCameraDisplay(selectedItem.camera_id, selectedItem.camera_name || selectedItem.camera?.name)}</span>
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">

@@ -17,6 +17,36 @@ const ROWS_PER_PAGE = 10
 const SEARCH_DEBOUNCE_MS = 400
 const MAX_VISIBLE_PAGES = 4 // จำนวนปุ่มเลขหน้าสูงสุดที่โชว์พร้อมกัน
 
+const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
+
+function getHistoricalCameras() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CAMERAS_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function saveHistoricalCameras(camerasList) {
+  try {
+    if (!Array.isArray(camerasList)) return
+    const existing = getHistoricalCameras()
+    let changed = false
+    camerasList.forEach((c) => {
+      if (c && c.id && c.name) {
+        if (existing[c.id] !== c.name) {
+          existing[c.id] = c.name
+          changed = true
+        }
+      }
+    })
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_CAMERAS_HISTORY, JSON.stringify(existing))
+    }
+  } catch (e) {}
+}
+
 // แปลง ISO timestamp เป็นวันที่ + เวลาแบบไทย
 function formatDate(isoString) {
   if (!isoString) return '-'
@@ -120,6 +150,7 @@ function History() {
       try {
         const data = await getCamerasAPI(selectedVillageId)
         setCameras(data)
+        saveHistoricalCameras(data)
       } catch (error) {
         console.error(error)
       }
@@ -170,6 +201,12 @@ function History() {
         const data = await getDetectionsAPI(params)
         setHistoryData(data.items)
         setTotalItems(data.total)
+        if (Array.isArray(data.items)) {
+          const customCams = data.items
+            .map((it) => ({ id: it.camera_id, name: it.camera_name || it.camera?.name }))
+            .filter((c) => c.id && c.name)
+          saveHistoricalCameras(customCams)
+        }
       } catch (error) {
         console.error(error)
       } finally {
@@ -193,10 +230,30 @@ function History() {
     setSelectedDate(null)
   }
 
-  // หาชื่อกล้องจาก camera_id (backend ส่งมาแค่ id ไม่ส่งชื่อมาด้วย)
-  function getCameraName(cameraId) {
-    const cam = cameras.find((c) => c.id === cameraId)
-    return cam ? cam.name : '-'
+  // หาชื่อกล้องจาก camera_id + แสดงหมายเหตุหากกล้องถูกลบออกจากระบบไปแล้ว
+  function renderCameraDisplay(cameraId, directName) {
+    const currentCam = cameras.find((c) => String(c.id) === String(cameraId))
+    if (currentCam) {
+      return <span>{currentCam.name}</span>
+    }
+    const hist = getHistoricalCameras()
+    const name = directName || (cameraId ? hist[cameraId] : null) || 'กล้องที่ไม่ทราบชื่อ'
+    return (
+      <div>
+        <span>{name}</span>
+        <span
+          style={{
+            fontSize: 11,
+            color: '#94a3b8',
+            display: 'block',
+            marginTop: 2,
+            fontWeight: 500
+          }}
+        >
+          (กล้องนี้ถูกลบออกจากระบบแล้ว)
+        </span>
+      </div>
+    )
   }
 
   // โหลดรูปภาพ (แบบแนบ auth token) ทุกครั้งที่เปิด modal ดูรายละเอียด
@@ -409,7 +466,7 @@ function History() {
                         <td className="plate-text">{item.license_plate}</td>
                         <td>{item.province}</td>
                         <td>{item.color}</td>
-                        <td>{getCameraName(item.camera_id)}</td>
+                        <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
                         <td>
                           {item.direction ? (
                             <span className={`history-direction-badge ${item.direction}`}>
@@ -542,7 +599,7 @@ function History() {
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Camera</span>
-                  <span>{getCameraName(selectedItem.camera_id)}</span>
+                  <span>{renderCameraDisplay(selectedItem.camera_id, selectedItem.camera_name || selectedItem.camera?.name)}</span>
                 </div>
                 {selectedItem.direction && (
                   <div className="modal-info-row">

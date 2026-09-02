@@ -15,6 +15,37 @@ import '../styles/History.css' // 👈 ใช้ style ของ modal ดูร
 import '../styles/Blacklist.css' // 👈 ใช้ style ของตารางและ modal แบบเดียวกับ Blacklist Detection Records
 
 const RECENT_HISTORY_LIMIT = 5
+const DASHBOARD_POLL_INTERVAL_MS = 15000
+
+const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
+
+function getHistoricalCameras() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CAMERAS_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function saveHistoricalCameras(camerasList) {
+  try {
+    if (!Array.isArray(camerasList)) return
+    const existing = getHistoricalCameras()
+    let changed = false
+    camerasList.forEach((c) => {
+      if (c && c.id && c.name) {
+        if (existing[c.id] !== c.name) {
+          existing[c.id] = c.name
+          changed = true
+        }
+      }
+    })
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_CAMERAS_HISTORY, JSON.stringify(existing))
+    }
+  } catch (e) {}
+}
 
 function toDateParam(date) {
   const y = date.getFullYear()
@@ -82,6 +113,7 @@ function Dashboard() {
         pageSize: 100
       })
       setCameras(data.items)
+      saveHistoricalCameras(data.items)
     } catch (error) {
       console.error(error)
     } finally {
@@ -93,10 +125,30 @@ function Dashboard() {
     fetchCameras()
   }, [fetchCameras])
 
-  // หาชื่อกล้องจาก camera_id — reuse "cameras" ที่ดึงมาแสดงบนแผนที่อยู่แล้ว (เหมือน pattern ใน History.jsx)
-  function getCameraName(cameraId) {
-    const cam = cameras.find((c) => c.id === cameraId)
-    return cam ? cam.name : '-'
+  // หาชื่อกล้องจาก camera_id + แสดงหมายเหตุหากกล้องถูกลบออกจากระบบไปแล้ว
+  function renderCameraDisplay(cameraId, directName) {
+    const currentCam = cameras.find((c) => String(c.id) === String(cameraId))
+    if (currentCam) {
+      return <span>{currentCam.name}</span>
+    }
+    const hist = getHistoricalCameras()
+    const name = directName || (cameraId ? hist[cameraId] : null) || 'กล้องที่ไม่ทราบชื่อ'
+    return (
+      <div>
+        <span>{name}</span>
+        <span
+          style={{
+            fontSize: 11,
+            color: '#94a3b8',
+            display: 'block',
+            marginTop: 2,
+            fontWeight: 500
+          }}
+        >
+          (กล้องนี้ถูกลบออกจากระบบแล้ว)
+        </span>
+      </div>
+    )
   }
 
   // ---------- Stat Cards + Recent History (endpoint เดียว) ----------
@@ -395,7 +447,7 @@ useEffect(() => {
                           <td className="plate-text">{item.license_plate}</td>
                           <td>{item.province}</td>
                           <td>{item.color}</td>
-                          <td>{getCameraName(item.camera_id)}</td>
+                          <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
                           <td>
                             <button className="btn-view" onClick={() => setSelectedItem(item)}>
                               <FaEye /> View
@@ -476,7 +528,7 @@ useEffect(() => {
                             </td>
                             <td>{item.province || '-'}</td>
                             <td>{item.color || '-'}</td>
-                            <td>{item.camera_name || getCameraName(item.camera_id)}</td>
+                            <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
                             <td>
                               <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
                                 <FaEye /> View
@@ -598,7 +650,7 @@ useEffect(() => {
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Camera</span>
-                  <span>{getCameraName(selectedItem.camera_id)}</span>
+                  <span>{renderCameraDisplay(selectedItem.camera_id, selectedItem.camera_name || selectedItem.camera?.name)}</span>
                 </div>
               </div>
             </div>
