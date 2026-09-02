@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useSearchParams,useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
 import { FaXmark, FaPalette, FaRoute } from 'react-icons/fa6'
 import Layout from '../components/Layout'
@@ -75,6 +75,7 @@ function History() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [colorInput, setColorInput] = useState('') // 👈 ช่องค้นหาด้วยสีรถ — backend รองรับ query param "color" ตรงๆ (ยืนยันจาก Swagger แล้ว)
   const [debouncedColor, setDebouncedColor] = useState('')
+  const [selectedDirection, setSelectedDirection] = useState('all')
   const [selectedCamera, setSelectedCamera] = useState('all')
   const [selectedDate, setSelectedDate] = useState(null)
 
@@ -126,6 +127,19 @@ function History() {
     fetchCameras()
   }, [user, selectedVillageId])
 
+  // กรองรายการกล้องตามทิศทางที่เลือกแบบ Real-time
+  const availableCameras = useMemo(() => {
+    if (selectedDirection === 'all') return cameras
+    return cameras.filter((cam) => cam.direction === selectedDirection)
+  }, [cameras, selectedDirection])
+
+  // หากกล้องที่เคยเลือกไว้ ไม่อยู่ในทิศทางใหม่ที่เลือก ให้รีเซ็ตกลับเป็น 'all'
+  useEffect(() => {
+    if (selectedCamera !== 'all' && !availableCameras.some((c) => String(c.id) === String(selectedCamera))) {
+      setSelectedCamera('all')
+    }
+  }, [availableCameras, selectedCamera])
+
   // ดึงประวัติจาก backend ทุกครั้งที่ filter หรือหน้าเปลี่ยน
   useEffect(() => {
     async function fetchHistory() {
@@ -141,6 +155,7 @@ function History() {
         if (selectedVillageId) params.village_id = selectedVillageId
         if (debouncedSearch) params.license_plate = debouncedSearch
         if (debouncedColor) params.color = debouncedColor
+        if (selectedDirection !== 'all') params.direction = selectedDirection
         if (selectedCamera !== 'all') params.camera_id = selectedCamera
 
         if (selectedDate) {
@@ -163,16 +178,17 @@ function History() {
     }
 
     fetchHistory()
-  }, [user, debouncedSearch, debouncedColor, selectedCamera, selectedDate, currentPage, selectedVillageId])
+  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, selectedDate, currentPage, selectedVillageId])
 
   // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearch, debouncedColor, selectedCamera, selectedDate])
+  }, [debouncedSearch, debouncedColor, selectedDirection, selectedCamera, selectedDate])
 
   function handleReset() {
     setSearchInput('')
     setColorInput('')
+    setSelectedDirection('all')
     setSelectedCamera('all')
     setSelectedDate(null)
   }
@@ -275,13 +291,26 @@ function History() {
           </div>
 
           <div className="filter-group">
+            <label>Direction</label>
+            <select
+              value={selectedDirection}
+              onChange={(e) => setSelectedDirection(e.target.value)}
+            >
+              <option value="all">All Directions</option>
+              <option value="entry">entry</option>
+              <option value="exit">exit</option>
+              <option value="internal">internal</option>
+            </select>
+          </div>
+
+          <div className="filter-group">
             <label>Camera</label>
             <select
               value={selectedCamera}
               onChange={(e) => setSelectedCamera(e.target.value)}
             >
               <option value="all">All Cameras</option>
-              {cameras.map((cam) => (
+              {availableCameras.map((cam) => (
                 <option key={cam.id} value={cam.id}>
                   {cam.name}
                 </option>
@@ -332,13 +361,14 @@ function History() {
                   <th>Province</th>
                   <th>Color</th>
                   <th>Camera</th>
+                  <th>Direction</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan="8">
+                    <td colSpan="9">
                       <Spinner text="Loading history..." />
                     </td>
                   </tr>
@@ -365,6 +395,15 @@ function History() {
                         <td>{item.color}</td>
                         <td>{getCameraName(item.camera_id)}</td>
                         <td>
+                          {item.direction ? (
+                            <span className={`history-direction-badge ${item.direction}`}>
+                              {item.direction}
+                            </span>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                        <td>
                           <button className="btn-view" onClick={() => setSelectedItem(item)}>
                             <FaEye /> View
                           </button>
@@ -374,7 +413,7 @@ function History() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="8">
+                    <td colSpan="9">
                       <EmptyState
                         icon={<FaSearch />}
                         title="No records found"
@@ -489,6 +528,14 @@ function History() {
                   <span className="info-label">Camera</span>
                   <span>{getCameraName(selectedItem.camera_id)}</span>
                 </div>
+                {selectedItem.direction && (
+                  <div className="modal-info-row">
+                    <span className="info-label">Direction</span>
+                    <span className={`history-direction-badge ${selectedItem.direction}`}>
+                      {selectedItem.direction}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
