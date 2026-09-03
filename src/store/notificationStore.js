@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import Swal from 'sweetalert2'
 import {
   getSSEAlertsTicketAPI,
+  getSSESecurityAlertsTicketAPI,
   BASE_URL,
   getNotificationsAPI,
   getUnreadNotificationCountAPI,
@@ -21,6 +22,8 @@ const BLACKLIST_LOOKUP_WINDOW_MS = 5 * 60 * 1000 // ขอบเขตย้อ�
 
 let eventSource = null
 let reconnectTimer = null
+let securityEventSource = null
+let securityReconnectTimer = null
 let isManuallyClosed = false
 
 // ---------- คิวของ Blacklist Alert (จัดการผ่าน Zustand Store เพื่อ render เป็น 3D Stacked Cards) ----------
@@ -85,14 +88,25 @@ function formatActionTitle(action) {
 
 function mapNotification(n) {
   const meta = NOTIF_META[n.action] || { icon: 'general', title: formatActionTitle(n.action) }
+  let payload = n.payload
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload)
+    } catch (e) {}
+  }
+  let plate = payload?.license_plate || payload?.plate || n.license_plate || n.plate || null
+  if (!plate && n.detail) {
+    const match = n.detail.match(/([0-9ก-ฮa-zA-Z\s]{2,10})/)?.[1]?.trim()
+    if (match && match.length >= 3) plate = match
+  }
   return {
     id: n.id,
     action: n.action,
     type: meta.icon,
     title: meta.title,
     detail: n.detail,
-    plate: n.payload?.license_plate || null,
-    location: n.payload?.camera_name || n.payload?.location || null,
+    plate: plate,
+    location: payload?.camera_name || payload?.location || null,
     time: formatAlertTime(n.created_at),
     read: n.is_read
   }
@@ -136,6 +150,7 @@ const useNotificationStore = create((set, get) => ({
   isLoadingNotifications: false,
   latestDetection: null,
   latestCameraEvent: null,
+  latestSecurityAlert: null,
   isConnected: false,
   activeBlacklistAlerts: [],
 
@@ -232,7 +247,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('detection_created', (e) => {
         try {
           const data = JSON.parse(e.data)
-          set({ latestDetection: data })
+          set({ latestDetection: { ...data, _ts: Date.now() } })
 
           const currentUser = useAuthStore.getState().user
           const isSuperadmin = currentUser?.role === 'superadmin'
@@ -278,7 +293,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('blacklist_alert', (e) => {
         try {
           const data = JSON.parse(e.data)
-          set({ latestDetection: data })
+          set({ latestDetection: { ...data, _ts: Date.now() } })
           const currentUser = useAuthStore.getState().user
           const isSuperadmin = currentUser?.role === 'superadmin'
           const userVillageId = currentUser?.village_id
@@ -299,7 +314,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('whitelist_alert', (e) => {
         try {
           const data = JSON.parse(e.data)
-          set({ latestDetection: data })
+          set({ latestDetection: { ...data, _ts: Date.now() } })
           const currentUser = useAuthStore.getState().user
           const isSuperadmin = currentUser?.role === 'superadmin'
           const userVillageId = currentUser?.village_id
@@ -323,7 +338,11 @@ const useNotificationStore = create((set, get) => ({
             latestCameraEvent: {
               type: 'verified',
               camera_id: data.camera_id || data.id,
-              is_active: data.is_active,
+              camera_name: data.camera_name,
+              verification_status: data.verification_status || 'verified',
+              is_active: data.is_active ?? true,
+              village_id: data.village_id,
+              _ts: Date.now(),
               ...data
             }
           })
@@ -347,7 +366,11 @@ const useNotificationStore = create((set, get) => ({
             latestCameraEvent: {
               type: 'verification_failed',
               camera_id: data.camera_id || data.id,
-              is_active: data.is_active,
+              camera_name: data.camera_name,
+              verification_status: data.verification_status || 'failed',
+              is_active: data.is_active ?? false,
+              village_id: data.village_id,
+              _ts: Date.now(),
               ...data
             }
           })
@@ -363,6 +386,33 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
+      es.addEventListener('camera_verification_timeout', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          set({
+            latestCameraEvent: {
+              type: 'verification_failed',
+              camera_id: data.camera_id || data.id,
+              camera_name: data.camera_name,
+              verification_status: data.verification_status || 'failed',
+              is_active: data.is_active ?? false,
+              village_id: data.village_id,
+              _ts: Date.now(),
+              ...data
+            }
+          })
+          const currentUser = useAuthStore.getState().user
+          if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
+            toast.error(`Camera Verification Timeout${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+          }
+        } catch (err) {
+          console.error('parse camera_verification_timeout error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
+        }
+      })
+
       es.addEventListener('camera_sync_failed', (e) => {
         try {
           const data = e.data ? JSON.parse(e.data) : {}
@@ -370,7 +420,10 @@ const useNotificationStore = create((set, get) => ({
             latestCameraEvent: {
               type: 'sync_failed',
               camera_id: data.camera_id || data.id,
-              failed_services: data.failed_services,
+              camera_name: data.camera_name,
+              failed_services: data.failed_services || [],
+              village_id: data.village_id,
+              _ts: Date.now(),
               ...data
             }
           })
@@ -386,12 +439,100 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
+      function formatLockDuration(seconds) {
+        const sec = Number(seconds)
+        if (isNaN(sec) || sec <= 0) return 'ชั่วคราว'
+        if (sec < 60) {
+          return `${sec} วินาที`
+        }
+        const min = Math.floor(sec / 60)
+        const remSec = sec % 60
+        if (remSec === 0) {
+          return `${min} นาที (${sec} วินาที)`
+        }
+        return `${min} นาที ${remSec} วินาที`
+      }
+
+      function handleSecurityAlertEvent(data) {
+        console.log('[SSE] Security Alert received:', data)
+        set({ latestSecurityAlert: { ...data, _ts: Date.now() } })
+
+        const currentUser = useAuthStore.getState().user
+        const isSuperadmin = currentUser?.role === 'superadmin'
+        const userVillageId = currentUser?.village_id
+        const alertVillageId = data.village_id
+
+        const isSameVillage = !userVillageId || !alertVillageId || String(userVillageId) === String(alertVillageId)
+        const shouldAlert = isSuperadmin || isSameVillage
+
+        if (shouldAlert && (currentUser?.role === 'admin' || isSuperadmin)) {
+          const durationText = formatLockDuration(data.locked_for_seconds)
+          toast.error(
+            `ตรวจพบการพยายามล็อกอินผิดซ้ำๆ: บัญชี "${data.username || 'Unknown'}" (IP: ${data.ip_address || '-'}) ถูกระงับชั่วคราว ${durationText}`,
+            { duration: 8000 }
+          )
+        }
+        get().fetchNotifications()
+        get().fetchUnreadCount()
+      }
+
+      // 1. ดักจับจากช่อง Alert หลัก
+      es.addEventListener('login_bruteforce_detected', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          handleSecurityAlertEvent(data)
+        } catch (err) {
+          console.error('parse login_bruteforce_detected error:', err)
+        }
+      })
+
+      // 2. เปิดช่อง Security Alerts พิเศษ (/api/sse/security-alerts) สำหรับ Admin / Superadmin
+      const currentUser = useAuthStore.getState().user
+      if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
+        try {
+          if (!securityEventSource) {
+            const { ticket: secTicket } = await getSSESecurityAlertsTicketAPI()
+            const secEs = new EventSource(`${BASE_URL}/api/sse/security-alerts?ticket=${secTicket}`)
+            securityEventSource = secEs
+
+            secEs.addEventListener('ping', () => {})
+            secEs.addEventListener('login_bruteforce_detected', (e) => {
+              try {
+                const data = e.data ? JSON.parse(e.data) : {}
+                handleSecurityAlertEvent(data)
+              } catch (err) {
+                console.error('parse secEs login_bruteforce_detected error:', err)
+              }
+            })
+            secEs.addEventListener('message', (e) => {
+              try {
+                const data = e.data ? JSON.parse(e.data) : {}
+                if (data.action === 'login_bruteforce_detected' || data.type === 'security') {
+                  handleSecurityAlertEvent(data)
+                }
+              } catch {}
+            })
+
+            secEs.onerror = () => {
+              secEs.close()
+              securityEventSource = null
+            }
+          }
+        } catch (secErr) {
+          console.error('เปิด securityEventSource ไม่สำเร็จ:', secErr)
+        }
+      }
+
       es.onopen = () => set({ isConnected: true })
 
       es.onerror = () => {
         set({ isConnected: false })
         es.close()
         eventSource = null
+        if (securityEventSource) {
+          securityEventSource.close()
+          securityEventSource = null
+        }
         if (!isManuallyClosed) {
           reconnectTimer = setTimeout(() => get().connect(), RECONNECT_DELAY_MS)
         }
@@ -407,9 +548,14 @@ const useNotificationStore = create((set, get) => ({
   disconnect: () => {
     isManuallyClosed = true
     clearTimeout(reconnectTimer)
+    clearTimeout(securityReconnectTimer)
     if (eventSource) {
       eventSource.close()
       eventSource = null
+    }
+    if (securityEventSource) {
+      securityEventSource.close()
+      securityEventSource = null
     }
     set({ isConnected: false })
   },
@@ -441,7 +587,14 @@ const useNotificationStore = create((set, get) => ({
 
   reset: () => {
     get().disconnect()
-    set({ notifications: [], unreadCount: 0, latestDetection: null, latestCameraEvent: null, activeBlacklistAlerts: [] })
+    set({
+      notifications: [],
+      unreadCount: 0,
+      latestDetection: null,
+      latestCameraEvent: null,
+      latestSecurityAlert: null,
+      activeBlacklistAlerts: []
+    })
   }
 }))
 

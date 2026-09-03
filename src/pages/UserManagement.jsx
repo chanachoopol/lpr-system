@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { FaUsers, FaUserPlus, FaUserShield, FaSearch, FaIdCard } from 'react-icons/fa'
+import { FaUsers, FaUserPlus, FaUserShield, FaSearch, FaIdCard, FaEye } from 'react-icons/fa'
 import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaToggleOn, FaToggleOff, FaPaperPlane, FaCircleCheck, FaCircleXmark, FaPen, FaLockOpen, FaLock } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
@@ -7,6 +7,7 @@ import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { renderVillageDisplay } from '../components/VillageDisplay'
 import usePresenceStore from '../store/presenceStore'
+import useNotificationStore from '../store/notificationStore'
 import {
   getUsersAPI,
   createUserAPI,
@@ -26,6 +27,7 @@ import '../styles/UserManagement.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import UserProfileModal from '../components/UserProfileModal'
+import VillageDetailModal from '../components/VillageDetailModal'
 import ActionMenu from '../components/ActionMenu'
 import { filterVisibleUsers } from '../utils/Permissions'
 import { isEmailValid, isPasswordValid, isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji, hasEmoji } from '../utils/passwordPolicy'
@@ -136,12 +138,17 @@ function formatDate(isoString) {
 function UserManagement() {
   const { user: currentUser } = useAuthStore()
   const { villages, selectedVillageId, fetchVillages, getVillageName } = useVillageStore()
-  const renderVillage = (id, directName) => renderVillageDisplay(id, directName, villages)
+  const renderVillage = (id, directName) => {
+    const allVillages = villagesList && villagesList.length > 0 ? villagesList : villages
+    return renderVillageDisplay(id, directName, allVillages)
+  }
 
   // สถานะ Online/Offline — แยกจาก is_active (Active/Inactive) โดยสิ้นเชิง
   // is_active มาจาก DB (ปิด/เปิดใช้งานบัญชีผ่านปุ่ม toggle) ส่วน online มาจาก SSE presence stream แบบ real-time
   // เปิด connection เฉพาะตอนอยู่หน้านี้เท่านั้น (ดู useEffect ด้านล่าง) ไม่ผูกกับ login/logout เหมือน alert SSE
   const { onlineUserIds } = usePresenceStore()
+  const latestNotification = useNotificationStore((state) => state.latestNotification)
+  const latestSecurityAlert = useNotificationStore((state) => state.latestSecurityAlert)
 
   const isSuperadmin = currentUser?.role === 'superadmin'
   const isAdmin = currentUser?.role === 'admin'
@@ -166,6 +173,7 @@ function UserManagement() {
   // Add/Edit Village modal — null = โหมดเพิ่ม, มีค่า = โหมดแก้ไข
   const [showVillageModal, setShowVillageModal] = useState(false)
   const [editingVillage, setEditingVillage] = useState(null)
+  const [selectedVillageForDetail, setSelectedVillageForDetail] = useState(null)
   const [villageFormData, setVillageFormData] = useState(EMPTY_VILLAGE_FORM)
   const [villageTouchedFields, setVillageTouchedFields] = useState({})
   const [hasSubmittedVillageForm, setHasSubmittedVillageForm] = useState(false)
@@ -281,10 +289,17 @@ function UserManagement() {
     setIsLoadingLocked(true)
     try {
       const data = await getLockedAccountsAPI()
-      setLockedAccounts(data)
+      const items = Array.isArray(data) ? data : []
+      setLockedAccounts((prev) => {
+        const now = Date.now()
+        const backendUserIds = new Set(items.map((b) => b.user_id))
+        const activeLocal = prev.filter(
+          (p) => !backendUserIds.has(p.user_id) && p.unlocked_at && new Date(p.unlocked_at).getTime() > now
+        )
+        return [...items, ...activeLocal]
+      })
     } catch (error) {
-      console.error(error)
-      // ไม่ต้อง alert แจ้งเตือน กันรบกวน — ถ้าพลาดแค่ badge/ปุ่มปลดล็อคจะไม่โชว์ ไม่กระทบการทำงานหลักของหน้า
+      console.error('fetchLockedAccounts error:', error)
     } finally {
       setIsLoadingLocked(false)
     }
@@ -292,7 +307,54 @@ function UserManagement() {
 
   useEffect(() => {
     fetchLockedAccounts()
-  }, [fetchLockedAccounts])
+  }, [fetchLockedAccounts, latestNotification])
+
+  // Real-time Countdown: เคลียร์บัญชีที่ครบกำหนดเวลาปลดล็อคอัตโนมัติทุก 1 วินาที
+  useEffect(() => {
+    const ticker = setInterval(() => {
+      const now = Date.now()
+      setLockedAccounts((prev) => {
+        const hasExpired = prev.some((p) => p.unlocked_at && new Date(p.unlocked_at).getTime() <= now)
+        if (hasExpired) {
+          return prev.filter((p) => !p.unlocked_at || new Date(p.unlocked_at).getTime() > now)
+        }
+        return prev
+      })
+    }, 1000)
+    return () => clearInterval(ticker)
+  }, [])
+
+  // เมื่อได้รับ Security Alert (Brute-force lockout) ผ่าน SSE Real-time:
+  // Inject เข้า lockedAccounts ทันที เพื่อให้ไอคอนแม่กุญแจ <FaLock /> Locked เด้งขึ้นมาแบบ 0 วินาที
+  useEffect(() => {
+    if (!latestSecurityAlert) return
+    console.log('[UserManagement] Real-time Security Alert triggered:', latestSecurityAlert)
+    const { user_id, username, locked_for_seconds, village_id } = latestSecurityAlert
+    const resolvedUserId = user_id || users.find((u) => u.username === username)?.id
+    const unlockedAt = new Date(Date.now() + (Number(locked_for_seconds) || 10) * 1000).toISOString()
+
+    setLockedAccounts((prev) => {
+      const next = prev.filter((entry) => {
+        if (resolvedUserId && String(entry.user_id) === String(resolvedUserId)) return false
+        if (username && entry.username === username) return false
+        return true
+      })
+      return [
+        ...next,
+        {
+          user_id: resolvedUserId || user_id,
+          username: username || (resolvedUserId ? users.find((u) => u.id === resolvedUserId)?.username : undefined),
+          unlocked_at: unlockedAt,
+          village_id
+        }
+      ]
+    })
+
+    const timer = setTimeout(() => {
+      fetchLockedAccounts()
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [latestSecurityAlert, fetchLockedAccounts, users])
 
   // คำนวณจำนวน Online Now: Superadmin เห็นทุกคนทั่วระบบ / Admin เห็นเฉพาะ User และ Admin ในหมู่บ้านตนเอง
   const onlineCount = useMemo(() => {
@@ -302,12 +364,19 @@ function UserManagement() {
     return users.filter((u) => u.role !== 'superadmin' && onlineUserIds.has(u.id)).length
   }, [isSuperadmin, onlineUserIds, users])
 
-  // map user_id -> unlocked_at (เวลาที่จะปลดล็อคอัตโนมัติ) เพื่อ lookup เร็วๆ ตอน render ตาราง
+  // map user_id & username -> unlocked_at (เวลาที่จะปลดล็อคอัตโนมัติ) เพื่อ lookup เร็วๆ ตอน render ตาราง
   const lockedMap = useMemo(() => {
     const map = new Map()
+    const now = Date.now()
     lockedAccounts.forEach((entry) => {
       if (!isSuperadmin && entry.role === 'superadmin') return
-      map.set(entry.user_id, entry.unlocked_at)
+      if (entry.unlocked_at && new Date(entry.unlocked_at).getTime() <= now) return
+      if (entry.user_id) {
+        map.set(String(entry.user_id), entry.unlocked_at)
+      }
+      if (entry.username) {
+        map.set(`user:${entry.username}`, entry.unlocked_at)
+      }
     })
     return map
   }, [lockedAccounts, isSuperadmin])
@@ -674,6 +743,47 @@ function UserManagement() {
     }
   }
 
+  // ปลดล็อคบัญชีผู้ใช้ที่ถูกระงับชั่วคราวจากการพิมพ์รหัสผ่านผิด
+  async function handleUnlockAccount(targetUser) {
+    if (!targetUser) return
+    const result = await Swal.fire({
+      title: `ปลดล็อคบัญชี ${targetUser.username}?`,
+      text: 'บัญชีนี้จะสามารถเข้าสู่ระบบได้ทันที และรีเซ็ตจำนวนครั้งที่ล็อกอินผิดกลับเป็นค่าเริ่มต้น',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: 'var(--sidebar-bg, #1b2a47)',
+      cancelButtonColor: '#9ca3af',
+      confirmButtonText: 'ยืนยันปลดล็อค',
+      cancelButtonText: 'ยกเลิก'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      await unlockUserAccountAPI(targetUser.id)
+      // อัปเดต state ทันทีแบบ Real-time โดยไม่ต้องรีเฟรชหน้า
+      setLockedAccounts((prev) =>
+        prev.filter((entry) => String(entry.user_id) !== String(targetUser.id) && entry.username !== targetUser.username)
+      )
+      Swal.fire({
+        icon: 'success',
+        title: 'ปลดล็อคสำเร็จ',
+        text: `ปลดล็อคบัญชี "${targetUser.username}" เรียบร้อยแล้ว`,
+        confirmButtonColor: 'var(--sidebar-bg, #1b2a47)',
+        timer: 1500
+      })
+    } catch (error) {
+      console.error('Unlock account error:', error)
+      const errorMsg = error?.response?.data?.detail || 'เกิดข้อผิดพลาดในการปลดล็อคบัญชี กรุณาลองใหม่อีกครั้ง'
+      Swal.fire({
+        icon: 'error',
+        title: 'ปลดล็อคไม่สำเร็จ',
+        text: typeof errorMsg === 'string' ? errorMsg : 'เกิดข้อผิดพลาดในการปลดล็อคบัญชี',
+        confirmButtonColor: 'var(--sidebar-bg, #1b2a47)'
+      })
+    }
+  }
+
   function openAddVillageModal() {
     setEditingVillage(null)
     setVillageFormData(EMPTY_VILLAGE_FORM)
@@ -1007,6 +1117,8 @@ function UserManagement() {
                   users.map((u) => {
                     const isSelf = u.id === currentUser?.id
                     const isAdminTargetingSuperadmin = !isSuperadmin && u.role === 'superadmin'
+                    const isUserLocked = lockedMap.has(String(u.id)) || lockedMap.has(`user:${u.username}`)
+                    const lockExpiry = lockedMap.get(String(u.id)) || lockedMap.get(`user:${u.username}`)
 
                     return (
                       <tr key={u.id}>
@@ -1021,20 +1133,22 @@ function UserManagement() {
                           <td>
                             {u.role === 'superadmin' ? (
                               <span style={{ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>Global</span>
-                            ) : (
-                              renderVillage(u.village_id, u.village_name || u.village?.name)
-                            )}
+                            ) : (() => {
+                              const vId = u.village_id ?? u.villageId ?? u.village?.id
+                              const vName = u.village_name ?? u.villageName ?? u.village?.name ?? (vId ? getVillageName(vId) : null)
+                              return renderVillage(vId, vName && vName !== '-' ? vName : undefined)
+                            })()}
                           </td>
                         )}
                         <td>
                           <span className={`um-status-dot ${u.is_active ? 'active' : 'inactive'}`}></span>
                           {u.is_active ? 'Active' : 'Inactive'}
-                          {lockedMap.has(u.id) && (
+                          {isUserLocked && (
                             <span
                               className="um-locked-badge"
                               title={
-                                lockedMap.get(u.id)
-                                  ? `ปลดล็อคอัตโนมัติ: ${new Date(lockedMap.get(u.id)).toLocaleTimeString('th-TH')}`
+                                lockExpiry
+                                  ? `ปลดล็อคอัตโนมัติ: ${new Date(lockExpiry).toLocaleTimeString('th-TH')}`
                                   : undefined
                               }
                             >
@@ -1079,7 +1193,7 @@ function UserManagement() {
                                 key: 'unlock',
                                 label: 'ปลดล็อคบัญชี',
                                 icon: <FaLockOpen />,
-                                hidden: !lockedMap.has(u.id),
+                                hidden: !isUserLocked,
                                 disabled: isAdminTargetingSuperadmin,
                                 title: isAdminTargetingSuperadmin
                                   ? 'ไม่มีสิทธิ์ปลดล็อคบัญชี Superadmin'
@@ -1160,6 +1274,7 @@ function UserManagement() {
                 <thead>
                   <tr>
                     <th>Village Name</th>
+                    <th>Address</th>
                     <th>Status</th>
                     <th>Created At</th>
                     <th>Action</th>
@@ -1167,11 +1282,16 @@ function UserManagement() {
                 </thead>
                 <tbody>
                   {isLoadingVillagesList ? (
-                    <tr><td colSpan={4}><Spinner text="Loading villages..." /></td></tr>
+                    <tr><td colSpan={5}><Spinner text="Loading villages..." /></td></tr>
                   ) : villagesList.length > 0 ? (
                     villagesList.map((v) => (
                       <tr key={v.id}>
-                        <td className="um-username">{v.name}</td>
+                        <td className="um-username">
+                          <span style={{ fontWeight: 600 }}>{v.name}</span>
+                        </td>
+                        <td style={{ color: v.address && v.address !== '-' ? 'var(--text-primary)' : 'var(--text-secondary, #94a3b8)', fontSize: '13px', maxWidth: '260px' }}>
+                          {v.address && v.address !== '-' ? v.address : '-'}
+                        </td>
                         <td>
                           <span className={`um-status-dot ${v.is_active ? 'active' : 'inactive'}`}></span>
                           {v.is_active ? 'Active' : 'Suspended'}
@@ -1179,6 +1299,9 @@ function UserManagement() {
                         <td>{formatDate(v.created_at)}</td>
                         <td>
                           <div className="um-actions">
+                            <button className="um-icon-btn edit" onClick={() => setSelectedVillageForDetail(v)} title="ดูรายละเอียดหมู่บ้าน">
+                              <FaEye />
+                            </button>
                             <button className="um-icon-btn edit" onClick={() => openEditVillageModal(v)} title="แก้ไขชื่อหมู่บ้าน">
                               <FaPen />
                             </button>
@@ -1202,7 +1325,7 @@ function UserManagement() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4}>
+                      <td colSpan={5}>
                         <EmptyState icon={<FaCity />} title="No villages found" description="ยังไม่มีหมู่บ้านในระบบ" />
                       </td>
                     </tr>
@@ -1445,6 +1568,13 @@ function UserManagement() {
       {/* Modal View Profile */}
       {profileUser && (
         <UserProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
+      )}
+      {/* Modal View Village Detail */}
+      {selectedVillageForDetail && (
+        <VillageDetailModal
+          village={selectedVillageForDetail}
+          onClose={() => setSelectedVillageForDetail(null)}
+        />
       )}
     </Layout>
   )

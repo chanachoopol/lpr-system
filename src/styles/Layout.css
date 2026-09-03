@@ -566,6 +566,11 @@
   margin: 0 0 2px;
 }
 
+.notif-item.whitelist .notif-plate,
+.notif-plate.whitelist {
+  color: rgb(22, 163, 74) !important;
+}
+
 .notif-location {
   font-size: 12px;
   color: rgb(142, 154, 171);
@@ -579,6 +584,10 @@
   background: rgb(220, 38, 38);
   flex-shrink: 0;
   margin-top: 4px;
+}
+
+.notif-item.whitelist .notif-dot {
+  background: rgb(22, 163, 74);
 }
 
 .notif-empty {

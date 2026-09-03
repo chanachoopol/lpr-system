@@ -124,6 +124,8 @@ function Blacklist() {
   const [formData, setFormData] = useState(EMPTY_BLACKLIST_FORM)
   const [formVillageId, setFormVillageId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formTouched, setFormTouched] = useState({})
+  const [hasSubmittedForm, setHasSubmittedForm] = useState(false)
 
   // ---------- ตารางประวัติการตรวจจับที่ตรงกับ Blacklist/Whitelist (Detection Records) ----------
   const [matchingDetections, setMatchingDetections] = useState([])
@@ -274,9 +276,9 @@ function saveHistoricalWhitelistPlates(map) {
 }
 
   // ดึง Detections ทั้งหมด และ Match กับรายการ Registered (คงประวัติป้ายที่เคยลงทะเบียนแม้จะลบออกไปแล้ว)
-  const fetchDetectionsAndMatch = useCallback(async () => {
+  const fetchDetectionsAndMatch = useCallback(async (isSilent = false) => {
     if (!user) return
-    setIsLoadingDetections(true)
+    if (!isSilent) setIsLoadingDetections(true)
     try {
       // 1. ดึงรายการ blacklist หรือ whitelist ทั้งหมดในระบบ
       let regItems = []
@@ -327,12 +329,14 @@ function saveHistoricalWhitelistPlates(map) {
         saveHistoricalWhitelistPlates(histMap)
       }
 
-      // 2. ดึง detections ทั้งหมด (ย้อนหลังและวันนี้)
+      // 2. ดึง detections ที่ถูกตรวจจับว่าเป็น Blacklist/Whitelist จาก Backend โดยตรง
       let allDetections = []
       let detPage = 1
       while (detPage <= JOIN_MAX_PAGES) {
         const data = await getDetectionsAPI({
           village_id: selectedVillageId || undefined,
+          is_blacklist: isBlacklistTab ? true : undefined,
+          is_whitelist: !isBlacklistTab ? true : undefined,
           page: detPage,
           page_size: JOIN_PAGE_SIZE
         })
@@ -343,9 +347,14 @@ function saveHistoricalWhitelistPlates(map) {
         detPage += 1
       }
 
-      // 3. กรองและเชื่อมโยงข้อมูล (Join)
+      // 3. กรองและเชื่อมโยงข้อมูล (Join ข้อมูลปัจจุบัน หรือประวัติหมายเหตุ)
       const matched = []
       allDetections.forEach((d) => {
+        const isDetTarget = isBlacklistTab
+          ? Boolean(d.is_blacklist || d.is_blacklisted)
+          : Boolean(d.is_whitelist || d.is_whitelisted)
+        if (!isDetTarget) return
+
         const plate = normalizePlate(d.license_plate)
         if (!plate) return
         const prov = (d.province || '').trim()
@@ -360,33 +369,15 @@ function saveHistoricalWhitelistPlates(map) {
             isDeletedFromSystem: false
           })
         } else {
-          // ถ้าเคยมีประวัติลงทะเบียนในระบบมาก่อน (แต่ถูกแก้ไข/ลบไปแล้ว)
+          // รถคันนี้ถูกตรวจจับตอนเป็น Blacklist/Whitelist ในอดีต แต่ปัจจุบันถูกลบออกจากทะเบียนแล้ว
           const histEntry = histMap[`${plate}|${prov}`] || histMap[plate]
-          if (histEntry) {
-            matched.push({
-              ...d,
-              matchedReason: histEntry.reason || '-',
-              matchedName: histEntry.name || '-',
-              matchedNote: histEntry.note || '-',
-              isDeletedFromSystem: true
-            })
-          } else if (isBlacklistTab && (d.is_blacklist || d.is_blacklisted)) {
-            matched.push({
-              ...d,
-              matchedReason: d.reason || '-',
-              matchedName: '-',
-              matchedNote: '-',
-              isDeletedFromSystem: true
-            })
-          } else if (!isBlacklistTab && (d.is_whitelist || d.is_whitelisted)) {
-            matched.push({
-              ...d,
-              matchedReason: '-',
-              matchedName: '-',
-              matchedNote: '-',
-              isDeletedFromSystem: true
-            })
-          }
+          matched.push({
+            ...d,
+            matchedReason: histEntry?.reason || d.reason || '-',
+            matchedName: histEntry?.name || '-',
+            matchedNote: histEntry?.note || '-',
+            isDeletedFromSystem: true
+          })
         }
       })
 
@@ -396,7 +387,7 @@ function saveHistoricalWhitelistPlates(map) {
     } catch (error) {
       console.error('ดึงข้อมูลการตรวจจับไม่สำเร็จ:', error)
     } finally {
-      setIsLoadingDetections(false)
+      if (!isSilent) setIsLoadingDetections(false)
     }
   }, [user, isBlacklistTab, selectedVillageId])
 
@@ -404,7 +395,7 @@ function saveHistoricalWhitelistPlates(map) {
     fetchDetectionsAndMatch()
   }, [fetchDetectionsAndMatch])
 
-  // ---------- Real-time SSE Merge เข้าตาราง Detection Records และ KPI Cards ----------
+  // ---------- Real-time SSE Merge เข้าตาราง Detection Records ----------
   useEffect(() => {
     if (!latestDetection) return
 
@@ -435,6 +426,9 @@ function saveHistoricalWhitelistPlates(map) {
       latestDetection.whitelist
     )
 
+    const isMatchForThisTab = isBlacklistTab ? isBlacklistEvent : isWhitelistEvent
+    if (!isMatchForThisTab) return
+
     // Match กับรายชื่อที่ลงทะเบียนไว้ในปัจจุบัน
     const matchedReg = registeredList.find((r) => {
       const rPlate = normalizePlate(r.license_plate)
@@ -442,12 +436,6 @@ function saveHistoricalWhitelistPlates(map) {
       const rProv = (r.province || '').trim()
       return !rProv || !prov || rProv === prov
     })
-
-    const isMatchForThisTab = isBlacklistTab
-      ? (isBlacklistEvent || Boolean(matchedReg))
-      : (isWhitelistEvent || Boolean(matchedReg))
-
-    if (!isMatchForThisTab) return
 
     const detId = latestDetection.detection_id || latestDetection.id || `det-${Date.now()}`
 
@@ -565,6 +553,8 @@ function saveHistoricalWhitelistPlates(map) {
     setEditingEntry(null)
     setFormData(isBlacklistTab ? EMPTY_BLACKLIST_FORM : EMPTY_WHITELIST_FORM)
     setFormVillageId(selectedVillageId || (villages.length > 0 ? villages[0].id : ''))
+    setFormTouched({})
+    setHasSubmittedForm(false)
     setShowFormModal(true)
   }
 
@@ -572,6 +562,8 @@ function saveHistoricalWhitelistPlates(map) {
   function openEditModal(entry) {
     setEditingEntry(entry)
     setFormVillageId(entry.village_id || selectedVillageId || '')
+    setFormTouched({})
+    setHasSubmittedForm(false)
     if (isBlacklistTab) {
       setFormData({ plate: entry.license_plate || '', province: entry.province || '', reason: entry.reason || '' })
     } else {
@@ -587,11 +579,16 @@ function saveHistoricalWhitelistPlates(map) {
 
   function handleFormChange(e) {
     const { name, value } = e.target
+    setFormTouched((prev) => ({ ...prev, [name]: true }))
     if (name === 'name') {
       setFormData((prev) => ({ ...prev, name: filterThaiEnglishName(value) }))
       return
     }
     setFormData((prev) => ({ ...prev, [name]: stripEmoji(value) }))
+  }
+
+  function handleFieldBlur(name) {
+    setFormTouched((prev) => ({ ...prev, [name]: true }))
   }
 
   // ตรวจสอบความถูกต้องสำหรับฟอร์ม Blacklist
@@ -617,6 +614,7 @@ function saveHistoricalWhitelistPlates(map) {
   // บันทึกฟอร์ม เพิ่ม / แก้ไข
   async function handleFormSubmit(e) {
     e.preventDefault()
+    setHasSubmittedForm(true)
 
     const targetVillageId = isSuperAdmin ? formVillageId : (selectedVillageId || user?.village_id)
 
@@ -932,8 +930,9 @@ function saveHistoricalWhitelistPlates(map) {
                     </td>
                   </tr>
                 ) : paginatedDetections.length > 0 ? (
-                  paginatedDetections.map((item, index) => (
-                    <tr key={item.id || index}>
+                  paginatedDetections.map((item, index) => {
+                    return (
+                      <tr key={item.id || index}>
                       <td>{(currentPage - 1) * ROWS_PER_PAGE + index + 1}</td>
                       <td>{formatDate(item.time_detect)}</td>
                       <td>{formatTime(item.time_detect)}</td>
@@ -1005,8 +1004,9 @@ function saveHistoricalWhitelistPlates(map) {
                         </div>
                       </td>
                     </tr>
-                  ))
-                ) : (
+                  )
+                })
+              ) : (
                   <tr>
                     <td colSpan={isSuperAdmin ? 10 : 9}>
                       <EmptyState
@@ -1236,13 +1236,19 @@ function saveHistoricalWhitelistPlates(map) {
                   </label>
                   <select
                     value={formVillageId}
-                    onChange={(e) => setFormVillageId(e.target.value)}
+                    onChange={(e) => {
+                      setFormVillageId(e.target.value)
+                      setFormTouched((prev) => ({ ...prev, villageId: true }))
+                    }}
+                    onBlur={() => handleFieldBlur('villageId')}
                     disabled={Boolean(editingEntry)}
                     style={{
                       width: '100%',
                       padding: '10px 14px',
                       borderRadius: '10px',
-                      border: '1px solid rgba(27, 42, 71, 0.15)',
+                      border: (formTouched.villageId || hasSubmittedForm) && !formVillageId
+                        ? '1px solid #dc2626'
+                        : '1px solid rgba(27, 42, 71, 0.15)',
                       background: editingEntry ? '#f1f5f9' : '#ffffff',
                       fontFamily: "'DM Sans', sans-serif",
                       fontSize: '14px',
@@ -1258,24 +1264,44 @@ function saveHistoricalWhitelistPlates(map) {
                       </option>
                     ))}
                   </select>
+                  {(formTouched.villageId || hasSubmittedForm) && !formVillageId && (
+                    <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      กรุณาเลือกหมู่บ้าน
+                    </span>
+                  )}
                 </div>
               )}
 
               {!isBlacklistTab && (
                 <div className="bl-add-field">
-                  <label>ชื่อเจ้าของรถ / ผู้พักอาศัย</label>
+                  <label>
+                    ชื่อเจ้าของรถ / ผู้พักอาศัย <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
                   <input
                     type="text"
                     name="name"
                     placeholder="กรอกชื่อเจ้าของรถ เช่น สมชาย (บ้าน 99/1)"
                     value={formData.name}
                     onChange={handleFormChange}
+                    onBlur={() => handleFieldBlur('name')}
+                    style={
+                      (formTouched.name || hasSubmittedForm) && !isThaiEnglishNameValid(formData.name)
+                        ? { borderColor: '#dc2626' }
+                        : {}
+                    }
                   />
+                  {(formTouched.name || hasSubmittedForm) && !isThaiEnglishNameValid(formData.name) && (
+                    <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      กรุณากรอกชื่อเจ้าของรถ (2-50 ตัวอักษร เฉพาะภาษาไทย/อังกฤษ)
+                    </span>
+                  )}
                 </div>
               )}
 
               <div className="bl-add-field">
-                <label>ป้ายทะเบียน (2 - 15 ตัวอักษร)</label>
+                <label>
+                  ป้ายทะเบียน <span style={{ color: '#ef4444' }}>*</span> (2 - 15 ตัวอักษร)
+                </label>
                 <input
                   type="text"
                   name="plate"
@@ -1283,7 +1309,18 @@ function saveHistoricalWhitelistPlates(map) {
                   maxLength={15}
                   value={formData.plate}
                   onChange={handleFormChange}
+                  onBlur={() => handleFieldBlur('plate')}
+                  style={
+                    (formTouched.plate || hasSubmittedForm) && (!formData.plate || !isThaiLicensePlateValid(formData.plate))
+                      ? { borderColor: '#dc2626' }
+                      : {}
+                  }
                 />
+                {(formTouched.plate || hasSubmittedForm) && !formData.plate.trim() && (
+                  <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    กรุณากรอกป้ายทะเบียน
+                  </span>
+                )}
                 {formData.plate && !isThaiLicensePlateValid(formData.plate) && (
                   <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
                     รูปแบบป้ายทะเบียนไม่ถูกต้อง (อนุญาตเฉพาะตัวอักษรไทย ตัวเลข สระ และขีด)
@@ -1292,25 +1329,48 @@ function saveHistoricalWhitelistPlates(map) {
               </div>
 
               <div className="bl-add-field">
-                <label>จังหวัด</label>
+                <label>
+                  จังหวัด <span style={{ color: '#ef4444' }}>*</span>
+                </label>
                 <ProvinceAutocomplete
                   name="province"
                   value={formData.province}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, province: value }))}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, province: value }))
+                    setFormTouched((prev) => ({ ...prev, province: true }))
+                  }}
                   placeholder="เลือกหรือพิมพ์ค้นหา เช่น กรุงเทพมหานคร, เบตง"
                 />
+                {(formTouched.province || hasSubmittedForm) && (!formData.province || !isValidThaiProvince(formData.province)) && (
+                  <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    กรุณาเลือกจังหวัดที่ถูกต้องจากตัวเลือก
+                  </span>
+                )}
               </div>
 
               {isBlacklistTab ? (
                 <div className="bl-add-field">
-                  <label>เหตุผลที่ขึ้นบัญชีดำ</label>
+                  <label>
+                    เหตุผลที่ขึ้นบัญชีดำ <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
                   <input
                     type="text"
                     name="reason"
                     placeholder="เช่น ขโมยของ, บุคคลต้องสงสัย, ก่อความไม่สงบ"
                     value={formData.reason}
                     onChange={handleFormChange}
+                    onBlur={() => handleFieldBlur('reason')}
+                    style={
+                      (formTouched.reason || hasSubmittedForm) && !formData.reason.trim()
+                        ? { borderColor: '#dc2626' }
+                        : {}
+                    }
                   />
+                  {(formTouched.reason || hasSubmittedForm) && !formData.reason.trim() && (
+                    <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      กรุณาระบุเหตุผลที่ขึ้นบัญชีดำ
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="bl-add-field">
@@ -1318,7 +1378,7 @@ function saveHistoricalWhitelistPlates(map) {
                   <input
                     type="text"
                     name="note"
-                    placeholder="หมายเหตุ เช่น สมาชิกครอบครัว, พนักงานส่งของประจำ"
+                    placeholder="หมายเหตุ เช่น สมาชิกครอบครัว, ผู้ที่พักอาศัยในโครงการ"
                     value={formData.note}
                     onChange={handleFormChange}
                   />

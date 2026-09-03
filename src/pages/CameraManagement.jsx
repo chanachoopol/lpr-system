@@ -88,6 +88,8 @@ function CameraManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResyncingAll, setIsResyncingAll] = useState(false)
+  const [formTouched, setFormTouched] = useState({})
+  const [hasSubmittedForm, setHasSubmittedForm] = useState(false)
 
   // ---------- ONVIF Probe (ตัวช่วยหา RTSP) — ใช้ได้เฉพาะตอนเพิ่มกล้องใหม่ ----------
   const [showOnvifPanel, setShowOnvifPanel] = useState(false)
@@ -276,6 +278,8 @@ function CameraManagement() {
       // admin ล็อกไว้ที่หมู่บ้านตัวเอง, superadmin default ตามหมู่บ้านที่กำลังดูอยู่ (เลือกใหม่ได้)
       villageId: user?.role === 'admin' ? user.village_id : (selectedVillageId || '')
     })
+    setFormTouched({})
+    setHasSubmittedForm(false)
     resetOnvifPanel()
     setShowFormModal(true)
   }
@@ -291,12 +295,16 @@ function CameraManagement() {
       isActive: camera.is_active,
       villageId: camera.village_id || ''
     })
+    setFormTouched({})
+    setHasSubmittedForm(false)
     resetOnvifPanel()
     setShowFormModal(true)
   }
 
   function closeFormModal() {
     setShowFormModal(false)
+    setFormTouched({})
+    setHasSubmittedForm(false)
     resetOnvifPanel()
   }
 
@@ -315,6 +323,7 @@ function CameraManagement() {
 
   function handleFormChange(e) {
     const { name, value, type, checked } = e.target
+    setFormTouched((prev) => ({ ...prev, [name]: true }))
     if (name === 'lat' || name === 'long') {
       // อนุญาตเฉพาะตัวเลข เครื่องหมายลบ (-) ที่ตัวแรก และจุดทศนิยม (.) ไม่เกิน 1 จุด
       let sanitized = value.replace(/[^0-9.-]/g, '')
@@ -331,8 +340,13 @@ function CameraManagement() {
     setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
+  function handleFieldBlur(name) {
+    setFormTouched((prev) => ({ ...prev, [name]: true }))
+  }
+
   async function handleFormSubmit(e) {
     e.preventDefault()
+    setHasSubmittedForm(true)
 
     const trimmedName = formData.name.trim()
     const trimmedStreamAi = formData.streamAi.trim()
@@ -746,9 +760,21 @@ function CameraManagement() {
             <form className="cm-form" onSubmit={handleFormSubmit}>
               {!editingCamera && (
                 <div className="cm-form-field">
-                  <label>หมู่บ้าน</label>
+                  <label>
+                    หมู่บ้าน <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
                   {user?.role === 'superadmin' ? (
-                    <select name="villageId" value={formData.villageId} onChange={handleFormChange}>
+                    <select
+                      name="villageId"
+                      value={formData.villageId}
+                      onChange={handleFormChange}
+                      onBlur={() => handleFieldBlur('villageId')}
+                      style={
+                        (formTouched.villageId || hasSubmittedForm) && !formData.villageId
+                          ? { borderColor: '#dc2626' }
+                          : {}
+                      }
+                    >
                       <option value="">-- เลือกหมู่บ้าน --</option>
                       {villages.map((v) => (
                         <option key={v.id} value={v.id}>{v.name}</option>
@@ -757,23 +783,42 @@ function CameraManagement() {
                   ) : (
                     <input type="text" value={getVillageName(user?.village_id)} disabled />
                   )}
-                  <p className="cm-description" style={{ margin: '4px 0 0' }}>
-                    {user?.role === 'superadmin'
-                      ? 'เลือกหมู่บ้านที่ต้องการเพิ่มกล้องเข้าไป'
-                      : 'ล็อกไว้ที่หมู่บ้านของคุณ เนื่องจาก Admin เพิ่มกล้องได้เฉพาะหมู่บ้านตัวเอง'}
-                  </p>
+                  {(formTouched.villageId || hasSubmittedForm) && user?.role === 'superadmin' && !formData.villageId ? (
+                    <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      กรุณาเลือกหมู่บ้านที่ต้องการเพิ่มกล้อง
+                    </span>
+                  ) : (
+                    <p className="cm-description" style={{ margin: '4px 0 0' }}>
+                      {user?.role === 'superadmin'
+                        ? 'เลือกหมู่บ้านที่ต้องการเพิ่มกล้องเข้าไป'
+                        : 'ล็อกไว้ที่หมู่บ้านของคุณ เนื่องจาก Admin เพิ่มกล้องได้เฉพาะหมู่บ้านตัวเอง'}
+                    </p>
+                  )}
                 </div>
               )}
 
               <div className="cm-form-field">
-                <label>Camera Name</label>
+                <label>
+                  Camera Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
                 <input
                   type="text"
                   name="name"
                   placeholder="เช่น ป้อมยามหน้าโครงการ (ขาเข้า)"
                   value={formData.name}
                   onChange={handleFormChange}
+                  onBlur={() => handleFieldBlur('name')}
+                  style={
+                    (formTouched.name || hasSubmittedForm) && (!formData.name.trim() || hasEmoji(formData.name))
+                      ? { borderColor: '#dc2626' }
+                      : {}
+                  }
                 />
+                {(formTouched.name || hasSubmittedForm) && !formData.name.trim() && (
+                  <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    กรุณากรอกชื่อกล้อง
+                  </span>
+                )}
                 {hasEmoji(formData.name) && (
                   <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
                     ขออภัย ไม่อนุญาตให้ใช้อีโมจิในชื่อกล้อง
@@ -782,37 +827,86 @@ function CameraManagement() {
               </div>
               <div className="cm-form-row">
                 <div className="cm-form-field">
-                  <label>Latitude</label>
+                  <label>
+                    Latitude <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
                   <input
                     type="text"
                     name="lat"
                     placeholder="เช่น 13.844849"
                     value={formData.lat}
                     onChange={handleFormChange}
+                    onBlur={() => handleFieldBlur('lat')}
+                    style={
+                      (formTouched.lat || hasSubmittedForm) && (formData.lat === '' || isNaN(parseFloat(formData.lat)) || parseFloat(formData.lat) < -90 || parseFloat(formData.lat) > 90)
+                        ? { borderColor: '#dc2626' }
+                        : {}
+                    }
                   />
+                  {(formTouched.lat || hasSubmittedForm) && formData.lat === '' && (
+                    <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      กรุณากรอก Latitude
+                    </span>
+                  )}
+                  {(formTouched.lat || hasSubmittedForm) && formData.lat !== '' && (isNaN(parseFloat(formData.lat)) || parseFloat(formData.lat) < -90 || parseFloat(formData.lat) > 90) && (
+                    <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      Latitude ต้องเป็นตัวเลขระหว่าง -90 ถึง 90
+                    </span>
+                  )}
                 </div>
                 <div className="cm-form-field">
-                  <label>Longitude</label>
+                  <label>
+                    Longitude <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
                   <input
                     type="text"
                     name="long"
                     placeholder="เช่น 100.632904"
                     value={formData.long}
                     onChange={handleFormChange}
+                    onBlur={() => handleFieldBlur('long')}
+                    style={
+                      (formTouched.long || hasSubmittedForm) && (formData.long === '' || isNaN(parseFloat(formData.long)) || parseFloat(formData.long) < -180 || parseFloat(formData.long) > 180)
+                        ? { borderColor: '#dc2626' }
+                        : {}
+                    }
                   />
+                  {(formTouched.long || hasSubmittedForm) && formData.long === '' && (
+                    <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      กรุณากรอก Longitude
+                    </span>
+                  )}
+                  {(formTouched.long || hasSubmittedForm) && formData.long !== '' && (isNaN(parseFloat(formData.long)) || parseFloat(formData.long) < -180 || parseFloat(formData.long) > 180) && (
+                    <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      Longitude ต้องเป็นตัวเลขระหว่าง -180 ถึง 180
+                    </span>
+                  )}
                 </div>
               </div>
 
               <div className="cm-form-field">
-                <label>Stream Source (RTSP / AI Input)</label>
+                <label>
+                  Stream Source (RTSP / AI Input) {!editingCamera && <span style={{ color: '#ef4444' }}>*</span>}
+                </label>
                 <input
                   type="text"
                   name="streamAi"
                   placeholder="เช่น rtsp://admin:pass@192.168.1.100:554/live"
                   value={formData.streamAi}
                   onChange={handleFormChange}
+                  onBlur={() => handleFieldBlur('streamAi')}
                   disabled={!!editingCamera}
+                  style={
+                    !editingCamera && (formTouched.streamAi || hasSubmittedForm) && (!formData.streamAi.trim() || hasEmoji(formData.streamAi))
+                      ? { borderColor: '#dc2626' }
+                      : {}
+                  }
                 />
+                {!editingCamera && (formTouched.streamAi || hasSubmittedForm) && !formData.streamAi.trim() && (
+                  <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    กรุณากรอกลิงก์ Stream Source (RTSP) หรือใช้ตัวช่วยค้นหาด้านล่าง
+                  </span>
+                )}
                 {hasEmoji(formData.streamAi) && (
                   <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
                     ขออภัย ไม่อนุญาตให้ใช้อีโมจิในช่อง Stream Source

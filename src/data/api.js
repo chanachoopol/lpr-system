@@ -503,6 +503,11 @@ export async function createVillageAPI(name, address) {
   return response.data
 }
 
+export async function getVillageDetailAPI(villageId) {
+  const response = await api.get(`/api/villages/${villageId}`)
+  return response.data
+}
+
 export async function updateVillageAPI(villageId, { name, address, isActive } = {}) {
   const payload = {}
   if (name !== undefined) payload.name = name
@@ -517,6 +522,11 @@ export async function updateVillageAPI(villageId, { name, address, isActive } = 
 // ขอ ticket ก่อนเปิด stream เสมอ (ticket ใช้ได้ครั้งเดียว อายุสั้นมาก ~30 วิ ห้าม cache reuse)
 export async function getSSEAlertsTicketAPI() {
   const response = await api.post('/api/sse/ticket')
+  return response.data // { ticket }
+}
+
+export async function getSSESecurityAlertsTicketAPI() {
+  const response = await api.post('/api/sse/security-alerts/ticket')
   return response.data // { ticket }
 }
 // ==================== Notifications APIs ====================

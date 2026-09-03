@@ -316,25 +316,41 @@ function Profile() {
   function handleContactTypeChange(e) { setFormData((prev) => ({ ...prev, contentType: e.target.value, value: '', customLabel: '' })); setContactFormError('') }
   function handleFormChange(e) {
     const { name, value } = e.target
-    if (name === 'value' && formData.contentType === 'phone') { setFormData((prev) => ({ ...prev, value: formatPhoneInput(value) })); if (contactFormError) setContactFormError(''); return }
-    setFormData((prev) => ({ ...prev, [name]: value })); if (contactFormError) setContactFormError('')
+    if (name === 'value' && formData.contentType === 'phone') {
+      setFormData((prev) => ({ ...prev, value: formatPhoneInput(value) }))
+      if (contactFormError) setContactFormError('')
+      return
+    }
+    const cleanValue = stripEmoji(value)
+    if (value && cleanValue !== value) {
+      setContactFormError('ไม่รองรับการใช้อีโมจิ')
+    } else if (contactFormError) {
+      setContactFormError('')
+    }
+    setFormData((prev) => ({ ...prev, [name]: cleanValue }))
   }
   async function handleContactSubmit(e) {
     e.preventDefault()
-    if (formData.contentType === 'other' && !formData.customLabel.trim()) { setContactFormError('กรุณากรอกชื่อช่องทาง'); return }
-    const verr = getContactValueError(formData.contentType, formData.value)
+    const cleanCustomLabel = stripEmoji(formData.customLabel || '').trim()
+    const cleanValue = stripEmoji(formData.value || '').trim()
+
+    if (formData.contentType === 'other' && !cleanCustomLabel) {
+      setContactFormError('กรุณากรอกชื่อช่องทาง (ไม่รองรับอีโมจิ)')
+      return
+    }
+    const verr = getContactValueError(formData.contentType, cleanValue)
     if (verr) { setContactFormError(verr); return }
     if (!editingContact && (profile.contacts?.length || 0) >= MAX_CONTACTS) { Swal.fire({ icon: 'warning', title: 'ครบจำนวนสูงสุดแล้ว', text: `เพิ่มช่องทางติดต่อได้สูงสุด ${MAX_CONTACTS} ช่องทาง`, confirmButtonColor: 'var(--sidebar-bg)' }); return }
-    if (isDuplicateContact(formData.contentType, formData.customLabel, profile.contacts, editingContact?.id)) {
-      Swal.fire({ icon: 'warning', title: 'ช่องทางนี้มีอยู่แล้ว', text: formData.contentType === 'other' ? `คุณมีช่องทาง "${formData.customLabel.trim()}" อยู่แล้ว` : `เพิ่ม ${getContactMeta(formData.contentType).label} ได้แค่ 1 บัญชีต่อผู้ใช้`, confirmButtonColor: 'var(--sidebar-bg)' }); return
+    if (isDuplicateContact(formData.contentType, cleanCustomLabel, profile.contacts, editingContact?.id)) {
+      Swal.fire({ icon: 'warning', title: 'ช่องทางนี้มีอยู่แล้ว', text: formData.contentType === 'other' ? `คุณมีช่องทาง "${cleanCustomLabel}" อยู่แล้ว` : `เพิ่ม ${getContactMeta(formData.contentType).label} ได้แค่ 1 บัญชีต่อผู้ใช้`, confirmButtonColor: 'var(--sidebar-bg)' }); return
     }
     setIsSubmitting(true)
     try {
       if (editingContact) {
-        await updateContactAPI(editingContact.id, { contentType: formData.contentType, value: formData.value.trim(), customLabel: formData.contentType === 'other' ? formData.customLabel.trim() : null })
+        await updateContactAPI(editingContact.id, { contentType: formData.contentType, value: cleanValue, customLabel: formData.contentType === 'other' ? cleanCustomLabel : null })
         Swal.fire({ icon: 'success', title: 'แก้ไขช่องทางติดต่อแล้ว', showConfirmButton: false, timer: 1200 })
       } else {
-        await createContactAPI({ userId: currentUser?.id, contentType: formData.contentType, value: formData.value.trim(), customLabel: formData.contentType === 'other' ? formData.customLabel.trim() : undefined })
+        await createContactAPI({ userId: currentUser?.id, contentType: formData.contentType, value: cleanValue, customLabel: formData.contentType === 'other' ? cleanCustomLabel : undefined })
         Swal.fire({ icon: 'success', title: 'เพิ่มช่องทางติดต่อแล้ว', showConfirmButton: false, timer: 1200 })
       }
       setShowContactModal(false); fetchProfile()

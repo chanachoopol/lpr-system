@@ -120,7 +120,7 @@ function Navbar({ title, onToggle }) {
                   notifications.map((notif) => (
                     <div
                       key={notif.id}
-                      className={`notif-item ${!notif.read ? 'unread' : ''}`}
+                      className={`notif-item ${notif.type || ''} ${!notif.read ? 'unread' : ''}`}
                       onClick={() => handleNotifClick(notif)}
                     >
                       <div className={`notif-icon ${notif.type}`}>
@@ -138,7 +138,7 @@ function Navbar({ title, onToggle }) {
                       <div className="notif-content">
                         <p className="notif-title">{notif.title}</p>
                         {notif.plate && (
-                          <p className="notif-plate">{notif.plate}</p>
+                          <p className={`notif-plate ${notif.type === 'whitelist' ? 'whitelist' : ''}`}>{notif.plate}</p>
                         )}
                         <p className="notif-location">
                           {notif.location ? `${notif.location} • ${notif.time}` : `${notif.detail || ''}${notif.detail ? ' • ' : ''}${notif.time}`}

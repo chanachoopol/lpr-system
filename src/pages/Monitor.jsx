@@ -3,7 +3,7 @@ import { FaVideo, FaThLarge } from 'react-icons/fa'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/Monitor.css'
-import { getCamerasAPI, getCameraLiveAPI } from '../data/api'
+import { getCamerasAPI, getDetectionsAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import useNotificationStore from '../store/notificationStore'
@@ -13,7 +13,6 @@ import EmptyState from '../components/EmptyState'
 import CameraGridTile from '../components/CameraGridTile'
 import useCameraStream from '../hooks/useCameraStream'
 
-const POLLING_INTERVAL_MS = 5000
 const GRID_VIEW_VALUE = 'all' // 👈 ค่าพิเศษของ selectedCamera สำหรับโหมด Grid View
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
@@ -114,7 +113,7 @@ function Monitor() {
     fetchCameras()
   }, [user, selectedVillageId, searchParams])
 
-  // Polling ดึง latest detection — ปิดเมื่ออยู่ Grid Mode (ไม่ mount panel ฝั่งขวาแล้ว ไม่ต้อง poll)
+  // ดึง latest detection 5 รายการแรกตอนเลือกกล้อง (Initial Load ครั้งเดียว ไม่ polling รัวๆ)
   useEffect(() => {
     if (!selectedCamera || isGridMode) return
 
@@ -122,9 +121,27 @@ function Monitor() {
 
     async function fetchLive() {
       try {
-        const data = await getCameraLiveAPI(selectedCamera, 5)
+        const data = await getDetectionsAPI({
+          camera_id: selectedCamera,
+          page: 1,
+          page_size: 5
+        })
         if (!isCancelled) {
-          setLatestCaptures(data.latest_captures || [])
+          const rawCaptures = Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.latest_captures)
+            ? data.latest_captures
+            : []
+          setLatestCaptures(
+            rawCaptures.map((c) => ({
+              id: c.id || c.detection_id,
+              time_detect: c.time_detect,
+              license_plate: c.license_plate,
+              province: c.province || '-',
+              color: c.color || '-',
+              is_blacklist: Boolean(c.is_blacklist || c.is_blacklisted || c.category === 'blacklist' || c.type === 'blacklist')
+            }))
+          )
         }
       } catch (error) {
         console.error(error)
@@ -136,27 +153,30 @@ function Monitor() {
     setIsLoadingDetections(true)
     fetchLive()
 
-    const interval = setInterval(fetchLive, POLLING_INTERVAL_MS)
-
     return () => {
       isCancelled = true
-      clearInterval(interval)
     }
   }, [selectedCamera, isGridMode])
 
-  // bump แบบ real-time ผ่าน SSE — ปิดเมื่ออยู่ Grid Mode เช่นกัน
+  // อัปเดตรายการตรวจจับแบบ real-time ผ่าน SSE (Push จาก Backend ทันทีเมื่อตรวจจับได้ โดยไม่ยิง API ซ้ำ)
   useEffect(() => {
-    if (isGridMode) return
-    if (!latestDetection || latestDetection.camera?.id !== selectedCamera) return
+    if (isGridMode || !latestDetection) return
+    const matchesCamera =
+      String(latestDetection.camera?.id) === String(selectedCamera) ||
+      String(latestDetection.camera_id) === String(selectedCamera)
+
+    if (!matchesCamera) return
 
     setLatestCaptures((prev) => {
       if (prev.some((item) => item.id === latestDetection.detection_id)) return prev
+      const isBlacklist = Boolean(latestDetection.is_blacklist)
       const newItem = {
         id: latestDetection.detection_id,
         time_detect: latestDetection.time_detect,
         license_plate: latestDetection.license_plate,
         province: latestDetection.province,
-        color: latestDetection.color
+        color: latestDetection.color,
+        is_blacklist: isBlacklist
       }
       return [newItem, ...prev].slice(0, 5)
     })
@@ -301,14 +321,19 @@ function Monitor() {
                         </td>
                       </tr>
                     ) : latestCaptures.length > 0 ? (
-                      latestCaptures.map((item) => (
-                        <tr key={item.id}>
-                          <td>{formatTime(item.time_detect)}</td>
-                          <td className="bold-plate">{item.license_plate}</td>
-                          <td>{item.province}</td>
-                          <td>{item.color}</td>
-                        </tr>
-                      ))
+                      latestCaptures.map((item) => {
+                        const isBlacklist = Boolean(item.is_blacklist)
+                        return (
+                          <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
+                            <td>{formatTime(item.time_detect)}</td>
+                            <td className={`bold-plate ${isBlacklist ? 'plate-text' : ''}`}>
+                              {item.license_plate}
+                            </td>
+                            <td>{item.province}</td>
+                            <td>{item.color}</td>
+                          </tr>
+                        )
+                      })
                     ) : (
                       <tr>
                         <td colSpan="4">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
 import { FaXmark, FaPalette, FaRoute } from 'react-icons/fa6'
@@ -13,7 +13,6 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import useVillageStore from '../store/villageStore'
 import { renderVillageDisplay } from '../components/VillageDisplay'
-import useNotificationStore from '../store/notificationStore'
 
 const ROWS_PER_PAGE = 10
 const SEARCH_DEBOUNCE_MS = 400
@@ -70,17 +69,6 @@ function toDateParam(date) {
   return `${y}-${m}-${d}`
 }
 
-const STORAGE_KEY_BLACKLIST_HISTORY = 'lpr_historical_blacklist_plates'
-
-function getHistoricalBlacklistPlates() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_BLACKLIST_HISTORY)
-    return raw ? JSON.parse(raw) : {}
-  } catch (e) {
-    return {}
-  }
-}
-
 // คำนวณว่าจะโชว์เลขหน้าไหนบ้าง (จำกัดไม่ให้ยาวเกินไปเวลามีหลายสิบหน้า)
 // เช่น อยู่หน้า 8 จาก 27 หน้า จะโชว์ [7, 8, 9, 10] แทนที่จะโชว์ 1-27 ทั้งหมด
 function getVisiblePageNumbers(current, total, maxVisible) {
@@ -101,7 +89,6 @@ function History() {
   const { selectedVillageId, villages } = useVillageStore() // 👈 หมู่บ้านที่กำลังดูอยู่ (null = ทุกหมู่บ้าน, เฉพาะ superadmin)
   const isSuperAdmin = user?.role === 'superadmin'
   const renderVillage = (id, directName) => renderVillageDisplay(id, directName, villages)
-  const latestDetection = useNotificationStore((state) => state.latestDetection)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
@@ -138,11 +125,22 @@ function History() {
     return () => clearTimeout(timer)
   }, [colorInput])
 
-  // รับค่า search จาก URL (มาจาก Navbar search) ตอนเปิดหน้าครั้งแรก
+  const [highlightPlate, setHighlightPlate] = useState(searchParams.get('highlight') || '')
+
+  // รับค่า search หรือ highlight จาก URL ตอนเปิดหน้าครั้งแรก
   useEffect(() => {
     const searchFromURL = searchParams.get('search')
+    const highlightFromURL = searchParams.get('highlight')
     if (searchFromURL) {
       setSearchInput(searchFromURL)
+    }
+    if (highlightFromURL) {
+      setHighlightPlate(highlightFromURL)
+      setSearchInput(highlightFromURL)
+      const timer = setTimeout(() => {
+        setHighlightPlate('')
+      }, 4000)
+      return () => clearTimeout(timer)
     }
   }, [searchParams])
 
@@ -176,124 +174,50 @@ function History() {
     }
   }, [availableCameras, selectedCamera])
 
-  // ดึงประวัติจาก backend ทุกครั้งที่ filter หรือหน้าเปลี่ยน
-  useEffect(() => {
-    async function fetchHistory() {
-      if (!user) return
+  const fetchHistory = useCallback(async (isSilent = false) => {
+    if (!user) return
 
-      setIsLoading(true)
-      try {
-        const params = {
-          page: currentPage,
-          page_size: ROWS_PER_PAGE
-        }
-
-        if (selectedVillageId) params.village_id = selectedVillageId
-        if (debouncedSearch) params.license_plate = debouncedSearch
-        if (debouncedColor) params.color = debouncedColor
-        if (selectedDirection !== 'all') params.direction = selectedDirection
-        if (selectedCamera !== 'all') params.camera_id = selectedCamera
-
-        if (selectedDate) {
-          const startOfDay = new Date(selectedDate)
-          startOfDay.setHours(0, 0, 0, 0)
-          const endOfDay = new Date(selectedDate)
-          endOfDay.setHours(23, 59, 59, 999)
-          params.time_detect_from = startOfDay.toISOString()
-          params.time_detect_to = endOfDay.toISOString()
-        }
-
-        const data = await getDetectionsAPI(params)
-        setHistoryData(data.items)
-        setTotalItems(data.total)
-        if (Array.isArray(data.items)) {
-          const customCams = data.items
-            .map((it) => ({ id: it.camera_id, name: it.camera_name || it.camera?.name }))
-            .filter((c) => c.id && c.name)
-          saveHistoricalCameras(customCams)
-        }
-      } catch (error) {
-        console.error(error)
-      } finally {
-        setIsLoading(false)
+    if (!isSilent) setIsLoading(true)
+    try {
+      const params = {
+        page: currentPage,
+        page_size: ROWS_PER_PAGE
       }
-    }
 
-    fetchHistory()
+      if (selectedVillageId) params.village_id = selectedVillageId
+      if (debouncedSearch) params.license_plate = debouncedSearch
+      if (debouncedColor) params.color = debouncedColor
+      if (selectedDirection !== 'all') params.direction = selectedDirection
+      if (selectedCamera !== 'all') params.camera_id = selectedCamera
+
+      if (selectedDate) {
+        const startOfDay = new Date(selectedDate)
+        startOfDay.setHours(0, 0, 0, 0)
+        const endOfDay = new Date(selectedDate)
+        endOfDay.setHours(23, 59, 59, 999)
+        params.time_detect_from = startOfDay.toISOString()
+        params.time_detect_to = endOfDay.toISOString()
+      }
+
+      const data = await getDetectionsAPI(params)
+      setHistoryData(data.items)
+      setTotalItems(data.total)
+      if (Array.isArray(data.items)) {
+        const customCams = data.items
+          .map((it) => ({ id: it.camera_id, name: it.camera_name || it.camera?.name }))
+          .filter((c) => c.id && c.name)
+        saveHistoricalCameras(customCams)
+      }
+    } catch (error) {
+      console.error(error)
+    } finally {
+      if (!isSilent) setIsLoading(false)
+    }
   }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, selectedDate, currentPage, selectedVillageId])
 
-  // Real-time SSE (อัปเดตประวัติรถที่ตรวจจับได้ทันทีเมื่อมี event detection_created, blacklist_alert, whitelist_alert)
   useEffect(() => {
-    if (!latestDetection) return
-
-    const detVillageId = latestDetection.village_id || latestDetection.camera?.village_id
-    if (selectedVillageId && detVillageId && String(detVillageId) !== String(selectedVillageId)) {
-      return
-    }
-
-    if (selectedCamera !== 'all') {
-      const camId = latestDetection.camera_id || latestDetection.camera?.id
-      if (String(camId) !== String(selectedCamera)) return
-    }
-
-    if (selectedDirection !== 'all') {
-      const dir = (latestDetection.direction || latestDetection.camera?.direction || '').toLowerCase()
-      if (dir !== selectedDirection.toLowerCase()) return
-    }
-
-    const rawPlate = latestDetection.license_plate || ''
-    if (debouncedSearch && !rawPlate.toLowerCase().includes(debouncedSearch.toLowerCase())) {
-      return
-    }
-
-    const color = latestDetection.color || ''
-    if (debouncedColor && !color.toLowerCase().includes(debouncedColor.toLowerCase())) {
-      return
-    }
-
-    const detId = latestDetection.detection_id || latestDetection.id || `det-${Date.now()}`
-
-    setHistoryData((prev) => {
-      const exists = prev.some(
-        (item) =>
-          item.id === detId ||
-          (item.license_plate === rawPlate && item.time_detect === latestDetection.time_detect)
-      )
-      if (exists) return prev
-
-      const newRecord = {
-        id: detId,
-        time_detect: latestDetection.time_detect || latestDetection.created_at || new Date().toISOString(),
-        license_plate: rawPlate,
-        province: latestDetection.province || '-',
-        color: color || '-',
-        camera_id: latestDetection.camera_id || latestDetection.camera?.id,
-        camera_name: latestDetection.camera_name || latestDetection.camera?.name,
-        camera: latestDetection.camera,
-        direction: latestDetection.direction,
-        village_id: detVillageId,
-        is_blacklist: Boolean(
-          latestDetection.is_blacklist ||
-          latestDetection.is_black_list ||
-          latestDetection.is_blacklisted ||
-          latestDetection.category === 'blacklist' ||
-          latestDetection.type === 'blacklist'
-        ),
-        is_whitelist: Boolean(
-          latestDetection.is_whitelist ||
-          latestDetection.is_white_list ||
-          latestDetection.is_whitelisted ||
-          latestDetection.category === 'whitelist' ||
-          latestDetection.type === 'whitelist'
-        ),
-        image_full: latestDetection.image_full || latestDetection.image_url,
-        image_crop: latestDetection.image_crop || latestDetection.image_crop_url || latestDetection.crop_url
-      }
-
-      return [newRecord, ...prev]
-    })
-    setTotalItems((prev) => prev + 1)
-  }, [latestDetection, selectedVillageId, selectedCamera, selectedDirection, debouncedSearch, debouncedColor])
+    fetchHistory()
+  }, [fetchHistory])
 
   // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
   useEffect(() => {
@@ -526,19 +450,17 @@ function History() {
                   </tr>
                 ) : historyData.length > 0 ? (
                   historyData.map((item, index) => {
-                    const histMap = getHistoricalBlacklistPlates()
-                    const cleanPlate = (item.license_plate || '').replace(/\s+/g, '')
-                    const cleanProv = (item.province || '').trim()
-                    const isBlacklist = Boolean(
-                      item.is_blacklist ||
-                      item.is_blacklisted ||
-                      item.category === 'blacklist' ||
-                      item.type === 'blacklist' ||
-                      histMap[`${cleanPlate}|${cleanProv}`] ||
-                      histMap[cleanPlate]
+                    const isBlacklist = Boolean(item.is_blacklist)
+                    const isHighlighted = highlightPlate && (
+                      String(item.license_plate || '').trim().toLowerCase() === highlightPlate.trim().toLowerCase()
                     )
+                    const rowClass = [
+                      isBlacklist ? 'history-row-blacklist' : '',
+                      isHighlighted ? 'bl-row-highlight' : ''
+                    ].filter(Boolean).join(' ')
+
                     return (
-                      <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
+                      <tr key={item.id} className={rowClass}>
                         <td>{(currentPage - 1) * ROWS_PER_PAGE + index + 1}</td>
                         <td>{formatDate(item.time_detect)}</td>
                         <td>{formatTime(item.time_detect)}</td>

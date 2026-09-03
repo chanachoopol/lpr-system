@@ -3,17 +3,17 @@ import useVillageStore, { getVillageInfo, getHistoricalVillages } from '../store
 export function renderVillageDisplay(villageId, directName, currentVillages = []) {
   if (!villageId && !directName) return '-'
 
-  // 1. If villageId exists and is in currentVillages -> Active village
+  // 1. ถ้ามีชื่อหมู่บ้านส่งมาโดยตรง (directName) ให้แสดงผลทันที
+  if (directName && directName !== '-') {
+    return <span>{directName}</span>
+  }
+
+  // 2. ถ้ามี villageId และตรงกับหมู่บ้านในระบบ Active
   if (villageId) {
     const current = currentVillages.find((v) => String(v.id) === String(villageId))
     if (current) {
       return <span>{current.name}</span>
     }
-  }
-
-  // 2. If directName matches an active village (even without villageId)
-  if (directName && currentVillages.some((v) => v.name === directName)) {
-    return <span>{directName}</span>
   }
 
   // 3. Otherwise, village is deleted / historical -> Show name with deleted note

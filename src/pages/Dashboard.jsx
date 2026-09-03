@@ -161,44 +161,68 @@ function Dashboard() {
   }
 
   // ---------- Stat Cards + Recent History (endpoint เดียว) ----------
-const [dailyData, setDailyData] = useState(null)
-const [isLoadingStats, setIsLoadingStats] = useState(true)
-const [history, setHistory] = useState([])
-const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [dailyData, setDailyData] = useState(null)
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
+  const [history, setHistory] = useState([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
-const fetchDashboard = useCallback(async () => {
-  if (!user) return
-  setIsLoadingStats(true)
-  setIsLoadingHistory(true)
-  try {
-    const data = await getTodayDashboardAPI({
-      villageId: selectedVillageId || undefined,
-      latestLimit: RECENT_HISTORY_LIMIT
-    })
-    setDailyData(data)
-    setHistory((data.latest_detections || []).slice(0, RECENT_HISTORY_LIMIT))
-  } catch (error) {
-    console.error(error)
-  } finally {
-    setIsLoadingStats(false)
-    setIsLoadingHistory(false)
-  }
-}, [user, selectedVillageId])
+  const fetchDashboard = useCallback(async (isSilent = false) => {
+    if (!user) return
+    if (!isSilent) {
+      setIsLoadingStats(true)
+      setIsLoadingHistory(true)
+    }
+    try {
+      const data = await getTodayDashboardAPI({
+        villageId: selectedVillageId || undefined,
+        latestLimit: RECENT_HISTORY_LIMIT
+      })
+      setDailyData(data)
+      setHistory((data.latest_detections || []).slice(0, RECENT_HISTORY_LIMIT))
+    } catch (error) {
+      console.error(error)
+    } finally {
+      if (!isSilent) {
+        setIsLoadingStats(false)
+        setIsLoadingHistory(false)
+      }
+    }
+  }, [user, selectedVillageId])
 
-useEffect(() => {
-  fetchDashboard()
-}, [fetchDashboard])
-  // bump รถที่ตรวจจับล่าสุดขึ้นบนสุดตาราง แบบ real-time ผ่าน SSE
+  useEffect(() => {
+    fetchDashboard()
+  }, [fetchDashboard])
+
+  // Real-time: อัปเดตตัวเลข KPI Cards (+1 ทันที 0 วินาที) และ bump รถที่ตรวจจับล่าสุดขึ้นบนสุดตาราง
   useEffect(() => {
     if (!latestDetection) return
 
-    const detVillageId = latestDetection.village_id || latestDetection.camera?.village_id
+    const detVillageId = latestDetection.camera?.village_id || latestDetection.village_id
     // superadmin scope global ได้ทุกหมู่บ้าน — ถ้ากำลังเลือกดูหมู่บ้านเดียวอยู่ ให้กรองให้ตรง
-    if (selectedVillageId && detVillageId && detVillageId !== selectedVillageId) {
+    if (selectedVillageId && detVillageId && String(detVillageId) !== String(selectedVillageId)) {
       return
     }
 
-    const detId = latestDetection.detection_id || latestDetection.id || `det-${Date.now()}`
+    const isEntry = latestDetection.direction === 'in'
+    const isExit = latestDetection.direction === 'out'
+    const isBlacklist = Boolean(latestDetection.is_blacklist)
+    const isWhitelist = Boolean(latestDetection.is_whitelist)
+
+    // 1. Optimistic Update ตัวเลข KPI Cards ทันที 0 วินาที (ไม่ติด Spinner ไม่กระพริบ)
+    setDailyData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        entry_detections_today: (prev.entry_detections_today || 0) + (isEntry ? 1 : 0),
+        exit_detections_today: (prev.exit_detections_today || 0) + (isExit ? 1 : 0),
+        whitelist_detections_today: (prev.whitelist_detections_today || 0) + (isWhitelist ? 1 : 0),
+        blacklist_detections_today: (prev.blacklist_detections_today || 0) + (isBlacklist ? 1 : 0),
+        total_detections_today: (prev.total_detections_today || 0) + 1
+      }
+    })
+
+    // 2. อัปเดตตาราง Recent History ทันที
+    const detId = latestDetection.detection_id || `det-${Date.now()}`
 
     setHistory((prev) => {
       if (
@@ -213,20 +237,26 @@ useEffect(() => {
       }
       const newItem = {
         id: detId,
-        time_detect: latestDetection.time_detect || latestDetection.created_at || new Date().toISOString(),
+        time_detect: latestDetection.time_detect || new Date().toISOString(),
         license_plate: latestDetection.license_plate,
         province: latestDetection.province,
         color: latestDetection.color,
-        is_blacklist: latestDetection.is_blacklist || latestDetection.is_black_list || latestDetection.blacklist,
-        is_whitelist: latestDetection.is_whitelist || latestDetection.is_white_list || latestDetection.whitelist,
-        image_full: latestDetection.image_full || latestDetection.image_url,
-        image_crop: latestDetection.image_crop || latestDetection.crop_url,
-        camera_id: latestDetection.camera_id,
+        is_blacklist: isBlacklist,
+        is_whitelist: isWhitelist,
+        image_full: latestDetection.image_full,
+        image_crop: latestDetection.image_crop,
+        camera_id: latestDetection.camera?.id,
         camera: latestDetection.camera
       }
       return [newItem, ...prev].slice(0, RECENT_HISTORY_LIMIT)
     })
-  }, [latestDetection, selectedVillageId])
+
+    // 3. Silent Re-sync สถิติที่ถูกต้องสมบูรณ์จาก Backend ในพื้นหลังแบบเนียนตา (ไม่มี Spinner)
+    const timer = setTimeout(() => {
+      fetchDashboard(true)
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [latestDetection, selectedVillageId, fetchDashboard])
 
   // ---------- Modal ดูรายละเอียด/รูปภาพ (pattern เดียวกับ History.jsx) ----------
   const [selectedItem, setSelectedItem] = useState(null)
