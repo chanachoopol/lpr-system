@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo,useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FaSearch, FaCalendarAlt, FaArrowLeft } from 'react-icons/fa';
-import { FaCar, FaRoute, FaMapLocationDot } from 'react-icons/fa6';
+import { FaCar, FaRoute, FaMapLocationDot, FaXmark } from 'react-icons/fa6';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Swal from 'sweetalert2';
@@ -329,6 +329,32 @@ useEffect(() => {
   const [hoveredImageId, setHoveredImageId] = useState(null);
   const [hoverPos, setHoverPos] = useState(null);
 
+  function handleThumbHover(e, itemId) {
+    if (!routeImages[itemId]) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const PREVIEW_W = 300;
+    const PREVIEW_H = 380;
+    const GAP = 14;
+
+    let left = rect.right + GAP;
+
+    if (left + PREVIEW_W > window.innerWidth - 12) {
+      left = rect.left - PREVIEW_W - GAP;
+    }
+    if (left < 12) left = 12;
+
+    let top = rect.top + rect.height / 2 - PREVIEW_H / 2;
+
+    if (top + PREVIEW_H > window.innerHeight - 12) {
+      top = window.innerHeight - PREVIEW_H - 12;
+    }
+    if (top < 12) top = 12;
+
+    setHoveredImageId(itemId);
+    setHoverPos({ top, left });
+  }
+
   const mapItemsKey = mapItems.map((item) => item.detection_id).join('|');
 
   /*
@@ -381,30 +407,16 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapItemsKey]);
 
-  function handleThumbHover(e, itemId) {
-    if (!routeImages[itemId]) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const PREVIEW_W = 300;
-    const PREVIEW_H = 380;
-    const GAP = 14;
-
-    let left = rect.right + GAP;
-
-    if (left + PREVIEW_W > window.innerWidth - 12) {
-      left = rect.left - PREVIEW_W - GAP;
+  function scrollToMap() {
+    const mapCard = document.querySelector('.rt-map-card') || document.querySelector('.rt-result-row');
+    if (mapCard) {
+      mapCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    if (left < 12) left = 12;
-
-    let top = rect.top + rect.height / 2 - PREVIEW_H / 2;
-
-    if (top + PREVIEW_H > window.innerHeight - 12) {
-      top = window.innerHeight - PREVIEW_H - 12;
+    const layoutContent = document.querySelector('.layout-content');
+    if (layoutContent) {
+      layoutContent.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    if (top < 12) top = 12;
-
-    setHoveredImageId(itemId);
-    setHoverPos({ top, left });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function handleSelectVehicle(group) {
@@ -413,6 +425,7 @@ useEffect(() => {
       province: group.province,
       date: group.date
     });
+    setTimeout(scrollToMap, 100);
   }
 
   function handleBackToList() {
@@ -666,8 +679,14 @@ useEffect(() => {
                     const direction = item.direction;
 
                     return (
-                      <div key={item.detection_id} className="rt-timeline-item"
-                      onClick={() => routeMapRef.current?.focusPoint(item.detection_id)}>
+                      <div
+                        key={item.detection_id}
+                        className="rt-timeline-item"
+                        onClick={() => {
+                          routeMapRef.current?.focusPoint(item.detection_id, true);
+                          scrollToMap();
+                        }}
+                      >
                         <div className="rt-timeline-marker">{index + 1}</div>
 
                         <div

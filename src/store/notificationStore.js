@@ -191,7 +191,7 @@ const useNotificationStore = create((set, get) => ({
         return state
       }
 
-      return { activeBlacklistAlerts: [...state.activeBlacklistAlerts, alert] }
+      return { activeBlacklistAlerts: [alert, ...state.activeBlacklistAlerts] }
     })
   },
 

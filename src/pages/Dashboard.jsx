@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import MapView from '../components/Map'
@@ -16,7 +16,6 @@ import '../styles/History.css' // 👈 ใช้ style ของ modal ดูร
 import '../styles/Blacklist.css' // 👈 ใช้ style ของตารางและ modal แบบเดียวกับ Blacklist Detection Records
 
 const RECENT_HISTORY_LIMIT = 5
-const DASHBOARD_POLL_INTERVAL_MS = 15000
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
 
@@ -165,6 +164,7 @@ function Dashboard() {
   const [isLoadingStats, setIsLoadingStats] = useState(true)
   const [history, setHistory] = useState([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const processedDetectionsRef = useRef(new Set())
 
   const fetchDashboard = useCallback(async (isSilent = false) => {
     if (!user) return
@@ -203,12 +203,23 @@ function Dashboard() {
       return
     }
 
+    // ป้องกันการนับเบิ้ล (+2 แล้วลด 1) กรณี Backend ส่ง event ซ้ำสำหรับรถคันเดียวกัน (เช่น detection_created + whitelist_alert)
+    const detKey = latestDetection.detection_id || `${latestDetection.license_plate}-${latestDetection.time_detect}`
+    if (processedDetectionsRef.current.has(detKey)) {
+      return
+    }
+    processedDetectionsRef.current.add(detKey)
+    if (processedDetectionsRef.current.size > 100) {
+      const firstKey = processedDetectionsRef.current.values().next().value
+      processedDetectionsRef.current.delete(firstKey)
+    }
+
     const isEntry = latestDetection.direction === 'in'
     const isExit = latestDetection.direction === 'out'
     const isBlacklist = Boolean(latestDetection.is_blacklist)
     const isWhitelist = Boolean(latestDetection.is_whitelist)
 
-    // 1. Optimistic Update ตัวเลข KPI Cards ทันที 0 วินาที (ไม่ติด Spinner ไม่กระพริบ)
+    // 1. Optimistic Update ตัวเลข KPI Cards ทันที 0 วินาที (ไม่ติด Spinner ไม่กระพริบ และนับครั้งเดียวแม่นยำ)
     setDailyData((prev) => {
       if (!prev) return prev
       return {

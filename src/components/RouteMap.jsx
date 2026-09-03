@@ -53,48 +53,45 @@ async function fetchRoadPath(fromPoint, toPoint) {
   return validCoords.length >= 2 ? validCoords : null;
 }
 
-// จัดมุมมองแผนที่ให้ครอบคลุมทุกจุด — ไม่พึ่ง map.bound() ด้วย array ของจุดดิบ
-// เพราะ Longdo SDK เวอร์ชันนี้ไม่รับ format นั้น (โยน "Invalid location" ทุกครั้งแม้พิกัดถูกต้อง)
-// ลอง longdo.Bounds ก่อนถ้า SDK รองรับ ไม่งั้น fallback คำนวณ center + ประมาณ zoom เอง
+// จัดมุมมองแผนที่ให้ครอบคลุมทุกจุด — อัตราส่วนการซูมมุมกว้าง สะอาด สบายตา แบบเดียวกับหน้า Dashboard
 function fitMapToPoints(map, points) {
-  if (!map || points.length === 0) return;
+  if (!map || !points || points.length === 0) return;
 
-  if (points.length === 1) {
-    map.location({ lon: points[0].long, lat: points[0].lat }, true);
-    map.zoom(17, true);
+  const validPoints = points
+    .map((p) => ({ lat: Number(p.lat), lon: Number(p.long) }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+
+  if (validPoints.length === 0) return;
+
+  if (validPoints.length === 1) {
+    map.location({ lon: validPoints[0].lon, lat: validPoints[0].lat }, true);
+    map.zoom(15, true);
     return;
   }
 
-  const lons = points.map((p) => p.long);
-  const lats = points.map((p) => p.lat);
+  const lons = validPoints.map((p) => p.lon);
+  const lats = validPoints.map((p) => p.lat);
   const minLon = Math.min(...lons);
   const maxLon = Math.max(...lons);
   const minLat = Math.min(...lats);
   const maxLat = Math.max(...lats);
 
-  if (window.longdo?.Bounds) {
-    try {
-      const bounds = new window.longdo.Bounds(minLon, minLat, maxLon, maxLat);
-      map.bound(bounds, true);
-      return;
-    } catch (error) {
-      console.warn('longdo.Bounds ใช้ไม่ได้ใน SDK นี้ fallback เป็นคำนวณ zoom เอง:', error);
-    }
-  }
-
-  // Fallback: คำนวณจุดกึ่งกลาง + ประมาณ zoom level หยาบ ๆ จากระยะห่างพิกัด (องศา)
+  // คำนวณจุดกึ่งกลาง + ระดับการซูมที่ครอบคลุมทุกจุดพร้อมระยะเผื่อขอบ (แบบเดียวกับหน้า Dashboard)
   const centerLon = (minLon + maxLon) / 2;
   const centerLat = (minLat + maxLat) / 2;
   const maxSpan = Math.max(maxLon - minLon, maxLat - minLat);
 
-  let zoom = 17;
-  if (maxSpan > 0.5) zoom = 9;
-  else if (maxSpan > 0.2) zoom = 11;
-  else if (maxSpan > 0.08) zoom = 12;
-  else if (maxSpan > 0.04) zoom = 13;
-  else if (maxSpan > 0.02) zoom = 14;
-  else if (maxSpan > 0.01) zoom = 15;
-  else if (maxSpan > 0.005) zoom = 16;
+  let zoom = 15;
+  if (maxSpan > 1.0) zoom = 7;
+  else if (maxSpan > 0.5) zoom = 9;
+  else if (maxSpan > 0.2) zoom = 10;
+  else if (maxSpan > 0.1) zoom = 11;
+  else if (maxSpan > 0.05) zoom = 12;
+  else if (maxSpan > 0.02) zoom = 13;
+  else if (maxSpan > 0.01) zoom = 14;
+  else if (maxSpan > 0.004) zoom = 15;
+  else if (maxSpan > 0.001) zoom = 15;
+  else zoom = 15;
 
   map.location({ lon: centerLon, lat: centerLat }, true);
   map.zoom(zoom, true);
@@ -127,7 +124,8 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
 
       const map = new window.longdo.Map({
         placeholder: mapRef.current,
-        language: 'th'
+        language: 'th',
+        ...(window.longdo.Ui?.HIDDEN ? { ui: window.longdo.Ui.HIDDEN } : {})
       });
 
       mapInstanceRef.current = map;
@@ -136,12 +134,16 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
         if (isCancelled) return;
 
         try {
-          map.Ui.Crosshair.visible(false);
-          map.Ui.Zoombar.visible(false);
-          map.Ui.Toolbar.visible(false);
-          map.Ui.Geolocation.visible(false);
-          map.Ui.LayerSelector.visible(false);
-          map.Ui.Fullscreen.visible(false);
+          if (map.Ui) {
+            map.Ui.Crosshair?.visible(false);
+            map.Ui.Zoombar?.visible(false);
+            map.Ui.DPad?.visible(false);
+            map.Ui.Scale?.visible(false);
+            map.Ui.Toolbar?.visible(false);
+            map.Ui.Geolocation?.visible(false);
+            map.Ui.LayerSelector?.visible(false);
+            map.Ui.Fullscreen?.visible(false);
+          }
         } catch (error) {
           console.warn('ซ่อน UI ของแผนที่ไม่สำเร็จ:', error);
         }
@@ -208,10 +210,9 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
     return { top, left };
   }, []);
 
-  // เปิดเมธอด focusPoint ให้ RouteTracking.jsx สั่งจาก timeline ได้ — ไม่ใส่ dep array
-  // เพื่อให้ closure จับค่า routePoints ล่าสุดเสมอ (recreate ทุก render เหมือน useEffect ไม่มี deps)
+  // เปิดเมธอด focusPoint ให้ RouteTracking.jsx สั่งจาก timeline ได้
   useImperativeHandle(ref, () => ({
-    focusPoint(pointId) {
+    focusPoint(pointId, shouldPan = true) {
       const map = mapInstanceRef.current;
       if (!map) return;
 
@@ -221,20 +222,33 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
       // กันพิกัดไม่ถูกต้อง (NaN/undefined) หลุดเข้า map.location() แล้วโดน "Invalid location"
       if (!point || !isValidLatLong(point.lat, point.long)) return;
 
-      map.location({ lon: point.long, lat: point.lat }, true);
-      map.zoom(18, true);
+      if (shouldPan) {
+        map.location({ lon: point.long, lat: point.lat }, true);
+      }
 
-      // รอ map animate เสร็จก่อน แล้วค่อยเปิดการ์ดค้างไว้ (pinned) ที่ตำแหน่งใหม่ของหมุด
+      // อัปเดตตัวเลขบนหมุดที่ตำแหน่งนั้นให้เป็นเลข order ปัจจุบัน พร้อมเปิดการ์ดข้อมูล
+      const delay = shouldPan ? FOCUS_ANIMATION_DELAY_MS : 50;
       setTimeout(() => {
-        const selector = `[data-route-point-id="${
-          window.CSS && CSS.escape ? CSS.escape(String(pointId)) : pointId
-        }"]`;
-        const pinEl = mapRef.current?.querySelector(selector);
-        if (!pinEl) return;
+        const container = mapRef.current;
+        if (!container) return;
 
-        const style = computeCardPosition(pinEl);
+        const locKey = `${point.lat.toFixed(5)},${point.long.toFixed(5)}`;
+        const allPins = container.querySelectorAll('.rt-map-marker-pin');
+        allPins.forEach((p) => p.classList.remove('rt-pin-active'));
+
+        const locPins = container.querySelectorAll(`[data-route-location="${locKey}"]`);
+        locPins.forEach((pin) => {
+          pin.classList.add('rt-pin-active');
+          const span = pin.querySelector('span');
+          if (span) span.textContent = point.order;
+        });
+
+        const targetPin = container.querySelector(`[data-route-point-id="${pointId}"]`) || locPins[0];
+        if (!targetPin) return;
+
+        const style = computeCardPosition(targetPin);
         if (style) setHoveredPoint({ point, style, pinned: true });
-      }, FOCUS_ANIMATION_DELAY_MS);
+      }, delay);
     }
   }));
 
@@ -244,7 +258,7 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
     if (!container) return;
 
     function handleMouseOver(e) {
-      const pinEl = e.target.closest('[data-route-point-id]');
+      const pinEl = e.target.closest('.rt-map-marker-pin');
       if (!pinEl) return;
 
       const pointId = pinEl.getAttribute('data-route-point-id');
@@ -256,7 +270,7 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
     }
 
     function handleMouseOut(e) {
-      const pinEl = e.target.closest('[data-route-point-id]');
+      const pinEl = e.target.closest('.rt-map-marker-pin');
       if (!pinEl) return;
       if (pinEl.contains(e.relatedTarget)) return;
       // การ์ดที่ pinned ไว้จาก focusPoint ไม่ถูกปิดจาก mouseout ธรรมดา (ผู้ใช้ไม่ได้ hover มันอยู่)
@@ -300,10 +314,9 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
             return;
           }
 
-          const isFirst = point.order === 1;
-          const isLast = point.order === routePoints.length;
-          const pinColor = isLast ? '#dc2626' : isFirst ? '#16a34a' : '#2563eb';
+          const pinColor = '#16a34a';
           const pointId = point.id ?? point.detectionId;
+          const locKey = `${point.lat.toFixed(5)},${point.long.toFixed(5)}`;
 
           try {
             const marker = new window.longdo.Marker(
@@ -313,7 +326,7 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
                 icon: {
                   offset: { x: 16, y: 32 },
                   html: `
-                    <div data-route-point-id="${pointId}" style="
+                    <div class="rt-map-marker-pin" data-route-point-id="${pointId}" data-route-order="${point.order}" data-route-location="${locKey}" style="
                       width: 32px;
                       height: 32px;
                       border-radius: 50% 50% 50% 0;
