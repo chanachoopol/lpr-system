@@ -263,6 +263,33 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  // เมื่อเปลี่ยนหมู่บ้านใน Navbar ให้ Re-fetch ค้นหาเส้นทางใหม่ตามขอบเขตหมู่บ้านที่เลือกอัตโนมัติ
+  useEffect(() => {
+    const currentQuery = queryInput.trim() || selectedVehicle?.plate;
+    if (!currentQuery || !hasSearched) return;
+
+    runSearch(currentQuery).then((groups) => {
+      if (!groups || groups.length === 0) {
+        setSelectedVehicle(null);
+        return;
+      }
+      if (selectedVehicle) {
+        const stillExists = groups.find(
+          (g) =>
+            g.plate === selectedVehicle.plate &&
+            g.province === selectedVehicle.province &&
+            g.date === selectedVehicle.date
+        );
+        if (stillExists) {
+          setSelectedVehicle(stillExists);
+        } else {
+          setSelectedVehicle(groups[0]);
+        }
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVillageId]);
+
   const selectedGroup = useMemo(
     () =>
       vehicleGroups.find(
