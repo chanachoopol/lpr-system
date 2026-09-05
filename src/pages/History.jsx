@@ -99,7 +99,8 @@ function History() {
   const [debouncedColor, setDebouncedColor] = useState('')
   const [selectedDirection, setSelectedDirection] = useState('all')
   const [selectedCamera, setSelectedCamera] = useState('all')
-  const [selectedDate, setSelectedDate] = useState(null)
+  const [startDate, setStartDate] = useState(null)
+  const [endDate, setEndDate] = useState(null)
 
   const [historyData, setHistoryData] = useState([])
   const [totalItems, setTotalItems] = useState(0)
@@ -174,6 +175,7 @@ function History() {
     }
   }, [availableCameras, selectedCamera])
 
+  // ดึงข้อมูลตารางประวัติ
   const fetchHistory = useCallback(async (isSilent = false) => {
     if (!user) return
 
@@ -190,20 +192,51 @@ function History() {
       if (selectedDirection !== 'all') params.direction = selectedDirection
       if (selectedCamera !== 'all') params.camera_id = selectedCamera
 
-      if (selectedDate) {
-        const startOfDay = new Date(selectedDate)
+      // ลอจิกวันที่: ถ้าเลือกแค่วันแรก = หาวันนั้นทั้งวัน, ถ้าเลือก 2 วัน = หาช่วงวันที่
+      if (startDate && !endDate) {
+        const startOfDay = new Date(startDate)
         startOfDay.setHours(0, 0, 0, 0)
-        const endOfDay = new Date(selectedDate)
+        const endOfDay = new Date(startDate)
         endOfDay.setHours(23, 59, 59, 999)
         params.time_detect_from = startOfDay.toISOString()
         params.time_detect_to = endOfDay.toISOString()
+      } else {
+        if (startDate) {
+          const startOfDay = new Date(startDate)
+          startOfDay.setHours(0, 0, 0, 0)
+          params.time_detect_from = startOfDay.toISOString()
+        }
+        if (endDate) {
+          const endOfDay = new Date(endDate)
+          endOfDay.setHours(23, 59, 59, 999)
+          params.time_detect_to = endOfDay.toISOString()
+        }
       }
 
       const data = await getDetectionsAPI(params)
-      setHistoryData(data.items)
-      setTotalItems(data.total)
-      if (Array.isArray(data.items)) {
-        const customCams = data.items
+      const items = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data)
+        ? data
+        : []
+
+      let total = 0
+      if (typeof data?.total === 'number') {
+        total = data.total
+      } else if (typeof data?.count === 'number') {
+        total = data.count
+      } else if (items.length >= ROWS_PER_PAGE) {
+        total = currentPage * ROWS_PER_PAGE + 1
+      } else {
+        total = (currentPage - 1) * ROWS_PER_PAGE + items.length
+      }
+
+      setHistoryData(items)
+      setTotalItems(total)
+      if (Array.isArray(items)) {
+        const customCams = items
           .map((it) => ({ id: it.camera_id, name: it.camera_name || it.camera?.name }))
           .filter((c) => c.id && c.name)
         saveHistoricalCameras(customCams)
@@ -213,7 +246,7 @@ function History() {
     } finally {
       if (!isSilent) setIsLoading(false)
     }
-  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, selectedDate, currentPage, selectedVillageId])
+  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, currentPage, selectedVillageId])
 
   useEffect(() => {
     fetchHistory()
@@ -222,14 +255,15 @@ function History() {
   // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearch, debouncedColor, selectedDirection, selectedCamera, selectedDate])
+  }, [debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate])
 
   function handleReset() {
     setSearchInput('')
     setColorInput('')
     setSelectedDirection('all')
     setSelectedCamera('all')
-    setSelectedDate(null)
+    setStartDate(null)
+    setEndDate(null)
   }
 
   // หาชื่อกล้องจาก camera_id + แสดงหมายเหตุหากกล้องถูกลบออกจากระบบไปแล้ว
@@ -299,7 +333,7 @@ function History() {
     }
   }, [modalImages])
 
-  const totalPages = Math.ceil(totalItems / ROWS_PER_PAGE)
+  const totalPages = Math.max(1, Math.ceil((totalItems || 0) / ROWS_PER_PAGE))
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
 
   function closeModal() {
@@ -393,19 +427,41 @@ function History() {
             </select>
           </div>
 
-          <div className="filter-group">
-            <label>Date</label>
-            <div className="filter-input-wrap">
-              <FaCalendarAlt className="filter-icon" />
-              <DatePicker
-                selected={selectedDate}
-                onChange={(date) => setSelectedDate(date)}
-                dateFormat="dd/MM/yyyy"
-                maxDate={new Date()}
-                className="datepicker-history"
-                placeholderText="All dates"
-                isClearable
-              />
+          <div className="filter-group filter-group-date">
+            <label>Date Range (จากวันที่ - ถึงวันที่)</label>
+            <div className="filter-date-range-wrap">
+              <div className="filter-input-wrap">
+                <FaCalendarAlt className="filter-icon" />
+                <DatePicker
+                  selected={startDate}
+                  onChange={(date) => setStartDate(date)}
+                  selectsStart
+                  startDate={startDate}
+                  endDate={endDate}
+                  maxDate={endDate || new Date()}
+                  dateFormat="dd/MM/yyyy"
+                  className="datepicker-history"
+                  placeholderText="จากวันที่"
+                  isClearable
+                />
+              </div>
+              <span className="filter-date-separator">-</span>
+              <div className="filter-input-wrap">
+                <FaCalendarAlt className="filter-icon" />
+                <DatePicker
+                  selected={endDate}
+                  onChange={(date) => setEndDate(date)}
+                  selectsEnd
+                  startDate={startDate}
+                  endDate={endDate}
+                  minDate={startDate}
+                  maxDate={new Date()}
+                  dateFormat="dd/MM/yyyy"
+                  className="datepicker-history"
+                  placeholderText="ถึงวันที่"
+                  isClearable
+                />
+              </div>
             </div>
           </div>
 

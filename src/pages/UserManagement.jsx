@@ -32,9 +32,23 @@ import ActionMenu from '../components/ActionMenu'
 import { filterVisibleUsers } from '../utils/Permissions'
 import { isEmailValid, isPasswordValid, isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji, hasEmoji } from '../utils/passwordPolicy'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
+const MAX_VISIBLE_PAGES = 4
 const SEARCH_DEBOUNCE_MS = 400
 const MIN_PASSWORD_LENGTH = 8
+
+function getVisiblePageNumbers(currentPage, totalPages, maxVisible = 4) {
+  if (totalPages <= maxVisible) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+  let start = Math.max(1, currentPage - Math.floor(maxVisible / 2))
+  let end = start + maxVisible - 1
+  if (end > totalPages) {
+    end = totalPages
+    start = end - maxVisible + 1
+  }
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+}
 
 const CAN_ADD_ADMIN_ROLES = ['superadmin']
 const CAN_ADD_VILLAGE_ROLES = ['superadmin']
@@ -159,8 +173,10 @@ function UserManagement() {
 
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [villageFilter, setVillageFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all') // all | active | inactive
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Add User modal
   const [showFormModal, setShowFormModal] = useState(false)
@@ -222,28 +238,35 @@ function UserManagement() {
   // เปิด presence connection ตอนเข้าหน้านี้ ปิดทันทีตอนออกจากหน้า
   // (ต่างจาก alert SSE ที่เปิดค้างทั้งแอปตอน login — presence ใช้เฉพาะหน้านี้ ไม่กินคอนเนกชันฟรีๆ ตอนอยู่หน้าอื่น)
 
-
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), SEARCH_DEBOUNCE_MS)
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim())
+      setCurrentPage(1)
+    }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [searchInput])
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [villageFilter, roleFilter, statusFilter])
 
   const fetchUsers = useCallback(async () => {
     if (!currentUser) return
     setIsLoading(true)
     try {
+      const targetVillageId = isSuperadmin
+        ? (villageFilter !== 'all' ? villageFilter : selectedVillageId || undefined)
+        : (selectedVillageId || undefined)
+
       const data = await getUsersAPI({
-        villageId: selectedVillageId || undefined,
+        villageId: targetVillageId,
         role: roleFilter === 'all' ? undefined : roleFilter,
         isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
         search: debouncedSearch || undefined,
-        page: 1,
+        page: currentPage,
         pageSize: PAGE_SIZE
       })
-      // filterVisibleUsers เป็นแค่เกราะกันชั้นสอง — ตัวกรองหลักคือ selectedVillageId
-      // ที่ส่งไปกับ request แล้ว (ผูกกับหมู่บ้านของ admin อัตโนมัติ)
-      // เผื่อ backend มี edge case ที่ยัง enforce ไม่ครบ (known issue ที่คุยกันไว้)
-      console.log('[DEBUG] raw data.items[0]:', data.items[0])
       setUsers(filterVisibleUsers(currentUser, data.items))
       setTotal(data.total)
     } catch (error) {
@@ -257,7 +280,7 @@ function UserManagement() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentUser, selectedVillageId, roleFilter, statusFilter, debouncedSearch])
+  }, [currentUser, isSuperadmin, villageFilter, selectedVillageId, roleFilter, statusFilter, debouncedSearch, currentPage])
 
   useEffect(() => {
     fetchUsers()
@@ -999,6 +1022,9 @@ function UserManagement() {
     }
   }
 
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
+
   return (
     <Layout title="User Management">
       <div className="um-wrapper">
@@ -1050,39 +1076,33 @@ function UserManagement() {
               </p>
             </div>
             <div className="um-header-actions">
-              <button
-                className="btn-add-village"
-                disabled={!CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role)}
-                onClick={() => CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) && openAddVillageModal()}
-                title={!CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) ? 'เฉพาะ Superadmin เท่านั้นที่เพิ่มหมู่บ้านได้' : undefined}
-              >
-                <FaCity /> Add Village
-              </button>
+              {CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) && (
+                <button className="btn-add-village" onClick={openAddVillageModal}>
+                  <FaCity /> Add Village
+                </button>
+              )}
               <button className="btn-add-user" onClick={() => openAddModal('user')}>
                 <FaUserPlus /> Add User
               </button>
-              <button
-                className="btn-add-admin"
-                disabled={!CAN_ADD_ADMIN_ROLES.includes(currentUser?.role)}
-                onClick={() => CAN_ADD_ADMIN_ROLES.includes(currentUser?.role) && openAddModal('admin')}
-                title={!CAN_ADD_ADMIN_ROLES.includes(currentUser?.role) ? 'เฉพาะ Superadmin เท่านั้นที่เพิ่มบัญชี Admin ได้' : undefined}
-              >
-                <FaUserShield /> Add Admin
-              </button>
+              {CAN_ADD_ADMIN_ROLES.includes(currentUser?.role) && (
+                <button className="btn-add-admin" onClick={() => openAddModal('admin')}>
+                  <FaUserShield /> Add Admin
+                </button>
+              )}
             </div>
           </div>
 
           <div className="um-filters">
-            <div className="um-search-wrap">
-              <FaSearch className="um-search-icon" />
-              <input
-                type="text"
-                placeholder="ค้นหา username..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="um-search-input"
-              />
-            </div>
+            {isSuperadmin && (
+              <select value={villageFilter} onChange={(e) => setVillageFilter(e.target.value)}>
+                <option value="all">All Villages</option>
+                {villages.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
               <option value="all">All Roles</option>
               <option value="user">User</option>
@@ -1094,6 +1114,16 @@ function UserManagement() {
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+            <div className="um-search-wrap">
+              <FaSearch className="um-search-icon" />
+              <input
+                type="text"
+                placeholder="ค้นหา username..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="um-search-input"
+              />
+            </div>
           </div>
 
           <div className="table-responsive">
@@ -1181,12 +1211,7 @@ function UserManagement() {
                                 key: 'toggle-active',
                                 label: u.is_active ? 'ปิดใช้งานบัญชี' : 'เปิดใช้งานบัญชี',
                                 icon: u.is_active ? <FaToggleOff /> : <FaToggleOn />,
-                                disabled: isSelf || isAdminTargetingSuperadmin,
-                                title: isSelf
-                                  ? 'ไม่สามารถปิดใช้งานบัญชีของตนเองได้'
-                                  : isAdminTargetingSuperadmin
-                                  ? 'ไม่มีสิทธิ์ปิด/เปิดใช้งานบัญชี Superadmin'
-                                  : undefined,
+                                hidden: isSelf || isAdminTargetingSuperadmin,
                                 onClick: () => handleToggleActive(u)
                               },
                               {
@@ -1227,12 +1252,7 @@ function UserManagement() {
                                 label: 'ลบผู้ใช้',
                                 icon: <FaTrashCan />,
                                 danger: true,
-                                disabled: isSelf || isAdminTargetingSuperadmin,
-                                title: isSelf
-                                  ? 'ไม่สามารถลบบัญชีของตนเองได้'
-                                  : isAdminTargetingSuperadmin
-                                  ? 'ไม่มีสิทธิ์ลบบัญชี Superadmin'
-                                  : undefined,
+                                hidden: isSelf || isAdminTargetingSuperadmin,
                                 onClick: () => handleDelete(u)
                               }
                             ]}
@@ -1251,7 +1271,38 @@ function UserManagement() {
               </tbody>
             </table>
           </div>
-          <p className="um-total-count">Showing {users.length} of {total.toLocaleString()} users</p>
+          <div className="um-table-footer">
+            <p className="um-total-count">Showing {users.length} of {total.toLocaleString()} users</p>
+            {totalPages > 1 && (
+              <div className="pagination">
+                <button
+                  className="page-btn"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  title="หน้าก่อนหน้า"
+                >
+                  &lt;
+                </button>
+                {visiblePages.map((page) => (
+                  <button
+                    key={page}
+                    className={`page-btn ${page === currentPage ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  className="page-btn"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  title="หน้าถัดไป"
+                >
+                  &gt;
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Village Management — เฉพาะ Superadmin */}

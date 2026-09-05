@@ -21,6 +21,27 @@
   min-width: 200px;
 }
 
+.filter-group-date {
+  min-width: 280px;
+  flex: 1.4;
+}
+
+.filter-date-range-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-date-range-wrap .filter-input-wrap {
+  flex: 1;
+}
+
+.filter-date-separator {
+  color: rgb(148, 163, 184);
+  font-weight: 600;
+  font-size: 14px;
+}
+
 .filter-group label {
   font-size: 12px;
   font-weight: 600;

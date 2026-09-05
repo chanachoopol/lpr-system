@@ -1,9 +1,86 @@
 import axios from 'axios'
+import Cookies from 'js-cookie'
 import useAuthStore from '../store/authStore'
 
 // Base URL ของ backend
 // ใช้ '' เพื่อให้วิ่งผ่าน Vite Proxy ในเครื่อง (คุกกี้จะเป็น Same-Origin ไม่โดน Browser บล็อก)
 export const BASE_URL = ''
+export const ACCESS_TOKEN_COOKIE = 'access_token'
+
+// ถอดรหัสอ่านเวลาคงเหลือของ JWT Token จาก Claim 'exp' ที่ Backend เป็นผู้กำหนด (Single Source of Truth)
+export function getTokenRemainingMs(token) {
+  if (!token || typeof token !== 'string') return null
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return null
+    const base64Url = parts[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    const payload = JSON.parse(jsonPayload)
+    if (payload.exp && typeof payload.exp === 'number') {
+      const expiryTimestampMs = payload.exp * 1000
+      const currentTimestampMs = Date.now()
+      const remainingMs = expiryTimestampMs - currentTimestampMs
+      return remainingMs > 0 ? remainingMs : 0
+    }
+  } catch (error) {
+    console.error('Failed to parse JWT exp payload:', error)
+  }
+  return null
+}
+
+// คำนวณวันหมดอายุของ Token เป็น Date Object เพื่อใช้บันทึกลง Cookie แบบ Dynamic (ห้าม Hardcode)
+export function getTokenExpiryDate(token, expiresInSec = null) {
+  if (expiresInSec && typeof expiresInSec === 'number' && expiresInSec > 0) {
+    return new Date(Date.now() + expiresInSec * 1000)
+  }
+  if (!token || typeof token !== 'string') return null
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return null
+    const base64Url = parts[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    const payload = JSON.parse(jsonPayload)
+    if (payload.exp && typeof payload.exp === 'number') {
+      return new Date(payload.exp * 1000)
+    }
+  } catch (error) {
+    console.error('Failed to parse JWT expiry date:', error)
+  }
+  return null
+}
+
+// บันทึก Access Token ลง Cookie ตามอายุจริงของ Token
+export function setAccessTokenCookie(token, expiresInSec = null) {
+  if (!token) return
+  const expiry = getTokenExpiryDate(token, expiresInSec)
+  const options = { path: '/', sameSite: 'lax' }
+  if (expiry) {
+    options.expires = expiry
+  }
+  Cookies.set(ACCESS_TOKEN_COOKIE, token, options)
+}
+
+// ลบ Access Token ออกจาก Cookie
+export function removeAccessTokenCookie() {
+  Cookies.remove(ACCESS_TOKEN_COOKIE, { path: '/' })
+}
+
+// อ่าน Access Token จาก Cookie
+export function getAccessTokenCookie() {
+  return Cookies.get(ACCESS_TOKEN_COOKIE) || null
+}
 
 // สร้าง axios instance สำหรับ request ทั่วไป (JSON)
 export const api = axios.create({
@@ -15,49 +92,70 @@ export const api = axios.create({
   }
 })
 
-// แนบ token ทุก request อัตโนมัติ
-api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken
+// ==================== Request Queueing & Interceptors ====================
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
+// แนบ token ทุก request อัตโนมัติ — หากมีการ Refresh กำลังทำงานอยู่ ให้รอรับ Token ใหม่ก่อนส่งออก
+api.interceptors.request.use(async (config) => {
+  const isPublicAuthCall = config.url?.includes('/api/auth/login') || config.url?.includes('/api/auth/refresh')
+  if (isPublicAuthCall) {
+    return config
+  }
+
+  if (isRefreshing) {
+    try {
+      const newToken = await new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject })
+      })
+      config.headers.Authorization = `Bearer ${newToken}`
+      return config
+    } catch (err) {
+      return Promise.reject(err)
+    }
+  }
+
+  const token = useAuthStore.getState().accessToken || getAccessTokenCookie()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
-// ==================== Response Interceptor — จัดการ 401 แบบ global ====================
-// กันเรียก /refresh ซ้ำพร้อมกันหลาย request (เช่นหน้า dashboard ยิงหลาย API พร้อมกันแล้วโดน 401 พร้อมกันหมด)
-let isRefreshing = false
-let refreshSubscribers = []
-
-function subscribeTokenRefresh(callback) {
-  refreshSubscribers.push(callback)
-}
-
-function onRefreshed(newToken) {
-  refreshSubscribers.forEach((callback) => callback(newToken))
-  refreshSubscribers = []
-}
+// ==================== Response Interceptor — จัดการ 401 แบบ Global ด้วยระบบคิว ====================
 const PUBLIC_AUTH_PATHS = ['/api/auth/login']
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
     const status = error.response?.status
 
-    if (!originalRequest || status !== 401 || originalRequest._retry) {
+    // 1. ถ้าไม่ใช่ 401 หรือไม่มี config ให้ reject ตามปกติ
+    if (!originalRequest || status !== 401) {
       return Promise.reject(error)
     }
 
-    // 👇 401 จาก endpoint สาธารณะ (เช่น login ผิด) — ปล่อยให้ catch ใน component จัดการ ไม่แตะ session/redirect
+    // 2. ถ้าเป็น 401 จาก endpoint สาธารณะ เช่น หน้า Login (กรอกรหัสผิด) ปล่อยให้ Form หน้า Login จัดการ
     const isPublicAuthCall = PUBLIC_AUTH_PATHS.some((path) => originalRequest.url?.includes(path))
     if (isPublicAuthCall) {
       return Promise.reject(error)
     }
 
-    const hasErrorCode = error.response?.data && 'error_code' in error.response.data
+    // 3. ถ้าเป็น 401 จากการยิง /api/auth/refresh เอง แปลว่า refresh token หมดอายุจริงแล้ว -> เคลียร์ Session + ดีดไปหน้า Login
     const isRefreshCallItself = originalRequest.url?.includes('/api/auth/refresh')
-
-    if (hasErrorCode || isRefreshCallItself) {
+    if (isRefreshCallItself) {
       useAuthStore.getState().clearSession()
       if (!originalRequest.skipAuthRedirect) {
         window.location.href = '/'
@@ -65,47 +163,52 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-
-    originalRequest._retry = true
-
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        subscribeTokenRefresh((newToken) => {
-          if (newToken) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
-            resolve(api(originalRequest))
-          } else {
-            reject(error)
-          }
-        })
-      })
+    // 4. ถ้า request นี้เคย retry แล้วรอบหนึ่งแต่ยังได้ 401 -> เคลียร์ Session + ดีดไปหน้า Login
+    if (originalRequest._retry) {
+      useAuthStore.getState().clearSession()
+      if (!originalRequest.skipAuthRedirect) {
+        window.location.href = '/'
+      }
+      return Promise.reject(error)
     }
 
+    // 5. หากมี Request อื่นกำลัง Refresh Token อยู่ ให้จับเข้าคิวรอรับ Token สดๆ จากหน่วยความจำ
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject })
+      })
+        .then((newToken) => {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`
+          return api(originalRequest)
+        })
+        .catch((err) => {
+          return Promise.reject(err)
+        })
+    }
+
+    // 6. เป็น Request ตัวแรกที่เจอ 401 -> รับหน้าที่เป็นตัวแทนยิง Refresh Token แล้วกระจายให้คิว
+    originalRequest._retry = true
     isRefreshing = true
+
     try {
       const newToken = await useAuthStore.getState().refreshAccessToken()
-      isRefreshing = false
-      onRefreshed(newToken)
+      processQueue(null, newToken)
       originalRequest.headers.Authorization = `Bearer ${newToken}`
       return api(originalRequest)
     } catch (refreshError) {
-      isRefreshing = false
-      onRefreshed(null)
-      window.location.href = '/'
+      processQueue(refreshError, null)
+      useAuthStore.getState().clearSession()
+      if (!originalRequest.skipAuthRedirect) {
+        window.location.href = '/'
+      }
       return Promise.reject(refreshError)
+    } finally {
+      isRefreshing = false
     }
   }
 )
 
 // ฟังก์ชัน Login — ใช้ form-urlencoded ตามที่ backend กำหนด (OAuth2 standard)
-// rememberMe: ตาม spec ที่ backend ยืนยัน — remember_me=true → refresh cookie อยู่ 7 วัน
-// remember_me=false → session cookie + server-side expiry 12 ชม. (กัน browser restore session เก่า)
-// ไม่ส่ง field นี้เลย = backend ถือเป็น false โดย default จึงต้องส่งเสมอ ไม่ปล่อยเป็น optional
-//
-// 👇 แก้: เปลี่ยนจาก axios.post ตรงๆ มาใช้ instance `api` แทน — endpoint นี้เป็นจุดที่ backend
-// Set-Cookie refresh_token กลับมาเป็นครั้งแรก ถ้า request ไม่มี withCredentials: true
-// (ซึ่ง axios เปล่าๆ ไม่มีให้โดย default) browser จะไม่เก็บ cookie httpOnly นี้ไว้เลยในกรณี cross-origin
-// เป็นสาเหตุที่ auto-login ตอนเปิดแท็บใหม่ไม่เคยทำงาน เพราะไม่มี cookie ให้ /auth/refresh ใช้ตั้งแต่แรก
 export async function loginAPI(username, password, rememberMe = false) {
   const formData = new URLSearchParams()
   formData.append('grant_type', 'password')
@@ -120,10 +223,12 @@ export async function loginAPI(username, password, rememberMe = false) {
   const data = response.data
   return {
     access_token: data.access_token,
+    expires_in: data.expires_in,
     user: {
       id: data.user.id,
       username: data.user.username,
       fullName: data.user.fullname,
+      fullname: data.user.fullname,
       email: data.user.email,
       role: data.user.role,
       is_active: data.user.is_active,

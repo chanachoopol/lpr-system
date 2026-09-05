@@ -141,8 +141,8 @@ function Login() {
       // รีเซ็ตตัวนับเมื่อเข้าสู่ระบบสำเร็จ
       setIsLocked(false)
 
-      // เก็บข้อมูลลง Zustand (accessToken อยู่ใน memory, refresh_token เป็น httpOnly cookie ที่ backend set ให้เอง)
-      login(result.user, result.access_token)
+      // เก็บข้อมูลลง Zustand และบันทึกลง Cookie แบบ Dynamic
+      login(result.user, result.access_token, result.expires_in)
 
       // ตั้งค่าหมู่บ้านเริ่มต้นตาม role
       // superadmin -> ทุกหมู่บ้าน (null), admin/user -> ล็อกหมู่บ้านตัวเอง

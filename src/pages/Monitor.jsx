@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { FaVideo, FaThLarge } from 'react-icons/fa'
+import { useState, useEffect, useMemo } from 'react'
+import { FaVideo, FaThLarge, FaSearch, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa'
+import { FaXmark } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/Monitor.css'
@@ -55,6 +56,15 @@ function formatTime(isoString) {
   })
 }
 
+function getDynamicMonitorLimit() {
+  if (typeof window === 'undefined') return 5
+  // คำนวณความสูงตารางที่เหลือ: หน้าจอรวม หักลบ Padding Layout (40), Navbar (72), Layout gap (20), Camera Bar (52), Monitor gap (12), Card Padding (32), Title (38), Plate Showcase (100), Table Header (38) = รวม ~384px เผื่อระยะขอบล่างเป็น 430px
+  const availableTableHeight = window.innerHeight - 430
+  const rowHeight = 40
+  const rows = Math.floor(availableTableHeight / rowHeight)
+  return Math.max(2, rows)
+}
+
 function Monitor() {
   const { user } = useAuthStore()
   const { selectedVillageId } = useVillageStore()
@@ -64,8 +74,85 @@ function Monitor() {
   const [selectedCamera, setSelectedCamera] = useState('')
   const [searchParams] = useSearchParams()
 
+  const [recentLimit, setRecentLimit] = useState(getDynamicMonitorLimit)
   const [latestCaptures, setLatestCaptures] = useState([])
   const [isLoadingDetections, setIsLoadingDetections] = useState(true)
+
+  // Search & Sort states
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortKey, setSortKey] = useState('time')
+  const [sortOrder, setSortOrder] = useState('desc')
+
+  function handleSort(key) {
+    if (sortKey === key) {
+      if (sortOrder === 'asc') {
+        setSortOrder('desc')
+      } else if (sortOrder === 'desc') {
+        // 3-state: กลับสู่ default (time desc)
+        setSortKey('time')
+        setSortOrder('desc')
+      }
+    } else {
+      setSortKey(key)
+      setSortOrder('asc')
+    }
+  }
+
+  function renderSortIcon(key) {
+    if (sortKey !== key) {
+      return <FaSort className="sort-icon-inactive" />
+    }
+    if (sortOrder === 'asc') {
+      return <FaSortUp className="sort-icon-active" />
+    }
+    return <FaSortDown className="sort-icon-active" />
+  }
+
+  const processedCaptures = useMemo(() => {
+    let list = [...latestCaptures]
+
+    // 1. กรองคำค้นหา (ป้ายทะเบียน หรือ จังหวัด) แบบ real-time
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      list = list.filter((item) => {
+        const plate = String(item.license_plate || '').toLowerCase()
+        const province = String(item.province || '').toLowerCase()
+        return plate.includes(q) || province.includes(q)
+      })
+    }
+
+    // 2. จัดเรียงข้อมูลตามคอลัมน์ (Time, License Plate, Province)
+    if (sortKey) {
+      list.sort((a, b) => {
+        let result = 0
+        if (sortKey === 'time') {
+          const tA = new Date(a.time_detect || 0).getTime()
+          const tB = new Date(b.time_detect || 0).getTime()
+          result = tA - tB
+        } else if (sortKey === 'plate') {
+          const pA = String(a.license_plate || '')
+          const pB = String(b.license_plate || '')
+          result = pA.localeCompare(pB, 'th', { numeric: true })
+        } else if (sortKey === 'province') {
+          const prA = String(a.province || '')
+          const prB = String(b.province || '')
+          result = prA.localeCompare(prB, 'th')
+        }
+        return sortOrder === 'asc' ? result : -result
+      })
+    }
+
+    return list
+  }, [latestCaptures, searchQuery, sortKey, sortOrder])
+
+  // คำนวณจำนวนแถวที่พอดีกับหน้าจอเมื่อมีการปรับขนาดหน้าต่าง (Resize)
+  useEffect(() => {
+    function handleResize() {
+      setRecentLimit(getDynamicMonitorLimit())
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // 👇 Grid View — true เมื่อเลือก "ทุกกล้อง"
   const isGridMode = selectedCamera === GRID_VIEW_VALUE
@@ -113,7 +200,7 @@ function Monitor() {
     fetchCameras()
   }, [user, selectedVillageId, searchParams])
 
-  // ดึง latest detection 5 รายการแรกตอนเลือกกล้อง (Initial Load ครั้งเดียว ไม่ polling รัวๆ)
+  // ดึง latest detection ตาม recentLimit ตอนเลือกกล้องหรือเมื่อขยาย/ย่อหน้าจอ
   useEffect(() => {
     if (!selectedCamera || isGridMode) return
 
@@ -124,7 +211,7 @@ function Monitor() {
         const data = await getDetectionsAPI({
           camera_id: selectedCamera,
           page: 1,
-          page_size: 5
+          page_size: recentLimit
         })
         if (!isCancelled) {
           const rawCaptures = Array.isArray(data?.items)
@@ -133,7 +220,7 @@ function Monitor() {
             ? data.latest_captures
             : []
           setLatestCaptures(
-            rawCaptures.map((c) => ({
+            rawCaptures.slice(0, recentLimit).map((c) => ({
               id: c.id || c.detection_id,
               time_detect: c.time_detect,
               license_plate: c.license_plate,
@@ -156,7 +243,7 @@ function Monitor() {
     return () => {
       isCancelled = true
     }
-  }, [selectedCamera, isGridMode])
+  }, [selectedCamera, isGridMode, recentLimit])
 
   // อัปเดตรายการตรวจจับแบบ real-time ผ่าน SSE (Push จาก Backend ทันทีเมื่อตรวจจับได้ โดยไม่ยิง API ซ้ำ)
   useEffect(() => {
@@ -178,15 +265,15 @@ function Monitor() {
         color: latestDetection.color,
         is_blacklist: isBlacklist
       }
-      return [newItem, ...prev].slice(0, 5)
+      return [newItem, ...prev].slice(0, recentLimit)
     })
-  }, [latestDetection, selectedCamera, isGridMode])
+  }, [latestDetection, selectedCamera, isGridMode, recentLimit])
 
   const latestCapture = latestCaptures[0] || null
 
   return (
     <Layout title="Monitor">
-      <div className="monitor-wrapper">
+      <div className={`monitor-wrapper ${isGridMode ? 'grid-view' : 'single-view'}`}>
 
         <div className="camera-bar content-card">
           <FaVideo className="camera-icon" />
@@ -290,7 +377,29 @@ function Monitor() {
             </div>
 
             <div className="monitor-right content-card">
-              <h3 className="card-title">Latest Capture</h3>
+              <div className="monitor-table-header">
+                <h3 className="card-title" style={{ margin: 0 }}>Latest Capture</h3>
+                <div className="monitor-search-wrap">
+                  <FaSearch className="monitor-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="monitor-search-input"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="monitor-search-clear"
+                      onClick={() => setSearchQuery('')}
+                      title="ล้างคำค้นหา"
+                    >
+                      <FaXmark />
+                    </button>
+                  )}
+                </div>
+              </div>
 
               <div className="plate-showcase">
                 <div className="thai-plate">
@@ -307,9 +416,24 @@ function Monitor() {
                 <table className="history-table">
                   <thead>
                     <tr>
-                      <th>Time</th>
-                      <th>License Plate</th>
-                      <th>Province</th>
+                      <th className="sortable-th" onClick={() => handleSort('time')} title="คลิกเพื่อเรียงลำดับตามเวลา">
+                        <div className="th-content">
+                          <span>Time</span>
+                          {renderSortIcon('time')}
+                        </div>
+                      </th>
+                      <th className="sortable-th" onClick={() => handleSort('plate')} title="คลิกเพื่อเรียงลำดับตามป้ายทะเบียน">
+                        <div className="th-content">
+                          <span>License Plate</span>
+                          {renderSortIcon('plate')}
+                        </div>
+                      </th>
+                      <th className="sortable-th" onClick={() => handleSort('province')} title="คลิกเพื่อเรียงลำดับตามจังหวัด">
+                        <div className="th-content">
+                          <span>Province</span>
+                          {renderSortIcon('province')}
+                        </div>
+                      </th>
                       <th>Color</th>
                     </tr>
                   </thead>
@@ -320,8 +444,8 @@ function Monitor() {
                           <Spinner text="กำลังโหลดข้อมูล..." />
                         </td>
                       </tr>
-                    ) : latestCaptures.length > 0 ? (
-                      latestCaptures.map((item) => {
+                    ) : processedCaptures.length > 0 ? (
+                      processedCaptures.map((item) => {
                         const isBlacklist = Boolean(item.is_blacklist)
                         return (
                           <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
@@ -338,8 +462,8 @@ function Monitor() {
                       <tr>
                         <td colSpan="4">
                           <EmptyState
-                            title="No capture yet"
-                            description="Waiting for vehicle detection..."
+                            title={searchQuery ? "ไม่พบข้อมูลที่ค้นหา" : "No capture yet"}
+                            description={searchQuery ? "ลองเปลี่ยนคำค้นหาป้ายทะเบียนหรือจังหวัด" : "Waiting for vehicle detection..."}
                           />
                         </td>
                       </tr>

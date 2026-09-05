@@ -1,50 +1,26 @@
 import { create } from 'zustand'
-import { refreshTokenAPI, logoutAPI, getMyProfileAPI, getUserAvatarBlobURL } from '../data/api'
+import {
+  refreshTokenAPI,
+  logoutAPI,
+  getMyProfileAPI,
+  getUserAvatarBlobURL,
+  setAccessTokenCookie,
+  removeAccessTokenCookie,
+  getAccessTokenCookie,
+  getTokenRemainingMs
+} from '../data/api'
 import useVillageStore from './villageStore'
 import useNotificationStore from './notificationStore'
 
-const REFRESH_BUFFER_MS = 60 * 1000 // ขอ token ใหม่ก่อนหมดอายุจริง 60 วิ กัน network latency/clock skew
-
-// ถอดรหัสอ่านเวลาคงเหลือของ JWT Token จาก Claim 'exp' ที่ Backend เป็นผู้กำหนด (Single Source of Truth)
-function getTokenRemainingMs(token) {
-  if (!token || typeof token !== 'string') return null
-  try {
-    const parts = token.split('.')
-    if (parts.length < 2) return null
-    const base64Url = parts[1]
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    )
-    const payload = JSON.parse(jsonPayload)
-    if (payload.exp && typeof payload.exp === 'number') {
-      const expiryTimestampMs = payload.exp * 1000
-      const currentTimestampMs = Date.now()
-      const remainingMs = expiryTimestampMs - currentTimestampMs
-      return remainingMs > 0 ? remainingMs : 0
-    }
-  } catch (error) {
-    console.error('Failed to parse JWT exp payload:', error)
-  }
-  return null
-}
+const REFRESH_BUFFER_MS = 60 * 1000 // ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริง 60 วิ กัน network latency
 
 let refreshTimerId = null
 
-// เก็บ promise ของการ refresh ที่กำลังทำอยู่ไว้ระดับ module (ไม่ใช่ state ของ store)
-// เพราะต้อง dedupe ข้าม caller ทุกทาง — ทั้งจาก scheduleRefresh (timer) และจาก axios interceptor
-// ที่อาจเจอ 401 พร้อมกันจากหลาย request วิ่งขนานกัน ถ้าไม่ share promise ตัวเดียวกัน แต่ละตัวจะยิง
-// /auth/refresh ของตัวเอง และถ้า backend ทำ refresh-token rotation (revoke token เก่าทันทีที่ใช้ 1 ครั้ง)
-// request ที่ยิงทีหลังจะได้ token ที่ถูก revoke ไปแล้ว ทำให้ user โดน clearSession ทั้งที่ session จริงยังไม่หมดอายุ
+// เก็บ promise ของการ refresh ที่กำลังทำอยู่ไว้ระดับ module
 let inFlightRefresh = null
 let sessionInitPromise = null
 
-// ช่องสัญญาณสำหรับ sync สถานะ logout ข้ามแท็บของ origin เดียวกัน — ไม่ต้องกด refresh หน้าเว็บ
-// แท็บไหน clearSession() ก่อน จะ broadcast บอกแท็บอื่นให้เคลียร์ session ตัวเองตามทันที
-// รองรับทุก browser หลักยกเว้น Safari เก่ามาก (<15.4) — ถ้าไม่รองรับ ก็แค่ไม่ sync ข้ามแท็บ ไม่ error
+// ช่องสัญญาณสำหรับ sync สถานะ logout ข้ามแท็บของ origin เดียวกัน
 const LOGOUT_CHANNEL_NAME = 'auth-logout-channel'
 const logoutChannel = typeof BroadcastChannel !== 'undefined'
   ? new BroadcastChannel(LOGOUT_CHANNEL_NAME)
@@ -57,24 +33,21 @@ function clearRefreshTimer() {
   }
 }
 
-// เก็บ access_token ใน memory เท่านั้น (ไม่ persist ลง cookie/localStorage อีกต่อไป)
-// session ยาวจริงๆ อยู่ที่ refresh_token httpOnly cookie ซึ่ง backend คุมทั้งหมด
-// frontend มีหน้าที่แค่ขอ access_token ใหม่ผ่าน /api/auth/refresh ตอน token ใกล้หมดอายุ
 const useAuthStore = create((set, get) => ({
   user: null,
   accessToken: null,
-  avatarUrl: null, // blob URL ของรูปโปรไฟล์ผู้ใช้ (sync ข้าม Navbar/Sidebar/Profile)
+  avatarUrl: null,
   isLoggedIn: false,
-  isLoading: true, // true ตอนเริ่มแอป ระหว่างเช็คว่ามี session ค้างอยู่จาก refresh cookie ไหม
+  isLoading: true, // true ตอนเริ่มแอป ระหว่างกู้คืน session จาก cookie
 
-  // อัปเดตข้อมูล user บางส่วน (เช่น fullname) ให้ Navbar/Sidebar re-render ทันที
+  // อัปเดตข้อมูล user บางส่วน
   updateUser: (partialUser) => {
     set((state) => ({
       user: state.user ? { ...state.user, ...partialUser } : null
     }))
   },
 
-  // อัปเดต avatarUrl ใน store พร้อมเคลียร์ blob เก่ากัน memory leak
+  // อัปเดต avatarUrl ใน store
   setAvatarUrl: (newUrl) => {
     const prev = get().avatarUrl
     if (prev && prev !== newUrl) {
@@ -83,10 +56,11 @@ const useAuthStore = create((set, get) => ({
     set({ avatarUrl: newUrl })
   },
 
-  // เรียกตอน login สำเร็จจาก Login.jsx — ไม่แตะ cookie เลย backend set refresh_token ให้เองแล้ว
-  login: (user, accessToken) => {
+  // เรียกตอน login สำเร็จจาก Login.jsx — บันทึก Token ลง Cookie แบบ Dynamic และตั้ง Timer
+  login: (user, accessToken, expiresIn = null) => {
+    setAccessTokenCookie(accessToken, expiresIn)
     set({ user, accessToken, isLoggedIn: true, isLoading: false })
-    get().scheduleRefresh()
+    get().scheduleRefresh(accessToken)
     if (user?.id) {
       getUserAvatarBlobURL(user.id)
         .then((url) => get().setAvatarUrl(url))
@@ -96,38 +70,34 @@ const useAuthStore = create((set, get) => ({
 
   getAccessToken: () => get().accessToken,
 
-  // ตั้ง timer ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริงแบบ Dynamic โดยอ่านค่า exp จากตัว Token (Backend SSOT)
+  // ตั้ง timer ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริงแบบ Dynamic โดยอ่านค่า exp จากตัว Token (ห้าม Hardcode)
   scheduleRefresh: (explicitToken) => {
     clearRefreshTimer()
     const token = explicitToken || get().accessToken
     const remainingMs = getTokenRemainingMs(token)
 
-    // ถ้าแกะค่า exp ได้: ขอ token ใหม่ล่วงหน้าก่อนหมดอายุ 60 วินาที (แต่อย่างน้อย 5 วินาทีก่อนหมด)
-    // ถ้าแกะไม่ได้ (fallback): 14 นาที
-    const delayMs = remainingMs !== null
-      ? Math.max(remainingMs - REFRESH_BUFFER_MS, 5000)
-      : 14 * 60 * 1000
+    if (remainingMs === null || remainingMs <= 0) return
+
+    // ขอ token ใหม่ล่วงหน้าก่อนหมดอายุ 60 วินาที (แต่อย่างน้อย 5 วินาทีก่อนหมด)
+    const delayMs = Math.max(remainingMs - REFRESH_BUFFER_MS, 5000)
 
     refreshTimerId = setTimeout(() => {
       get().refreshAccessToken().catch(() => {
-        // เงียบไว้ตรงนี้พอ — refreshAccessToken เคลียร์ state ให้เองแล้วถ้าพัง
+        // เงียบไว้ตรงนี้ — refreshAccessToken เคลียร์ session ให้อัตโนมัติถ้า refresh ไม่ผ่าน
       })
     }, delayMs)
   },
 
-  // ขอ access_token ใหม่ผ่าน refresh_token cookie — ใช้ทั้งตอน silent refresh (timer)
-  // และตอน api.js interceptor เจอ 401
-  //
-  // 👇 สำคัญ: ใช้ inFlightRefresh (module-level) เป็นตัว dedupe — ถ้ามีการ refresh ทำงานอยู่แล้ว
-  // caller ตัวถัดไปจะได้ promise ตัวเดียวกันกลับไป ไม่ยิง /auth/refresh ซ้ำ
+  // ขอ access_token ใหม่ผ่าน refresh_token HttpOnly cookie
   refreshAccessToken: async () => {
     if (inFlightRefresh) return inFlightRefresh
 
     inFlightRefresh = (async () => {
       try {
         const data = await refreshTokenAPI()
+        setAccessTokenCookie(data.access_token, data.expires_in)
         set({ accessToken: data.access_token, isLoggedIn: true, isLoading: false })
-        get().scheduleRefresh()
+        get().scheduleRefresh(data.access_token)
         return data.access_token
       } catch (error) {
         get().clearSession()
@@ -140,48 +110,79 @@ const useAuthStore = create((set, get) => ({
     return inFlightRefresh
   },
 
-  // เรียกตอน App mount ครั้งแรกเท่านั้น — แทนที่ loadFromStorage เดิมที่เคยอ่าน cookie เอง
-  // ตอนนี้ frontend ไม่มี cookie ให้อ่านแล้ว (refresh_token เป็น httpOnly) ต้องถาม backend แทน
-  //
-  // ส่ง { silent: true } ไปให้ refreshTokenAPI แนบเป็น axios config พิเศษ (ดู api.js) เพื่อบอก
-  // response interceptor ว่า "นี่คือการเช็ค session เฉยๆ ตอนเปิดแอป ไม่ใช่ error จริง" — ถ้าเจอ 401
-  // ตรงนี้ ห้าม redirect ไปหน้า login เอง (เดี๋ยว catch ด้านล่างจัดการ set isLoggedIn: false ให้เอง
-  // ปกติของเคสนี้คือ "ไม่เคย login" หรือ "refresh token หมดอายุแล้ว" ซึ่งไม่ใช่ error ที่ควร alert user)
+  // กู้คืน Session อัตโนมัติเมื่อเปิดเว็บหรือกด F5
   initSession: async () => {
     if (sessionInitPromise) return sessionInitPromise
 
     sessionInitPromise = (async () => {
       set({ isLoading: true })
       try {
+        const cookieToken = getAccessTokenCookie()
+        const remainingMs = getTokenRemainingMs(cookieToken)
+
+        // 1. ถ้ามี access_token ใน Cookie และยังไม่หมดอายุ -> กู้คืน Session ได้ทันทีแบบ Instant
+        if (cookieToken && remainingMs && remainingMs > 5000) {
+          set({ accessToken: cookieToken })
+          try {
+            const profile = await getMyProfileAPI()
+            const normalizedUser = {
+              ...profile,
+              fullName: profile.fullname || profile.fullName || profile.username,
+              fullname: profile.fullname || profile.fullName || profile.username
+            }
+            set({
+              user: normalizedUser,
+              isLoggedIn: true,
+              isLoading: false
+            })
+            get().scheduleRefresh(cookieToken)
+            useVillageStore.getState().initSelectedVillage(normalizedUser)
+
+            if (profile?.id) {
+              getUserAvatarBlobURL(profile.id)
+                .then((url) => get().setAvatarUrl(url))
+                .catch(() => get().setAvatarUrl(null))
+            }
+            return
+          } catch (profileErr) {
+            // ถ้าดึง Profile ไม่สำเร็จ (อาจถูก revoke token) -> ไหลต่อไปขั้นตอน Refresh Token
+          }
+        }
+
+        // 2. ถ้าไม่มี access_token หรือหมดอายุแล้ว -> ใช้ refresh_token HttpOnly cookie ไปขอ Token ใหม่
         const data = await refreshTokenAPI({ silent: true })
-        set({ accessToken: data.access_token })   // 👈 set token ให้ store ก่อน ให้ interceptor เห็นทัน
-        const profile = await getMyProfileAPI()    // 👈 ตอนนี้ request นี้จะมี Authorization header แนบไปแล้ว
+        setAccessTokenCookie(data.access_token, data.expires_in)
+        set({ accessToken: data.access_token })
+        const profile = await getMyProfileAPI()
+        const normalizedUser = {
+          ...profile,
+          fullName: profile.fullname || profile.fullName || profile.username,
+          fullname: profile.fullname || profile.fullName || profile.username
+        }
         set({
-          user: profile,
+          user: normalizedUser,
           isLoggedIn: true,
           isLoading: false
         })
-        get().scheduleRefresh()
-        useVillageStore.getState().initSelectedVillage(profile)
+        get().scheduleRefresh(data.access_token)
+        useVillageStore.getState().initSelectedVillage(normalizedUser)
 
-        // โหลดรูป avatar สำหรับ Navbar/Sidebar
         if (profile?.id) {
-          try {
-            const avatar = await getUserAvatarBlobURL(profile.id)
-            get().setAvatarUrl(avatar)
-          } catch {
-            get().setAvatarUrl(null)
-          }
+          getUserAvatarBlobURL(profile.id)
+            .then((url) => get().setAvatarUrl(url))
+            .catch(() => get().setAvatarUrl(null))
         }
       } catch (error) {
-        set({ isLoading: false, isLoggedIn: false, user: null, accessToken: null, avatarUrl: null })
+        get().clearSession()
+      } finally {
+        sessionInitPromise = null
       }
     })()
 
     return sessionInitPromise
   },
 
-  // logout ปกติที่ user กดเอง — เรียก backend ให้ revoke + clear cookie ให้เรียบร้อยก่อน
+  // Logout ปกติ
   logout: async () => {
     try {
       await logoutAPI()
@@ -192,41 +193,38 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
-  // ใช้ตอนเจอ 401 ที่ระบุว่า session ถูกลบไปแล้วจากฝั่ง server (ไม่ต้องเรียก logout API ซ้ำ)
-  // และใช้เป็น cleanup กลางที่ logout()/refreshAccessToken() เรียกใช้ร่วมกัน
+  // เคลียร์ Session, ลบ Cookie, และรีเซ็ตทุก Store
   clearSession: () => {
-    const wasLoggedIn = get().isLoggedIn // 👈 เช็คก่อนเคลียร์ กันกรณี broadcast ตอนที่ session ไม่เคย login เลย
+    const wasLoggedIn = get().isLoggedIn
     const currentAvatar = get().avatarUrl
     if (currentAvatar) {
       URL.revokeObjectURL(currentAvatar)
     }
     clearRefreshTimer()
+    removeAccessTokenCookie()
     inFlightRefresh = null
     sessionInitPromise = null
     set({ user: null, accessToken: null, avatarUrl: null, isLoggedIn: false, isLoading: false })
     useVillageStore.getState().reset()
     useNotificationStore.getState().reset()
 
-    // แจ้งแท็บอื่นว่า session นี้ถูก logout แล้ว — ยิงเฉพาะตอนเปลี่ยนจาก login -> logout จริงๆ
-    // (ไม่ยิงตอน initSession ล้มเหลวเพราะไม่เคย login มาก่อน กันสัญญาณหลอกไปแท็บอื่น)
     if (wasLoggedIn) {
       logoutChannel?.postMessage({ type: 'logout', at: Date.now() })
     }
   }
 }))
 
-// ฟังสัญญาณ logout จากแท็บอื่น — ถ้าแท็บนี้ยัง login อยู่ ให้เคลียร์ session ทันทีโดยไม่ต้อง refresh หน้า
-// ไม่เรียก useAuthStore.getState().clearSession() ตรงๆ เพราะจะ broadcast ซ้ำออกไปอีกรอบโดยไม่จำเป็น
-// (setState ตรงๆ ทำให้ component ที่ subscribe อยู่ เช่น ProtectedRoute re-render ทันทีเหมือนกัน)
+// ฟังสัญญาณ logout จากแท็บอื่น
 if (logoutChannel) {
   logoutChannel.onmessage = (event) => {
     if (event.data?.type !== 'logout') return
-    if (!useAuthStore.getState().isLoggedIn) return // แท็บนี้ logout ไปแล้ว ไม่ต้องทำอะไรซ้ำ
+    if (!useAuthStore.getState().isLoggedIn) return
 
     clearRefreshTimer()
+    removeAccessTokenCookie()
     inFlightRefresh = null
     sessionInitPromise = null
-    useAuthStore.setState({ user: null, accessToken: null, isLoggedIn: false, isLoading: false })
+    useAuthStore.setState({ user: null, accessToken: null, avatarUrl: null, isLoggedIn: false, isLoading: false })
     useVillageStore.getState().reset()
     useNotificationStore.getState().reset()
   }

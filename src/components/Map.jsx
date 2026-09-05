@@ -55,10 +55,11 @@ function MapView({ cameras = [] }) {
   const getVillageName = useVillageStore((state) => state.getVillageName)
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
-  const markersRef = useRef([]) // เก็บ marker object ไว้ map camera_id -> ตำแหน่งพิกัด
+  const markersRef = useRef([])
   const camerasRef = useRef(cameras)
   camerasRef.current = cameras
   const [isMapReady, setIsMapReady] = useState(false)
+  const [currentZoom, setCurrentZoom] = useState(15)
 
   // hoveredCamera = { camera, style: {top, left} } | null
   const [hoveredCamera, setHoveredCamera] = useState(null)
@@ -105,9 +106,14 @@ function MapView({ cameras = [] }) {
         setIsMapReady(true)
 
         try {
-          map.Event.bind('zoom', () => setHoveredCamera(null))
+          map.Event.bind('zoom', () => {
+            setHoveredCamera(null)
+            try {
+              setCurrentZoom(map.zoom())
+            } catch (e) {}
+          })
         } catch (error) {
-          console.warn('ผูก event ปิดการ์ด hover ไม่สำเร็จ:', error)
+          console.warn('ผูก event zoom ไม่สำเร็จ:', error)
         }
       })
     } 
@@ -203,6 +209,23 @@ function MapView({ cameras = [] }) {
     }
 
     function handleClick(e) {
+      // 1. ถ้าคลิกที่หมุด Cluster รวมกลุ่ม -> ซูมและเลื่อนแผนที่เข้าไปหาจุดนั้นในคลิกเดียว
+      const clusterEl = e.target.closest('[data-cluster-lat]')
+      if (clusterEl) {
+        const lat = Number(clusterEl.getAttribute('data-cluster-lat'))
+        const lon = Number(clusterEl.getAttribute('data-cluster-lon'))
+        const map = mapInstanceRef.current
+        if (map && Number.isFinite(lat) && Number.isFinite(lon)) {
+          map.location({ lon, lat }, true)
+          // คลิกเดียวพุ่งตรงไประดับ Street View (Zoom 17) เพื่อคลายหมุดทันที
+          const nowZoom = map.zoom() || currentZoom
+          const targetZoom = nowZoom < 17 ? 17 : Math.min(19, nowZoom + 1)
+          map.zoom(targetZoom, true)
+        }
+        return
+      }
+
+      // 2. ถ้าคลิกที่หมุดกล้องเดี่ยว -> ไปหน้า Monitor
       const pinEl = e.target.closest('[data-camera-id]')
       if (!pinEl) return
       const cameraId = pinEl.getAttribute('data-camera-id')
@@ -220,8 +243,9 @@ function MapView({ cameras = [] }) {
       container.removeEventListener('mouseout', handleMouseOut)
       container.removeEventListener('click', handleClick)
     }
-  }, [cameras, computeCardPosition, navigate])
+  }, [cameras, computeCardPosition, navigate, currentZoom])
 
+  // คำนวณและปักหมุดแบบ Marker Clustering ตามระดับการซูม (Zoom Level)
   useEffect(() => {
     const map = mapInstanceRef.current
     if (!map || !isMapReady) return
@@ -229,63 +253,131 @@ function MapView({ cameras = [] }) {
     try {
       map.Overlays.clear()
       markersRef.current = []
-      setHoveredCamera(null) // เปลี่ยน list กล้อง → เคลียร์การ์ดค้าง
+      setHoveredCamera(null) // เคลียร์การ์ดค้าง
 
-      cameras.forEach((cam) => {
+      const validCameras = cameras.filter((cam) => {
         const lat = Number(cam.lat)
         const long = Number(cam.long)
-
-        if (!Number.isFinite(lat) || !Number.isFinite(long)) {
-          console.warn(`ข้ามกล้อง "${cam.name}" เพราะพิกัดไม่ถูกต้อง:`, cam.lat, cam.long)
-          return
-        }
-
-        const isActive = cam.is_active
-        const markerColor = isActive ? '#16a34a' : '#dc2626'
-
-        // ไม่ใส่ popup ให้ Longdo อีกต่อไป — ใช้ React overlay การ์ดของเราเองแทน (ดู hoveredCamera ด้านล่าง)
-        const marker = new window.longdo.Marker(
-          { lon: long, lat: lat },
-          {
-            clickable: true,
-            icon: {
-              offset: { x: 16, y: 32 },
-              html: `
-                <div data-camera-id="${cam.id}" style="
-                  width: 32px;
-                  height: 32px;
-                  border-radius: 50% 50% 50% 0;
-                  background: ${markerColor};
-                  transform: rotate(-45deg);
-                  border: 2px solid #fff;
-                  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  cursor: pointer;
-                ">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                       fill="none" stroke="#ffffff" stroke-width="2.2"
-                       stroke-linecap="round" stroke-linejoin="round"
-                       style="transform: rotate(45deg); pointer-events: none;">
-                    <path d="M23 7l-7 5 7 5V7z"></path>
-                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                  </svg>
-                </div>`
-            }
-          }
-        )
-
-        map.Overlays.add(marker)
-        markersRef.current.push(marker)
+        return Number.isFinite(lat) && Number.isFinite(long)
       })
 
-      // จัดขอบเขตแผนที่ให้ครอบคลุมทุกหมุดกล้องอัตโนมัติ
-      fitMapToCameras(map, cameras)
+      // รัศมีความใกล้เคียง (Threshold) แปลผันตามระดับ Zoom
+      // เมื่อซูมถึงระดับ 17 ขึ้นไป จะลดรัศมีลงมากเพื่อให้หมุดกล้องที่อยู่ใกล้กันคลายตัวออกเป็นหมุดเดี่ยว
+      const threshold = currentZoom >= 17 
+        ? 0.00004 
+        : 0.00028 * Math.pow(2, 16 - currentZoom)
+
+      // จัดกลุ่มกล้องที่อยู่ใกล้กัน
+      const clusters = []
+      validCameras.forEach((cam) => {
+        const lat = Number(cam.lat)
+        const lon = Number(cam.long)
+
+        let added = false
+        for (const cluster of clusters) {
+          const dist = Math.sqrt(Math.pow(cluster.lat - lat, 2) + Math.pow(cluster.lon - lon, 2))
+          if (dist <= threshold) {
+            cluster.cameras.push(cam)
+            // คำนวณพิกัดกึ่งกลางใหม่ของกลุ่ม
+            cluster.lat = cluster.cameras.reduce((sum, c) => sum + Number(c.lat), 0) / cluster.cameras.length
+            cluster.lon = cluster.cameras.reduce((sum, c) => sum + Number(c.long), 0) / cluster.cameras.length
+            added = true
+            break
+          }
+        }
+
+        if (!added) {
+          clusters.push({
+            lat,
+            lon,
+            cameras: [cam]
+          })
+        }
+      })
+
+      // สร้าง Marker ลงบนแผนที่
+      clusters.forEach((cluster) => {
+        if (cluster.cameras.length === 1) {
+          // --- หมุดกล้องเดี่ยว ---
+          const cam = cluster.cameras[0]
+          const isActive = cam.is_active
+          const markerColor = isActive ? '#16a34a' : '#dc2626'
+
+          const marker = new window.longdo.Marker(
+            { lon: cluster.lon, lat: cluster.lat },
+            {
+              clickable: true,
+              icon: {
+                offset: { x: 16, y: 32 },
+                html: `
+                  <div data-camera-id="${cam.id}" class="map-single-pin" style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50% 50% 50% 0;
+                    background: ${markerColor};
+                    transform: rotate(-45deg);
+                    border: 2px solid #fff;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: transform 0.15s ease;
+                  ">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                         fill="none" stroke="#ffffff" stroke-width="2.2"
+                         stroke-linecap="round" stroke-linejoin="round"
+                         style="transform: rotate(45deg); pointer-events: none;">
+                      <path d="M23 7l-7 5 7 5V7z"></path>
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                    </svg>
+                  </div>`
+              }
+            }
+          )
+          map.Overlays.add(marker)
+          markersRef.current.push(marker)
+        } else {
+          // --- หมุด Cluster รวมกลุ่ม ---
+          const count = cluster.cameras.length
+          const marker = new window.longdo.Marker(
+            { lon: cluster.lon, lat: cluster.lat },
+            {
+              clickable: true,
+              icon: {
+                offset: { x: 18, y: 18 },
+                html: `
+                  <div data-cluster-lat="${cluster.lat}" data-cluster-lon="${cluster.lon}" class="map-cluster-pin" title="มีกล้อง ${count} ตัว (คลิกเพื่อขยายดู)" style="
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    background: #16a34a;
+                    border: 3px solid #ffffff;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #ffffff;
+                    font-family: 'DM Sans', sans-serif;
+                    font-size: 14px;
+                    font-weight: 800;
+                    cursor: pointer;
+                    user-select: none;
+                    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+                  ">
+                    ${count}
+                  </div>`
+              }
+            }
+          )
+          map.Overlays.add(marker)
+          markersRef.current.push(marker)
+        }
+      })
     } catch (error) {
       console.error('เกิดข้อผิดพลาดตอนปักหมุดกล้อง:', error)
     }
-  }, [cameras, isMapReady])
+  }, [cameras, isMapReady, currentZoom])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

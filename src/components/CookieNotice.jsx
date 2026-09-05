@@ -30,7 +30,7 @@ function CookieNotice() {
         <span className="cookie-notice-icon"><FaCookieBite /></span>
         <p className="cookie-notice-text">
           เว็บไซต์นี้ใช้คุกกี้ที่จำเป็น (Strictly Necessary Cookies) สำหรับการเข้าสู่ระบบและรักษาความปลอดภัย
-          โดยจะจดจำการเข้าสู่ระบบสูงสุด 7 วันเมื่อเลือก &ldquo;Remember Me&rdquo; คุกกี้นี้จำเป็นต่อการทำงานของระบบ
+          โดยจะจดจำสถานะการเข้าสู่ระบบเมื่อเลือก &ldquo;Remember Me&rdquo; ตามระยะเวลาที่ระบบกำหนด คุกกี้นี้จำเป็นต่อการทำงานของระบบ
         </p>
       </div>
       <button className="cookie-notice-btn" onClick={handleDismiss}>

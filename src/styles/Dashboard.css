@@ -1,15 +1,17 @@
 .dashboard-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-top: 10px;
-  padding-bottom: 8px;
+  gap: 12px;
+  height: calc(100vh - 140px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .stat-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .stat-card {
@@ -17,8 +19,8 @@
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 18px;
-  padding: 14px 18px;
-  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.03);
+  padding: 12px 16px;
+  box-shadow: 0 4px 15px rgba(27, 42, 71, 0.03);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -37,7 +39,7 @@
 
 .stat-card-clickable:hover {
   transform: translateY(-4px);
-  box-shadow: 0 10px 24px rgba(27, 42, 71, 0.08);
+  box-shadow: 0 8px 20px rgba(27, 42, 71, 0.08);
   border-color: rgba(43, 127, 255, 0.35);
 }
 
@@ -46,37 +48,41 @@
 }
 
 .stat-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .stat-val {
   font-family: 'DM Sans', sans-serif;
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-main);
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.1;
 }
+.stat-val.blue { color: #2563eb; } /* bright primary blue */
+.stat-val.green { color: #15803d; } /* deeper green */
+.stat-val.red { color: #be123c; } /* deeper red */
 
 .bottom-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  align-items: stretch;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
 .bottom-row .content-card {
   display: flex;
   flex-direction: column;
-  min-height: 0;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .dashboard-map-container {
   flex: 1;
-  min-height: 380px;
   height: 100%;
   position: relative;
   border-radius: 16px;
@@ -85,9 +91,9 @@
 
 .bottom-row .table-responsive {
   flex: 1;
-  min-height: 290px;
-  display: flex;
-  flex-direction: column;
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
 }
 
 /* ซ่อน Longdo Map UI Controls ทุกชนิดแบบถาวรตั้งแต่จังหวะแรก ไม่ให้กระพริบโชว์ตอนโหลด */
@@ -109,6 +115,16 @@
   pointer-events: none !important;
 }
 
+.dashboard-map-container .map-cluster-pin:hover {
+  transform: scale(1.15) !important;
+  background: #15803d !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45) !important;
+}
+
+.dashboard-map-container .map-single-pin:hover {
+  transform: rotate(-45deg) scale(1.15) !important;
+}
+
 .map-placeholder {
   background: rgb(190, 202, 219);
   border-radius: 16px;
@@ -121,6 +137,70 @@
   border: 2px dashed rgb(47, 46, 106);
 }
 
+/* Table Header with Search Bar */
+.dash-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.dash-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 220px;
+  max-width: 100%;
+}
+
+.dash-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.dash-search-input {
+  width: 100%;
+  padding: 6px 28px 6px 30px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: var(--bg-main, #f8fafc);
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 8px;
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.dash-search-input:focus {
+  border-color: rgb(27, 42, 71);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(27, 42, 71, 0.08);
+}
+
+.dash-search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  font-size: 12px;
+  transition: color 0.15s;
+}
+
+.dash-search-clear:hover {
+  color: #ef4444;
+}
+
 .history-table {
   width: 100%;
   border-collapse: collapse;
@@ -128,24 +208,65 @@
 
 .history-table th {
   text-align: left;
-  padding: 0 10px 10px 10px;
+  padding: 8px 6px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   border-bottom: 1px solid rgb(234, 229, 222);
-  height: 38px;
+  height: 36px;
   box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.history-table th.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.history-table th.sortable-th:hover {
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sort-icon-active {
+  color: rgb(27, 42, 71);
+  font-size: 11px;
+}
+
+.sort-icon-inactive {
+  color: rgba(148, 163, 184, 0.6);
+  font-size: 10px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.history-table th.sortable-th:hover .sort-icon-inactive {
+  opacity: 1;
 }
 
 .history-table td {
-  padding: 10px 10px;
+  padding: 8px 6px;
   color: var(--text-main);
   font-size: 13px;
   border-bottom: 1px solid rgb(244, 238, 230);
   transition: background 0.15s ease;
-  height: 50px;
+  height: 44px;
   box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.history-table .btn-view {
+  padding: 4px 8px;
+  font-size: 12px;
+  gap: 4px;
 }
 
 .history-table tbody tr:has(.empty-state),

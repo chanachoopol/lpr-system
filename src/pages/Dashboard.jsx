@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import MapView from '../components/Map'
@@ -9,13 +9,20 @@ import { renderVillageDisplay } from '../components/VillageDisplay'
 import useNotificationStore from '../store/notificationStore'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
-import { FaCar, FaEye, FaRoute } from 'react-icons/fa'
+import { FaCar, FaEye, FaRoute, FaSearch, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa'
 import { FaXmark } from 'react-icons/fa6'
 import '../styles/Dashboard.css'
 import '../styles/History.css' // 👈 ใช้ style ของ modal ดูรูป (modal-img-section, image-fullscreen-overlay ฯลฯ) ร่วมกับหน้า History
 import '../styles/Blacklist.css' // 👈 ใช้ style ของตารางและ modal แบบเดียวกับ Blacklist Detection Records
 
-const RECENT_HISTORY_LIMIT = 5
+function getDynamicRecentLimit() {
+  if (typeof window === 'undefined') return 5
+  // หักพื้นที่ส่วนบนและเผื่อระยะขอบล่าง รวม ~450px
+  // ความสูงจริงของแต่ละแถวรวม line-height และ border ประมาณ 49px
+  const availableTableHeight = window.innerHeight - 450
+  const rows = Math.floor(availableTableHeight / 49)
+  return Math.max(3, rows)
+}
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
 
@@ -160,11 +167,22 @@ function Dashboard() {
   }
 
   // ---------- Stat Cards + Recent History (endpoint เดียว) ----------
+  const [recentLimit, setRecentLimit] = useState(getDynamicRecentLimit)
   const [dailyData, setDailyData] = useState(null)
   const [isLoadingStats, setIsLoadingStats] = useState(true)
   const [history, setHistory] = useState([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const processedDetectionsRef = useRef(new Set())
+
+  // คำนวณความสูงหน้าจอแบบ Dynamic เพื่อปรับจำนวนแถวให้พอดีจอ 0 Scrollbar
+  useEffect(() => {
+    function handleResize() {
+      const newLimit = getDynamicRecentLimit()
+      setRecentLimit((prev) => (prev !== newLimit ? newLimit : prev))
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const fetchDashboard = useCallback(async (isSilent = false) => {
     if (!user) return
@@ -175,10 +193,10 @@ function Dashboard() {
     try {
       const data = await getTodayDashboardAPI({
         villageId: selectedVillageId || undefined,
-        latestLimit: RECENT_HISTORY_LIMIT
+        latestLimit: recentLimit
       })
       setDailyData(data)
-      setHistory((data.latest_detections || []).slice(0, RECENT_HISTORY_LIMIT))
+      setHistory((data.latest_detections || []).slice(0, recentLimit))
     } catch (error) {
       console.error(error)
     } finally {
@@ -187,7 +205,7 @@ function Dashboard() {
         setIsLoadingHistory(false)
       }
     }
-  }, [user, selectedVillageId])
+  }, [user, selectedVillageId, recentLimit])
 
   useEffect(() => {
     fetchDashboard()
@@ -259,7 +277,7 @@ function Dashboard() {
         camera_id: latestDetection.camera?.id,
         camera: latestDetection.camera
       }
-      return [newItem, ...prev].slice(0, RECENT_HISTORY_LIMIT)
+      return [newItem, ...prev].slice(0, recentLimit)
     })
 
     // 3. Silent Re-sync สถิติที่ถูกต้องสมบูรณ์จาก Backend ในพื้นหลังแบบเนียนตา (ไม่มี Spinner)
@@ -267,7 +285,74 @@ function Dashboard() {
       fetchDashboard(true)
     }, 600)
     return () => clearTimeout(timer)
-  }, [latestDetection, selectedVillageId, fetchDashboard])
+  }, [latestDetection, selectedVillageId, fetchDashboard, recentLimit])
+
+  // ---------- ค้นหาและเรียงลำดับตารางประวัติการตรวจจับ (วันนี้) ----------
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortKey, setSortKey] = useState('time')
+  const [sortOrder, setSortOrder] = useState('desc') // default time desc (ล่าสุดก่อน)
+
+  function handleSort(key) {
+    if (sortKey === key) {
+      if (sortOrder === 'asc') {
+        setSortOrder('desc')
+      } else if (sortOrder === 'desc') {
+        // 3-state: กลับสู่ default (time desc)
+        setSortKey('time')
+        setSortOrder('desc')
+      }
+    } else {
+      setSortKey(key)
+      setSortOrder('asc')
+    }
+  }
+
+  function renderSortIcon(key) {
+    if (sortKey !== key) {
+      return <FaSort className="sort-icon-inactive" />
+    }
+    if (sortOrder === 'asc') {
+      return <FaSortUp className="sort-icon-active" />
+    }
+    return <FaSortDown className="sort-icon-active" />
+  }
+
+  const processedHistory = useMemo(() => {
+    let list = [...history]
+
+    // 1. กรองคำค้นหา (ป้ายทะเบียน หรือ จังหวัด) แบบ real-time
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      list = list.filter((item) => {
+        const plate = String(item.license_plate || '').toLowerCase()
+        const province = String(item.province || '').toLowerCase()
+        return plate.includes(q) || province.includes(q)
+      })
+    }
+
+    // 2. จัดเรียงข้อมูลตามคอลัมน์ (Time, License Plate, Province)
+    if (sortKey) {
+      list.sort((a, b) => {
+        let result = 0
+        if (sortKey === 'time') {
+          const tA = new Date(a.time_detect || 0).getTime()
+          const tB = new Date(b.time_detect || 0).getTime()
+          result = tA - tB
+        } else if (sortKey === 'plate') {
+          const pA = String(a.license_plate || '')
+          const pB = String(b.license_plate || '')
+          result = pA.localeCompare(pB, 'th', { numeric: true })
+        } else if (sortKey === 'province') {
+          const prA = String(a.province || '')
+          const prB = String(b.province || '')
+          result = prA.localeCompare(prB, 'th')
+        }
+        return sortOrder === 'asc' ? result : -result
+      })
+    }
+
+    return list
+  }, [history, searchQuery, sortKey, sortOrder])
 
   // ---------- Modal ดูรายละเอียด/รูปภาพ (pattern เดียวกับ History.jsx) ----------
   const [selectedItem, setSelectedItem] = useState(null)
@@ -405,21 +490,21 @@ function Dashboard() {
         <div className="stat-row">
           <div
             className="stat-card stat-card-clickable"
-            onClick={() => openDirectionModal('entry', 'รายการรถผ่านจุดตรวจขาเข้า (วันนี้)')}
-            title="คลิกเพื่อดูรายละเอียดรถขาเข้าวันนี้"
+            onClick={() => openDirectionModal('entry', 'รายการรถเข้า (วันนี้)')}
+            title="คลิกเพื่อดูรายละเอียดรถเข้าวันนี้"
           >
-            <p className="stat-label">รถผ่านจุดตรวจขาเข้า (วันนี้)</p>
+            <p className="stat-label">ยอดรถเข้าวันนี้</p>
             <h2 className="stat-val blue">
               {isLoadingStats ? '—' : (dailyData?.entry_detections_today ?? 0).toLocaleString()}
             </h2>
           </div>
           <div
             className="stat-card stat-card-clickable"
-            onClick={() => openDirectionModal('exit', 'รายการรถผ่านจุดตรวจขาออก (วันนี้)')}
-            title="คลิกเพื่อดูรายละเอียดรถขาออกวันนี้"
+            onClick={() => openDirectionModal('exit', 'รายการรถออก (วันนี้)')}
+            title="คลิกเพื่อดูรายละเอียดรถออกวันนี้"
           >
-            <p className="stat-label">รถผ่านจุดตรวจขาออก (วันนี้)</p>
-            <h2 className="stat-val green">
+            <p className="stat-label">ยอดรถออกวันนี้</p>
+            <h2 className="stat-val blue">
               {isLoadingStats ? '—' : (dailyData?.exit_detections_today ?? 0).toLocaleString()}
             </h2>
           </div>
@@ -428,7 +513,7 @@ function Dashboard() {
             onClick={() => navigate('/blacklist?tab=whitelist')}
             title="คลิกเพื่อดูรายการ Whitelist"
           >
-            <p className="stat-label">จำนวนทะเบียนที่ได้รับอนุญาต (วันนี้)</p>
+            <p className="stat-label">ไวท์ลิสต์วันนี้</p>
             <h2 className="stat-val green">
               {isLoadingStats ? '—' : (dailyData?.whitelist_detections_today ?? 0).toLocaleString()}
             </h2>
@@ -438,7 +523,7 @@ function Dashboard() {
             onClick={() => navigate('/blacklist?tab=blacklist')}
             title="คลิกเพื่อดูรายการ Blacklist"
           >
-            <p className="stat-label">จำนวนทะเบียนเฝ้าระวัง (วันนี้)</p>
+            <p className="stat-label">แบล็คลิสต์วันนี้</p>
             <h2 className="stat-val red">
               {isLoadingStats ? '—' : (dailyData?.blacklist_detections_today ?? 0).toLocaleString()}
             </h2>
@@ -460,16 +545,52 @@ function Dashboard() {
             )}
           </div>
 
-          <div className="content-card">
-            <h3 className="card-title">Recent History</h3>
+          <div className="content-card table-section">
+            <div className="dash-table-header">
+              <h3 className="card-title" style={{ margin: 0 }}>ประวัติการตรวจจับ (วันนี้)</h3>
+              <div className="dash-search-wrap">
+                <FaSearch className="dash-search-icon" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="dash-search-input"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="dash-search-clear"
+                    onClick={() => setSearchQuery('')}
+                    title="ล้างคำค้นหา"
+                  >
+                    <FaXmark />
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="table-responsive">
               <table className="history-table">
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>License Plate</th>
-                    <th>Province</th>
+                    <th className="sortable-th" onClick={() => handleSort('time')} title="คลิกเพื่อเรียงลำดับตามเวลา">
+                      <div className="th-content">
+                        <span>Time</span>
+                        {renderSortIcon('time')}
+                      </div>
+                    </th>
+                    <th className="sortable-th" onClick={() => handleSort('plate')} title="คลิกเพื่อเรียงลำดับตามป้ายทะเบียน">
+                      <div className="th-content">
+                        <span>License Plate</span>
+                        {renderSortIcon('plate')}
+                      </div>
+                    </th>
+                    <th className="sortable-th" onClick={() => handleSort('province')} title="คลิกเพื่อเรียงลำดับตามจังหวัด">
+                      <div className="th-content">
+                        <span>Province</span>
+                        {renderSortIcon('province')}
+                      </div>
+                    </th>
                     <th>Camera</th>
                     <th>Action</th>
                   </tr>
@@ -477,12 +598,12 @@ function Dashboard() {
                 <tbody>
                   {isLoadingHistory ? (
                     <tr>
-                      <td colSpan="6">
+                      <td colSpan="5">
                         <Spinner text="กำลังโหลด..." />
                       </td>
                     </tr>
-                  ) : history.length > 0 ? (
-                    history.map((item) => {
+                  ) : processedHistory.length > 0 ? (
+                    processedHistory.map((item) => {
                       const isBlacklist = Boolean(
                         item.is_blacklist ||
                         item.is_blacklisted ||
@@ -491,7 +612,6 @@ function Dashboard() {
                       )
                       return (
                         <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
-                          <td>{formatDate(item.time_detect)}</td>
                           <td>{formatTime(item.time_detect)}</td>
                           <td className="plate-text">{item.license_plate}</td>
                           <td>{item.province}</td>
@@ -506,7 +626,7 @@ function Dashboard() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan="6">
+                      <td colSpan="5">
                         <EmptyState icon={<FaCar />} title="No data available" />
                       </td>
                     </tr>

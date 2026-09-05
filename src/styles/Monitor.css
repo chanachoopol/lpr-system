@@ -5,8 +5,19 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 4px;
-  padding-bottom: 0;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.monitor-wrapper.single-view {
+  height: calc(100vh - 136px);
+  max-height: calc(100vh - 136px);
+  overflow: hidden;
+}
+
+.monitor-wrapper.grid-view {
+  min-height: calc(100vh - 136px);
 }
 
 /* แถบเลือกกล้องด้านบน */
@@ -16,6 +27,7 @@
   gap: 12px;
   padding: 10px 18px;
   border-radius: 14px;
+  flex-shrink: 0;
 }
 
 .camera-icon {
@@ -58,34 +70,53 @@
   grid-template-columns: 1fr 1fr; 
   gap: 16px;
   align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .monitor-left {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 14px;
+  align-items: center;
+  padding: 16px;
   border-radius: 18px;
   height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* กรอบวิดีโอ */
 .video-wrapper {
   position: relative;
   width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 16/9;
   border-radius: 12px;
   overflow: hidden;
   background: #0f172a; 
-  aspect-ratio: 16/9;
   box-shadow: 0 6px 20px rgba(27, 42, 71, 0.08);
   border: 3px solid rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .live-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+}
+
+.video-skeleton {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .video-overlay {
@@ -123,10 +154,75 @@
   padding: 16px 20px;
   border-radius: 18px;
   height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.monitor-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.monitor-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 220px;
+}
+
+.monitor-search-icon {
+  position: absolute;
+  left: 10px;
+  color: #94a3b8;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.monitor-search-input {
+  width: 100%;
+  padding: 6px 28px 6px 30px;
+  font-size: 12.5px;
+  font-family: 'DM Sans', sans-serif;
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.monitor-search-input:focus {
+  border-color: #1b2a47;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(27, 42, 71, 0.08);
+}
+
+.monitor-search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  padding: 2px;
+  transition: color 0.15s;
+}
+
+.monitor-search-clear:hover {
+  color: #ef4444;
 }
 
 .monitor-right .card-title {
-  margin-bottom: 10px;
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 /* พื้นที่แสดงป้ายทะเบียน */
@@ -134,10 +230,11 @@
   background: rgba(27, 42, 71, 0.03);
   border: 1px dashed rgba(27, 42, 71, 0.2);
   border-radius: 12px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   display: flex;
   justify-content: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .thai-plate {
@@ -184,19 +281,65 @@
 
 .table-container {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   min-height: 0;
-  max-height: 480px;
+}
+
+.table-container .history-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
 .table-container .history-table th {
-  padding: 12px 14px;
-  font-size: 13.5px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1.5px solid rgba(27, 42, 71, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  text-align: left;
+}
+
+.table-container .history-table th.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.table-container .history-table th.sortable-th:hover {
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sort-icon-active {
+  color: rgb(27, 42, 71);
+  font-size: 11px;
+}
+
+.sort-icon-inactive {
+  color: rgba(148, 163, 184, 0.6);
+  font-size: 10px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.table-container .history-table th.sortable-th:hover .sort-icon-inactive {
+  opacity: 1;
 }
 
 .table-container .history-table td {
-  padding: 11px 14px;
-  font-size: 14px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  border-bottom: 1px solid rgba(27, 42, 71, 0.05);
+  white-space: nowrap;
 }
 
 .bold-plate {
@@ -207,12 +350,21 @@
 }
 
 @media (max-width: 1024px) {
+  .monitor-wrapper.single-view {
+    height: auto;
+    overflow: visible;
+  }
   .monitor-content {
     grid-template-columns: 1fr; 
+    overflow: visible;
   }
   .video-wrapper {
-    aspect-ratio: auto;
-    height: 400px;
+    aspect-ratio: 16/9;
+    height: auto;
+  }
+  .table-container {
+    overflow-y: auto;
+    max-height: 400px;
   }
 }
 /* ==================== Grid View (All Cameras) ==================== */

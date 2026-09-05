@@ -7,7 +7,9 @@ import {
   FaPlus,
   FaArrowUpRightFromSquare
 } from 'react-icons/fa6'
-import { FaCar, FaSearch, FaCheck, FaPen, FaEye, FaRoute } from 'react-icons/fa'
+import { FaCar, FaSearch, FaCheck, FaPen, FaEye, FaRoute, FaCalendarAlt, FaRedo } from 'react-icons/fa'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
@@ -132,6 +134,8 @@ function Blacklist() {
   const [isLoadingDetections, setIsLoadingDetections] = useState(true)
   const [detectionSearch, setDetectionSearch] = useState('')
   const [debouncedDetectionSearch, setDebouncedDetectionSearch] = useState('')
+  const [startDate, setStartDate] = useState(null)
+  const [endDate, setEndDate] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [cameras, setCameras] = useState([])
 
@@ -476,18 +480,47 @@ function saveHistoricalWhitelistPlates(map) {
     return matchingDetections.filter((d) => dateKeyOf(d.time_detect) === todayStr).length
   }, [matchingDetections])
 
-  // กรองตาราง Detections ด้วย Search
+  // กรองตาราง Detections ด้วย Search และ ช่วงวันที่ (Date Range)
   const filteredDetections = useMemo(() => {
-    if (!debouncedDetectionSearch.trim()) return matchingDetections
-    const q = debouncedDetectionSearch.trim().toLowerCase()
-    return matchingDetections.filter(
-      (d) =>
-        (d.license_plate || '').toLowerCase().includes(q) ||
-        (d.province || '').toLowerCase().includes(q) ||
-        (d.matchedReason || '').toLowerCase().includes(q) ||
-        (d.matchedName || '').toLowerCase().includes(q)
-    )
-  }, [matchingDetections, debouncedDetectionSearch])
+    let list = matchingDetections
+
+    // ลอจิกวันที่: ถ้าเลือกแค่วันแรก = หาวันนั้นทั้งวัน, ถ้าเลือก 2 วัน = หาช่วงวันที่
+    if (startDate && !endDate) {
+      const startOfDay = new Date(startDate)
+      startOfDay.setHours(0, 0, 0, 0)
+      const endOfDay = new Date(startDate)
+      endOfDay.setHours(23, 59, 59, 999)
+      list = list.filter((d) => {
+        const time = new Date(d.time_detect)
+        return time >= startOfDay && time <= endOfDay
+      })
+    } else {
+      if (startDate) {
+        const start = new Date(startDate)
+        start.setHours(0, 0, 0, 0)
+        list = list.filter((d) => new Date(d.time_detect) >= start)
+      }
+      if (endDate) {
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+        list = list.filter((d) => new Date(d.time_detect) <= end)
+      }
+    }
+
+    // กรองคำค้นหา
+    if (debouncedDetectionSearch.trim()) {
+      const q = debouncedDetectionSearch.trim().toLowerCase()
+      list = list.filter(
+        (d) =>
+          (d.license_plate || '').toLowerCase().includes(q) ||
+          (d.province || '').toLowerCase().includes(q) ||
+          (d.matchedReason || '').toLowerCase().includes(q) ||
+          (d.matchedName || '').toLowerCase().includes(q)
+      )
+    }
+
+    return list
+  }, [matchingDetections, debouncedDetectionSearch, startDate, endDate])
 
   // Pagination สำหรับตาราง Detections
   const totalPages = Math.max(1, Math.ceil(filteredDetections.length / ROWS_PER_PAGE))
@@ -518,6 +551,17 @@ function saveHistoricalWhitelistPlates(map) {
     setRegisteredSearch('')
     setDetectionSearch('')
     setDebouncedDetectionSearch('')
+    setStartDate(null)
+    setEndDate(null)
+    setCurrentPage(1)
+  }
+
+  // รีเซ็ตตัวกรองตารางประวัติ
+  function handleResetDetectionFilter() {
+    setDetectionSearch('')
+    setDebouncedDetectionSearch('')
+    setStartDate(null)
+    setEndDate(null)
     setCurrentPage(1)
   }
 
@@ -893,16 +937,67 @@ function saveHistoricalWhitelistPlates(map) {
             </div>
 
             <div className="bl-table-header-actions">
+              <div className="bl-date-filter-group">
+                <div className="bl-datepicker-wrap">
+                  <FaCalendarAlt className="bl-datepicker-icon" />
+                  <DatePicker
+                    selected={startDate}
+                    onChange={(date) => {
+                      setStartDate(date)
+                      setCurrentPage(1)
+                    }}
+                    selectsStart
+                    startDate={startDate}
+                    endDate={endDate}
+                    maxDate={endDate || new Date()}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="จากวันที่"
+                    className="bl-datepicker-input"
+                    isClearable
+                  />
+                </div>
+                <span className="bl-date-separator">-</span>
+                <div className="bl-datepicker-wrap">
+                  <FaCalendarAlt className="bl-datepicker-icon" />
+                  <DatePicker
+                    selected={endDate}
+                    onChange={(date) => {
+                      setEndDate(date)
+                      setCurrentPage(1)
+                    }}
+                    selectsEnd
+                    startDate={startDate}
+                    endDate={endDate}
+                    minDate={startDate}
+                    maxDate={new Date()}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="ถึงวันที่"
+                    className="bl-datepicker-input"
+                    isClearable
+                  />
+                </div>
+              </div>
+
               <div className="bl-search-wrap">
                 <FaSearch className="bl-search-icon" />
                 <input
                   type="text"
-                  placeholder="ค้นหาป้ายทะเบียน..."
+                  placeholder="ค้นหาป้ายทะเบียน/เหตุผล..."
                   value={detectionSearch}
                   onChange={(e) => setDetectionSearch(e.target.value)}
                   className="bl-search-input"
                 />
               </div>
+
+              {(detectionSearch || startDate || endDate) && (
+                <button
+                  className="btn-reset bl-btn-reset"
+                  onClick={handleResetDetectionFilter}
+                  title="ล้างตัวกรองทั้งหมด"
+                >
+                  <FaRedo /> Reset
+                </button>
+              )}
             </div>
           </div>
 

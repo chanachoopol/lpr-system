@@ -321,22 +321,64 @@ function CameraManagement() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [showFormModal, isSubmitting])
 
+  function sanitizeCoord(val) {
+    if (!val) return ''
+    let sanitized = String(val).trim().replace(/[^0-9.-]/g, '')
+    if (sanitized.indexOf('-') > 0) {
+      sanitized = sanitized.replace(/(?!^)-/g, '')
+    }
+    const parts = sanitized.split('.')
+    if (parts.length > 2) {
+      sanitized = parts[0] + '.' + parts.slice(1).join('')
+    }
+    return sanitized
+  }
+
+  function handlePasteCoordinate(e) {
+    const pastedText = e.clipboardData?.getData('text') || ''
+    if (pastedText.includes(',')) {
+      e.preventDefault()
+      const parts = pastedText.split(',')
+      if (parts.length >= 2) {
+        const latPart = sanitizeCoord(parts[0])
+        const longPart = sanitizeCoord(parts[1])
+        setFormData((prev) => ({
+          ...prev,
+          lat: latPart,
+          long: longPart
+        }))
+        setFormTouched((prev) => ({ ...prev, lat: true, long: true }))
+      }
+    }
+  }
+
   function handleFormChange(e) {
     const { name, value, type, checked } = e.target
     setFormTouched((prev) => ({ ...prev, [name]: true }))
+
     if (name === 'lat' || name === 'long') {
+      // ตรวจจับกรณี copy พิกัดมาวางแบบมีลูกน้ำคั่น เช่น "13.844849, 100.632904"
+      if (value.includes(',')) {
+        const parts = value.split(',')
+        if (parts.length >= 2) {
+          const latPart = sanitizeCoord(parts[0])
+          const longPart = sanitizeCoord(parts[1])
+          setFormData((prev) => ({
+            ...prev,
+            lat: latPart,
+            long: longPart
+          }))
+          setFormTouched((prev) => ({ ...prev, lat: true, long: true }))
+          return
+        }
+      }
+
       // อนุญาตเฉพาะตัวเลข เครื่องหมายลบ (-) ที่ตัวแรก และจุดทศนิยม (.) ไม่เกิน 1 จุด
-      let sanitized = value.replace(/[^0-9.-]/g, '')
-      if (sanitized.indexOf('-') > 0) {
-        sanitized = sanitized.replace(/(?!^)-/g, '')
-      }
-      const parts = sanitized.split('.')
-      if (parts.length > 2) {
-        sanitized = parts[0] + '.' + parts.slice(1).join('')
-      }
+      const sanitized = sanitizeCoord(value)
       setFormData((prev) => ({ ...prev, [name]: sanitized }))
       return
     }
+
     setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
@@ -836,6 +878,7 @@ function CameraManagement() {
                     placeholder="เช่น 13.844849"
                     value={formData.lat}
                     onChange={handleFormChange}
+                    onPaste={handlePasteCoordinate}
                     onBlur={() => handleFieldBlur('lat')}
                     style={
                       (formTouched.lat || hasSubmittedForm) && (formData.lat === '' || isNaN(parseFloat(formData.lat)) || parseFloat(formData.lat) < -90 || parseFloat(formData.lat) > 90)
@@ -864,6 +907,7 @@ function CameraManagement() {
                     placeholder="เช่น 100.632904"
                     value={formData.long}
                     onChange={handleFormChange}
+                    onPaste={handlePasteCoordinate}
                     onBlur={() => handleFieldBlur('long')}
                     style={
                       (formTouched.long || hasSubmittedForm) && (formData.long === '' || isNaN(parseFloat(formData.long)) || parseFloat(formData.long) < -180 || parseFloat(formData.long) > 180)
