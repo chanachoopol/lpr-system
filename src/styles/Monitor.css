@@ -216,8 +216,37 @@
   transition: color 0.15s;
 }
 
-.monitor-search-clear:hover {
-  color: #ef4444;
+.monitor-table-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitor-table-header .btn-sort-icon-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  background: rgba(255, 255, 255, 0.8);
+  color: #1b2a47;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.monitor-table-header .btn-sort-icon-toggle:hover {
+  background: #ffffff;
+  border-color: rgba(27, 42, 71, 0.3);
+  transform: translateY(-1px);
+}
+
+.monitor-table-header .btn-sort-icon-toggle .sort-btn-icon {
+  font-size: 14px;
+  color: #3b82f6;
 }
 
 .monitor-right .card-title {
@@ -300,39 +329,6 @@
   border-bottom: 1.5px solid rgba(27, 42, 71, 0.08);
   background: rgba(255, 255, 255, 0.9);
   text-align: left;
-}
-
-.table-container .history-table th.sortable-th {
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.15s ease, background 0.15s ease;
-}
-
-.table-container .history-table th.sortable-th:hover {
-  color: var(--text-main);
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.th-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.sort-icon-active {
-  color: rgb(27, 42, 71);
-  font-size: 11px;
-}
-
-.sort-icon-inactive {
-  color: rgba(148, 163, 184, 0.6);
-  font-size: 10px;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-}
-
-.table-container .history-table th.sortable-th:hover .sort-icon-inactive {
-  opacity: 1;
 }
 
 .table-container .history-table td {

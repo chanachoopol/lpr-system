@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
-import { FaXmark, FaPalette, FaRoute } from 'react-icons/fa6'
+import { FaXmark, FaPalette, FaRoute, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6'
 import Layout from '../components/Layout'
 import { getDetectionsAPI, getCamerasAPI, getAuthedImageURL } from '../data/api'
 import useAuthStore from '../store/authStore'
@@ -14,9 +14,20 @@ import EmptyState from '../components/EmptyState'
 import useVillageStore from '../store/villageStore'
 import { renderVillageDisplay } from '../components/VillageDisplay'
 
-const ROWS_PER_PAGE = 10
 const SEARCH_DEBOUNCE_MS = 400
 const MAX_VISIBLE_PAGES = 4 // จำนวนปุ่มเลขหน้าสูงสุดที่โชว์พร้อมกัน
+
+function getDynamicHistoryLimit() {
+  if (typeof window === 'undefined') return 10
+  // คำนวณความสูงตารางที่เหลือ:
+  // Layout padding & Navbar (~110px) + History Filter Bar (~80px) + Gap (~14px)
+  // Table Card padding (~36px) + Table Header & Total (~36px) + thead (~40px) + Pagination (~48px)
+  // Overhead รวม ~364px
+  const availableTableHeight = window.innerHeight - 364
+  const rowHeight = 44
+  const rows = Math.floor(availableTableHeight / rowHeight)
+  return Math.max(3, rows)
+}
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
 
@@ -105,7 +116,18 @@ function History() {
   const [historyData, setHistoryData] = useState([])
   const [totalItems, setTotalItems] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(getDynamicHistoryLimit)
   const [isLoading, setIsLoading] = useState(true)
+
+  // ดักจับการ Resize หน้าจอเพื่อคำนวณจำนวนแถวให้พอดีหน้าจอแบบ Real-time
+  useEffect(() => {
+    function handleResize() {
+      const nextLimit = getDynamicHistoryLimit()
+      setPageSize((prev) => (prev !== nextLimit ? nextLimit : prev))
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const [selectedItem, setSelectedItem] = useState(null)
   const [modalImages, setModalImages] = useState({ crop: null, full: null })
@@ -183,7 +205,7 @@ function History() {
     try {
       const params = {
         page: currentPage,
-        page_size: ROWS_PER_PAGE
+        page_size: pageSize
       }
 
       if (selectedVillageId) params.village_id = selectedVillageId
@@ -227,10 +249,10 @@ function History() {
         total = data.total
       } else if (typeof data?.count === 'number') {
         total = data.count
-      } else if (items.length >= ROWS_PER_PAGE) {
-        total = currentPage * ROWS_PER_PAGE + 1
+      } else if (items.length >= pageSize) {
+        total = currentPage * pageSize + 1
       } else {
-        total = (currentPage - 1) * ROWS_PER_PAGE + items.length
+        total = (currentPage - 1) * pageSize + items.length
       }
 
       setHistoryData(items)
@@ -246,7 +268,7 @@ function History() {
     } finally {
       if (!isSilent) setIsLoading(false)
     }
-  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, currentPage, selectedVillageId])
+  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, currentPage, pageSize, selectedVillageId])
 
   useEffect(() => {
     fetchHistory()
@@ -333,7 +355,23 @@ function History() {
     }
   }, [modalImages])
 
-  const totalPages = Math.max(1, Math.ceil((totalItems || 0) / ROWS_PER_PAGE))
+  const [sortOrder, setSortOrder] = useState('desc') // 'desc' = ล่าสุดก่อน, 'asc' = เก่าสุดก่อน
+
+  function toggleSortOrder() {
+    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+  }
+
+  const processedHistoryData = useMemo(() => {
+    let list = [...historyData]
+    list.sort((a, b) => {
+      const tA = new Date(a.time_detect || 0).getTime()
+      const tB = new Date(b.time_detect || 0).getTime()
+      return sortOrder === 'asc' ? tA - tB : tB - tA
+    })
+    return list
+  }, [historyData, sortOrder])
+
+  const totalPages = Math.max(1, Math.ceil((totalItems || 0) / pageSize))
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
 
   function closeModal() {
@@ -473,12 +511,28 @@ function History() {
         </div>
 
         {/* ตาราง */}
-        <div className="content-card">
+        <div className="content-card history-table-card">
           <div className="history-table-header">
             <h3 className="card-title" style={{ margin: 0 }}>Vehicle History</h3>
-            <p className="history-total">
-              Found <strong>{totalItems}</strong> records
-            </p>
+
+            <div className="history-header-right">
+              <p className="history-total">
+                Found <strong>{totalItems}</strong> records
+              </p>
+
+              <button
+                type="button"
+                className="btn-sort-icon-toggle"
+                onClick={toggleSortOrder}
+                title={sortOrder === 'desc' ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)' : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'}
+              >
+                {sortOrder === 'desc' ? (
+                  <FaArrowDownWideShort className="sort-btn-icon" />
+                ) : (
+                  <FaArrowUpWideShort className="sort-btn-icon" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="table-responsive">
@@ -504,8 +558,8 @@ function History() {
                       <Spinner text="Loading history..." />
                     </td>
                   </tr>
-                ) : historyData.length > 0 ? (
-                  historyData.map((item, index) => {
+                ) : processedHistoryData.length > 0 ? (
+                  processedHistoryData.map((item, index) => {
                     const isBlacklist = Boolean(item.is_blacklist)
                     const isHighlighted = highlightPlate && (
                       String(item.license_plate || '').trim().toLowerCase() === highlightPlate.trim().toLowerCase()
@@ -517,7 +571,7 @@ function History() {
 
                     return (
                       <tr key={item.id} className={rowClass}>
-                        <td>{(currentPage - 1) * ROWS_PER_PAGE + index + 1}</td>
+                        <td>{(currentPage - 1) * pageSize + index + 1}</td>
                         <td>{formatDate(item.time_detect)}</td>
                         <td>{formatTime(item.time_detect)}</td>
                         <td className="plate-text">{item.license_plate}</td>

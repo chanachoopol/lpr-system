@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { FaVideo, FaThLarge, FaSearch, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa'
-import { FaXmark } from 'react-icons/fa6'
+import { FaVideo, FaThLarge, FaSearch } from 'react-icons/fa'
+import { FaXmark, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/Monitor.css'
@@ -80,32 +80,10 @@ function Monitor() {
 
   // Search & Sort states
   const [searchQuery, setSearchQuery] = useState('')
-  const [sortKey, setSortKey] = useState('time')
-  const [sortOrder, setSortOrder] = useState('desc')
+  const [sortOrder, setSortOrder] = useState('desc') // default time desc (ล่าสุดก่อน)
 
-  function handleSort(key) {
-    if (sortKey === key) {
-      if (sortOrder === 'asc') {
-        setSortOrder('desc')
-      } else if (sortOrder === 'desc') {
-        // 3-state: กลับสู่ default (time desc)
-        setSortKey('time')
-        setSortOrder('desc')
-      }
-    } else {
-      setSortKey(key)
-      setSortOrder('asc')
-    }
-  }
-
-  function renderSortIcon(key) {
-    if (sortKey !== key) {
-      return <FaSort className="sort-icon-inactive" />
-    }
-    if (sortOrder === 'asc') {
-      return <FaSortUp className="sort-icon-active" />
-    }
-    return <FaSortDown className="sort-icon-active" />
+  function toggleSortOrder() {
+    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
   }
 
   const processedCaptures = useMemo(() => {
@@ -121,29 +99,15 @@ function Monitor() {
       })
     }
 
-    // 2. จัดเรียงข้อมูลตามคอลัมน์ (Time, License Plate, Province)
-    if (sortKey) {
-      list.sort((a, b) => {
-        let result = 0
-        if (sortKey === 'time') {
-          const tA = new Date(a.time_detect || 0).getTime()
-          const tB = new Date(b.time_detect || 0).getTime()
-          result = tA - tB
-        } else if (sortKey === 'plate') {
-          const pA = String(a.license_plate || '')
-          const pB = String(b.license_plate || '')
-          result = pA.localeCompare(pB, 'th', { numeric: true })
-        } else if (sortKey === 'province') {
-          const prA = String(a.province || '')
-          const prB = String(b.province || '')
-          result = prA.localeCompare(prB, 'th')
-        }
-        return sortOrder === 'asc' ? result : -result
-      })
-    }
+    // 2. จัดเรียงข้อมูลตามเวลา (ใหม่ไปเก่า / เก่าไปใหม่)
+    list.sort((a, b) => {
+      const tA = new Date(a.time_detect || 0).getTime()
+      const tB = new Date(b.time_detect || 0).getTime()
+      return sortOrder === 'asc' ? tA - tB : tB - tA
+    })
 
     return list
-  }, [latestCaptures, searchQuery, sortKey, sortOrder])
+  }, [latestCaptures, searchQuery, sortOrder])
 
   // คำนวณจำนวนแถวที่พอดีกับหน้าจอเมื่อมีการปรับขนาดหน้าต่าง (Resize)
   useEffect(() => {
@@ -379,25 +343,40 @@ function Monitor() {
             <div className="monitor-right content-card">
               <div className="monitor-table-header">
                 <h3 className="card-title" style={{ margin: 0 }}>Latest Capture</h3>
-                <div className="monitor-search-wrap">
-                  <FaSearch className="monitor-search-icon" />
-                  <input
-                    type="text"
-                    placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="monitor-search-input"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      className="monitor-search-clear"
-                      onClick={() => setSearchQuery('')}
-                      title="ล้างคำค้นหา"
-                    >
-                      <FaXmark />
-                    </button>
-                  )}
+                <div className="monitor-table-header-right">
+                  <div className="monitor-search-wrap">
+                    <FaSearch className="monitor-search-icon" />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="monitor-search-input"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className="monitor-search-clear"
+                        onClick={() => setSearchQuery('')}
+                        title="ล้างคำค้นหา"
+                      >
+                        <FaXmark />
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn-sort-icon-toggle"
+                    onClick={toggleSortOrder}
+                    title={sortOrder === 'desc' ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)' : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'}
+                  >
+                    {sortOrder === 'desc' ? (
+                      <FaArrowDownWideShort className="sort-btn-icon" />
+                    ) : (
+                      <FaArrowUpWideShort className="sort-btn-icon" />
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -416,24 +395,9 @@ function Monitor() {
                 <table className="history-table">
                   <thead>
                     <tr>
-                      <th className="sortable-th" onClick={() => handleSort('time')} title="คลิกเพื่อเรียงลำดับตามเวลา">
-                        <div className="th-content">
-                          <span>Time</span>
-                          {renderSortIcon('time')}
-                        </div>
-                      </th>
-                      <th className="sortable-th" onClick={() => handleSort('plate')} title="คลิกเพื่อเรียงลำดับตามป้ายทะเบียน">
-                        <div className="th-content">
-                          <span>License Plate</span>
-                          {renderSortIcon('plate')}
-                        </div>
-                      </th>
-                      <th className="sortable-th" onClick={() => handleSort('province')} title="คลิกเพื่อเรียงลำดับตามจังหวัด">
-                        <div className="th-content">
-                          <span>Province</span>
-                          {renderSortIcon('province')}
-                        </div>
-                      </th>
+                      <th>Time</th>
+                      <th>License Plate</th>
+                      <th>Province</th>
                       <th>Color</th>
                     </tr>
                   </thead>

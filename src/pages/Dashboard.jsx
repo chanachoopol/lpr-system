@@ -9,8 +9,8 @@ import { renderVillageDisplay } from '../components/VillageDisplay'
 import useNotificationStore from '../store/notificationStore'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
-import { FaCar, FaEye, FaRoute, FaSearch, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa'
-import { FaXmark } from 'react-icons/fa6'
+import { FaCar, FaEye, FaRoute, FaSearch } from 'react-icons/fa'
+import { FaXmark, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6'
 import '../styles/Dashboard.css'
 import '../styles/History.css' // 👈 ใช้ style ของ modal ดูรูป (modal-img-section, image-fullscreen-overlay ฯลฯ) ร่วมกับหน้า History
 import '../styles/Blacklist.css' // 👈 ใช้ style ของตารางและ modal แบบเดียวกับ Blacklist Detection Records
@@ -289,32 +289,10 @@ function Dashboard() {
 
   // ---------- ค้นหาและเรียงลำดับตารางประวัติการตรวจจับ (วันนี้) ----------
   const [searchQuery, setSearchQuery] = useState('')
-  const [sortKey, setSortKey] = useState('time')
   const [sortOrder, setSortOrder] = useState('desc') // default time desc (ล่าสุดก่อน)
 
-  function handleSort(key) {
-    if (sortKey === key) {
-      if (sortOrder === 'asc') {
-        setSortOrder('desc')
-      } else if (sortOrder === 'desc') {
-        // 3-state: กลับสู่ default (time desc)
-        setSortKey('time')
-        setSortOrder('desc')
-      }
-    } else {
-      setSortKey(key)
-      setSortOrder('asc')
-    }
-  }
-
-  function renderSortIcon(key) {
-    if (sortKey !== key) {
-      return <FaSort className="sort-icon-inactive" />
-    }
-    if (sortOrder === 'asc') {
-      return <FaSortUp className="sort-icon-active" />
-    }
-    return <FaSortDown className="sort-icon-active" />
+  function toggleSortOrder() {
+    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
   }
 
   const processedHistory = useMemo(() => {
@@ -330,29 +308,15 @@ function Dashboard() {
       })
     }
 
-    // 2. จัดเรียงข้อมูลตามคอลัมน์ (Time, License Plate, Province)
-    if (sortKey) {
-      list.sort((a, b) => {
-        let result = 0
-        if (sortKey === 'time') {
-          const tA = new Date(a.time_detect || 0).getTime()
-          const tB = new Date(b.time_detect || 0).getTime()
-          result = tA - tB
-        } else if (sortKey === 'plate') {
-          const pA = String(a.license_plate || '')
-          const pB = String(b.license_plate || '')
-          result = pA.localeCompare(pB, 'th', { numeric: true })
-        } else if (sortKey === 'province') {
-          const prA = String(a.province || '')
-          const prB = String(b.province || '')
-          result = prA.localeCompare(prB, 'th')
-        }
-        return sortOrder === 'asc' ? result : -result
-      })
-    }
+    // 2. จัดเรียงข้อมูลตามเวลา (ใหม่ไปเก่า / เก่าไปใหม่)
+    list.sort((a, b) => {
+      const tA = new Date(a.time_detect || 0).getTime()
+      const tB = new Date(b.time_detect || 0).getTime()
+      return sortOrder === 'asc' ? tA - tB : tB - tA
+    })
 
     return list
-  }, [history, searchQuery, sortKey, sortOrder])
+  }, [history, searchQuery, sortOrder])
 
   // ---------- Modal ดูรายละเอียด/รูปภาพ (pattern เดียวกับ History.jsx) ----------
   const [selectedItem, setSelectedItem] = useState(null)
@@ -548,49 +512,49 @@ function Dashboard() {
           <div className="content-card table-section">
             <div className="dash-table-header">
               <h3 className="card-title" style={{ margin: 0 }}>ประวัติการตรวจจับ (วันนี้)</h3>
-              <div className="dash-search-wrap">
-                <FaSearch className="dash-search-icon" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="dash-search-input"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    className="dash-search-clear"
-                    onClick={() => setSearchQuery('')}
-                    title="ล้างคำค้นหา"
-                  >
-                    <FaXmark />
-                  </button>
-                )}
+              <div className="dash-table-header-right">
+                <div className="dash-search-wrap">
+                  <FaSearch className="dash-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="dash-search-input"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="dash-search-clear"
+                      onClick={() => setSearchQuery('')}
+                      title="ล้างคำค้นหา"
+                    >
+                      <FaXmark />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-sort-icon-toggle"
+                  onClick={toggleSortOrder}
+                  title={sortOrder === 'desc' ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)' : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'}
+                >
+                  {sortOrder === 'desc' ? (
+                    <FaArrowDownWideShort className="sort-btn-icon" />
+                  ) : (
+                    <FaArrowUpWideShort className="sort-btn-icon" />
+                  )}
+                </button>
               </div>
             </div>
             <div className="table-responsive">
               <table className="history-table">
                 <thead>
                   <tr>
-                    <th className="sortable-th" onClick={() => handleSort('time')} title="คลิกเพื่อเรียงลำดับตามเวลา">
-                      <div className="th-content">
-                        <span>Time</span>
-                        {renderSortIcon('time')}
-                      </div>
-                    </th>
-                    <th className="sortable-th" onClick={() => handleSort('plate')} title="คลิกเพื่อเรียงลำดับตามป้ายทะเบียน">
-                      <div className="th-content">
-                        <span>License Plate</span>
-                        {renderSortIcon('plate')}
-                      </div>
-                    </th>
-                    <th className="sortable-th" onClick={() => handleSort('province')} title="คลิกเพื่อเรียงลำดับตามจังหวัด">
-                      <div className="th-content">
-                        <span>Province</span>
-                        {renderSortIcon('province')}
-                      </div>
-                    </th>
+                    <th>Time</th>
+                    <th>License Plate</th>
+                    <th>Province</th>
                     <th>Camera</th>
                     <th>Action</th>
                   </tr>
