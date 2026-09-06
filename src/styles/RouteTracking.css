@@ -92,6 +92,34 @@
   gap: 10px;
 }
 
+.btn-rt-reset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-rt-reset:hover:not(:disabled) {
+  background: rgba(27, 42, 71, 0.06);
+  border-color: rgba(27, 42, 71, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-rt-reset:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-rt-search {
   display: flex;
   align-items: center;

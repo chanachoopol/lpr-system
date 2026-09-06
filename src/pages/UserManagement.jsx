@@ -32,7 +32,8 @@ import ActionMenu from '../components/ActionMenu'
 import { filterVisibleUsers } from '../utils/Permissions'
 import { isEmailValid, isPasswordValid, isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji, hasEmoji } from '../utils/passwordPolicy'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 5
+const VILLAGE_PAGE_SIZE = 5
 const MAX_VISIBLE_PAGES = 4
 const SEARCH_DEBOUNCE_MS = 400
 const MIN_PASSWORD_LENGTH = 8
@@ -198,6 +199,7 @@ function UserManagement() {
   // รายการหมู่บ้านทั้งหมด (ไม่กรอง active) สำหรับตารางจัดการ — เฉพาะ superadmin
   const [villagesList, setVillagesList] = useState([])
   const [isLoadingVillagesList, setIsLoadingVillagesList] = useState(true)
+  const [villagePage, setVillagePage] = useState(1)
 
   // Reset Password modal — API ต้องการ new_password + confirm ตรงๆ ไม่ auto-generate
   const [resetTargetUser, setResetTargetUser] = useState(null)
@@ -1025,6 +1027,13 @@ function UserManagement() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
 
+  const totalVillagePages = Math.max(1, Math.ceil(villagesList.length / VILLAGE_PAGE_SIZE))
+  const visibleVillagePages = getVisiblePageNumbers(villagePage, totalVillagePages, MAX_VISIBLE_PAGES)
+  const paginatedVillages = useMemo(() => {
+    const start = (villagePage - 1) * VILLAGE_PAGE_SIZE
+    return villagesList.slice(start, start + VILLAGE_PAGE_SIZE)
+  }, [villagesList, villagePage])
+
   return (
     <Layout title="User Management">
       <div className="um-wrapper">
@@ -1066,7 +1075,121 @@ function UserManagement() {
           </div>
         </div>
 
-        {/* ตาราง */}
+        {/* Village Management — เฉพาะ Superadmin */}
+        {isSuperadmin && (
+          <div className="content-card">
+            <div className="um-table-header">
+              <div>
+                <h3 className="card-title" style={{ margin: 0 }}>Village Management</h3>
+                <p className="um-description">
+                  จัดการหมู่บ้านทั้งหมดในระบบ — เพิ่มหมู่บ้านใหม่ หรือระงับการใช้งานหมู่บ้านที่ไม่ใช้แล้ว
+                </p>
+              </div>
+              <button className="btn-add-village" onClick={openAddVillageModal}>
+                <FaCity /> Add Village
+              </button>
+            </div>
+
+            <div className="table-responsive">
+              <table className="um-table">
+                <thead>
+                  <tr>
+                    <th>Village Name</th>
+                    <th>Address</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoadingVillagesList ? (
+                    <tr><td colSpan={5}><Spinner text="Loading villages..." /></td></tr>
+                  ) : paginatedVillages.length > 0 ? (
+                    paginatedVillages.map((v) => (
+                      <tr key={v.id}>
+                        <td className="um-username">
+                          <span style={{ fontWeight: 600 }}>{v.name}</span>
+                        </td>
+                        <td style={{ color: v.address && v.address !== '-' ? 'var(--text-primary)' : 'var(--text-secondary, #94a3b8)', fontSize: '13px', maxWidth: '260px' }}>
+                          {v.address && v.address !== '-' ? v.address : '-'}
+                        </td>
+                        <td>
+                          <span className={`um-status-dot ${v.is_active ? 'active' : 'inactive'}`}></span>
+                          {v.is_active ? 'Active' : 'Suspended'}
+                        </td>
+                        <td>{formatDate(v.created_at)}</td>
+                        <td>
+                          <div className="um-actions">
+                            <button className="um-icon-btn edit" onClick={() => setSelectedVillageForDetail(v)} title="ดูรายละเอียดหมู่บ้าน">
+                              <FaEye />
+                            </button>
+                            <button className="um-icon-btn edit" onClick={() => openEditVillageModal(v)} title="แก้ไขชื่อหมู่บ้าน">
+                              <FaPen />
+                            </button>
+                            <button
+                              className={v.is_active ? 'um-icon-btn delete' : 'um-icon-btn reset'}
+                              onClick={() => handleToggleVillageActive(v)}
+                              title={v.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}
+                            >
+                              {v.is_active ? <FaToggleOn /> : <FaToggleOff />}
+                            </button>
+                            <button
+                              className="um-icon-btn delete"
+                              onClick={() => handleDeleteVillage(v)}
+                              title="ลบหมู่บ้าน"
+                            >
+                              <FaTrashCan />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5}>
+                        <EmptyState icon={<FaCity />} title="No villages found" description="ยังไม่มีหมู่บ้านในระบบ" />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="um-table-footer">
+              <p className="um-total-count">Showing {paginatedVillages.length} of {villagesList.length.toLocaleString()} villages</p>
+              {totalVillagePages > 1 && (
+                <div className="pagination">
+                  <button
+                    className="page-btn"
+                    disabled={villagePage === 1}
+                    onClick={() => setVillagePage((p) => Math.max(1, p - 1))}
+                    title="หน้าก่อนหน้า"
+                  >
+                    &lt;
+                  </button>
+                  {visibleVillagePages.map((page) => (
+                    <button
+                      key={page}
+                      className={`page-btn ${page === villagePage ? 'active' : ''}`}
+                      onClick={() => setVillagePage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    className="page-btn"
+                    disabled={villagePage === totalVillagePages}
+                    onClick={() => setVillagePage((p) => Math.min(totalVillagePages, p + 1))}
+                    title="หน้าถัดไป"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ตาราง User List */}
         <div className="content-card">
           <div className="um-table-header">
             <div>
@@ -1304,88 +1427,6 @@ function UserManagement() {
             )}
           </div>
         </div>
-
-        {/* Village Management — เฉพาะ Superadmin */}
-        {isSuperadmin && (
-          <div className="content-card">
-            <div className="um-table-header">
-              <div>
-                <h3 className="card-title" style={{ margin: 0 }}>Village Management</h3>
-                <p className="um-description">
-                  จัดการหมู่บ้านทั้งหมดในระบบ — เพิ่มหมู่บ้านใหม่ หรือระงับการใช้งานหมู่บ้านที่ไม่ใช้แล้ว
-                </p>
-              </div>
-              <button className="btn-add-village" onClick={openAddVillageModal}>
-                <FaCity /> Add Village
-              </button>
-            </div>
-
-            <div className="table-responsive">
-              <table className="um-table">
-                <thead>
-                  <tr>
-                    <th>Village Name</th>
-                    <th>Address</th>
-                    <th>Status</th>
-                    <th>Created At</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoadingVillagesList ? (
-                    <tr><td colSpan={5}><Spinner text="Loading villages..." /></td></tr>
-                  ) : villagesList.length > 0 ? (
-                    villagesList.map((v) => (
-                      <tr key={v.id}>
-                        <td className="um-username">
-                          <span style={{ fontWeight: 600 }}>{v.name}</span>
-                        </td>
-                        <td style={{ color: v.address && v.address !== '-' ? 'var(--text-primary)' : 'var(--text-secondary, #94a3b8)', fontSize: '13px', maxWidth: '260px' }}>
-                          {v.address && v.address !== '-' ? v.address : '-'}
-                        </td>
-                        <td>
-                          <span className={`um-status-dot ${v.is_active ? 'active' : 'inactive'}`}></span>
-                          {v.is_active ? 'Active' : 'Suspended'}
-                        </td>
-                        <td>{formatDate(v.created_at)}</td>
-                        <td>
-                          <div className="um-actions">
-                            <button className="um-icon-btn edit" onClick={() => setSelectedVillageForDetail(v)} title="ดูรายละเอียดหมู่บ้าน">
-                              <FaEye />
-                            </button>
-                            <button className="um-icon-btn edit" onClick={() => openEditVillageModal(v)} title="แก้ไขชื่อหมู่บ้าน">
-                              <FaPen />
-                            </button>
-                            <button
-                              className={v.is_active ? 'um-icon-btn delete' : 'um-icon-btn reset'}
-                              onClick={() => handleToggleVillageActive(v)}
-                              title={v.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}
-                            >
-                              {v.is_active ? <FaToggleOn /> : <FaToggleOff />}
-                            </button>
-                            <button
-                              className="um-icon-btn delete"
-                              onClick={() => handleDeleteVillage(v)}
-                              title="ลบหมู่บ้าน"
-                            >
-                              <FaTrashCan />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5}>
-                        <EmptyState icon={<FaCity />} title="No villages found" description="ยังไม่มีหมู่บ้านในระบบ" />
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Modal Add User */}

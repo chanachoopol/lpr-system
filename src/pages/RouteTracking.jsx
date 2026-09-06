@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FaSearch, FaCalendarAlt, FaArrowLeft } from 'react-icons/fa';
-import { FaCar, FaRoute, FaMapLocationDot, FaXmark } from 'react-icons/fa6';
+import { FaCar, FaRoute, FaMapLocationDot, FaXmark, FaArrowRotateLeft } from 'react-icons/fa6';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Swal from 'sweetalert2';
@@ -81,16 +81,18 @@ function RouteTracking() {
   const routeMapRef = useRef(null);
 
   const runSearch = useCallback(
-    async (queryValue, rangeFrom, rangeTo) => {
-      const query = (queryValue ?? queryInput).trim();
+    async (queryValue, rangeFrom, rangeTo, options = {}) => {
+      const query = (queryValue !== undefined ? queryValue : queryInput).trim();
 
       if (!query) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'กรุณากรอกป้ายทะเบียน',
-          text: 'ต้องระบุป้ายทะเบียนก่อนค้นหา',
-          confirmButtonColor: 'var(--sidebar-bg)'
-        });
+        if (!options.silent) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'กรุณากรอกป้ายทะเบียน',
+            text: 'ต้องระบุป้ายทะเบียนก่อนค้นหา',
+            confirmButtonColor: 'var(--sidebar-bg)'
+          });
+        }
         return [];
       }
 
@@ -192,14 +194,16 @@ function RouteTracking() {
       } catch (error) {
         console.error('Route Tracking API Error:', error);
 
-        Swal.fire({
-          icon: 'error',
-          title: 'ค้นหาไม่สำเร็จ',
-          text:
-            error?.response?.data?.detail ||
-            'ไม่สามารถดึงข้อมูลเส้นทางได้ กรุณาลองใหม่',
-          confirmButtonColor: 'var(--sidebar-bg)'
-        });
+        if (!options.silent) {
+          Swal.fire({
+            icon: 'error',
+            title: 'ค้นหาไม่สำเร็จ',
+            text:
+              error?.response?.data?.detail ||
+              'ไม่สามารถดึงข้อมูลเส้นทางได้ กรุณาลองใหม่',
+            confirmButtonColor: 'var(--sidebar-bg)'
+          });
+        }
 
         setVehicleGroups([]);
         return [];
@@ -209,6 +213,34 @@ function RouteTracking() {
     },
     [queryInput, dateFrom, dateTo, selectedVillageId]
   );
+
+  // ฟังก์ชันรีเซ็ตค่าการค้นหากลับสู่สถานะเริ่มต้น
+  const handleReset = useCallback(() => {
+    setQueryInput('');
+    setDateFrom(defaultDateFrom);
+    setDateTo(today);
+    setVehicleGroups([]);
+    setSelectedVehicle(null);
+    setHasSearched(false);
+  }, [defaultDateFrom, today]);
+
+  // ค้นหาแบบ Real-time อัตโนมัติเมื่อพิมพ์ป้ายทะเบียน หรือเปลี่ยนช่วงวันที่
+  useEffect(() => {
+    if (searchParams.get('plate')) return;
+
+    const timer = setTimeout(() => {
+      const trimmed = queryInput.trim();
+      if (!trimmed) {
+        setVehicleGroups([]);
+        setHasSearched(false);
+        setSelectedVehicle(null);
+        return;
+      }
+      runSearch(trimmed, dateFrom, dateTo, { silent: true });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [queryInput, dateFrom, dateTo, runSearch, searchParams]);
 
   // ใหม่
 useEffect(() => {
@@ -524,12 +556,12 @@ useEffect(() => {
 
             <div className="rt-search-buttons">
               <button
-                className="btn-rt-search"
-                onClick={() => runSearch()}
-                disabled={isSearching}
+                className="btn-rt-reset"
+                onClick={handleReset}
+                title="รีเซ็ตค่าการค้นหา"
               >
-                <FaSearch />
-                {isSearching ? 'กำลังค้นหา...' : 'ค้นหา'}
+                <FaArrowRotateLeft />
+                รีเซ็ต
               </button>
             </div>
           </div>
@@ -545,7 +577,7 @@ useEffect(() => {
             <EmptyState
               icon={<FaSearch />}
               title="ยังไม่มีข้อมูล"
-              description="พิมพ์ป้ายทะเบียนด้านบน แล้วกดค้นหา เพื่อดูเส้นทางการเคลื่อนที่"
+              description="พิมพ์ป้ายทะเบียนด้านบน เพื่อดูเส้นทางการเคลื่อนที่"
             />
           </div>
         ) : !selectedVehicle ? (

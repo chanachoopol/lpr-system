@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { FaVideo, FaSearch } from 'react-icons/fa'
-import { FaCirclePlus, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation } from 'react-icons/fa6'
+import { FaCirclePlus, FaPlus, FaMagnifyingGlass, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/CameraManagement.css'
@@ -16,10 +16,27 @@ import {
   deleteCameraAPI,
   resyncAllCamerasAPI,
   resyncCameraAiVisionAPI,
+  checkCameraVerificationAPI,
   getCameraStatusAPI,
   probeOnvifCameraAPI
 } from '../data/api'
 import { hasEmoji } from '../utils/passwordPolicy'
+
+const PAGE_SIZE = 5
+const MAX_VISIBLE_PAGES = 4
+
+function getVisiblePageNumbers(currentPage, totalPages, maxVisible = 4) {
+  if (totalPages <= maxVisible) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+  let start = Math.max(1, currentPage - Math.floor(maxVisible / 2))
+  let end = start + maxVisible - 1
+  if (end > totalPages) {
+    end = totalPages
+    start = end - maxVisible + 1
+  }
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+}
 
 // หมายเหตุ field ของ backend: lat/long (ไม่ใช่ lon), ไม่มี status online/offline
 // มีแค่ is_active (เปิด/ปิดใช้งานกล้อง)
@@ -35,44 +52,52 @@ const DIRECTION_LABELS = {
 // ฟอร์ม ONVIF — เป็นแค่ตัวช่วยหา RTSP URI ไม่ใช่ field ที่ backend เก็บถาวร (session state เท่านั้น)
 const EMPTY_ONVIF_FORM = { host: '', port: 80, username: '', password: '' }
 
-// แปลง ISO timestamp เป็นวันที่ + เวลาแบบไทย (ใช้กับ ai_vision_synced_at)
-function formatSyncedAt(isoString) {
-  if (!isoString) return 'ยังไม่เคยซิงค์'
-  return new Date(isoString).toLocaleString('th-TH', {
-    dateStyle: 'short',
-    timeStyle: 'short'
-  })
-}
+// รวม 3 สถานะ (Power, AI Vision, Streaming) ให้เป็น Camera Status เดียวที่เข้าใจง่ายสำหรับผู้ใช้
+function getUnifiedCameraStatusBadge(camera, isChecking = false) {
+  // 1. กำลังโหลด/ตรวจสอบเฉพาะกล้องตัวนี้
+  if (isChecking) {
+    return { label: 'กำลังตรวจสอบสัญญาณ...', tone: 'starting', description: 'กำลังส่งคำขอตรวจสอบไปยังระบบ' }
+  }
 
-// map verification_status (เชื่อมต่อกับ AI Vision) + syncWarning เป็น badge เดียวที่โชว์ในตาราง
-function getSyncStatusBadge(camera) {
-  const status = camera.verification_status
-  const aiVisionStuck = camera.syncWarning?.failedServices?.includes('ai_vision')
+  // 2. กำลังโหลดสถานะ
+  if (camera.stream_online === undefined && camera.status === undefined && camera.is_starting === undefined) {
+    return { label: 'กำลังตรวจสอบ...', tone: 'checking', description: '' }
+  }
 
-  if (status === 'pending' && aiVisionStuck) {
-    return { label: 'AI Vision ค้างการยืนยัน — กดรีซิงค์ใหม่', tone: 'stuck', clickable: true }
+  // 3. ปิดใช้งานกล้อง
+  if (!camera.is_active) {
+    return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ปิดการทำงานกล้อง' }
   }
-  if (status === 'pending') {
-    return { label: 'กำลังเชื่อมต่อ AI Vision...', tone: 'pending', clickable: false }
-  }
-  if (status === 'verified') {
-    return { label: 'เชื่อมต่อ AI Vision สำเร็จ', tone: 'verified', clickable: false }
-  }
-  if (status === 'failed') {
-    return { label: 'AI Vision ปฏิเสธการเชื่อมต่อ — ส่งอีกครั้ง', tone: 'failed', clickable: true }
-  }
-  return { label: '-', tone: 'unknown', clickable: false }
-}
 
-// map stream_online (จาก GET /api/cameras/{id}/status) เป็น badge สำหรับคอลัมน์ Streaming Status (MediaMTX)
-function getStreamingStatusBadge(camera) {
-  if (camera.stream_online === undefined) {
-    return { label: 'กำลังตรวจสอบ...', tone: 'unknown' }
+  // 4. กำลังเริ่มระบบ (เชื่อมต่อสัญญาณ / สตรีม)
+  if (camera.is_starting || camera.verification_status === 'pending') {
+    return { label: 'กำลังเริ่มระบบ...', tone: 'starting', description: 'กำลังเชื่อมต่อสัญญาณกล้อง' }
   }
-  if (camera.stream_online === true) {
-    return { label: 'สตรีมมิ่งออนไลน์', tone: 'online' }
+
+  // 5. พร้อมใช้งาน (ผ่านครบทั้ง 3 เงื่อนไข: is_active, verified, stream_online)
+  const isReady = camera.status === true || (camera.verification_status === 'verified' && camera.stream_online === true)
+  if (isReady) {
+    return { label: 'พร้อมใช้งาน', tone: 'ready', description: 'กล้องพร้อมตรวจจับ' }
   }
-  return { label: 'สตรีมมิ่งออฟไลน์', tone: 'offline' }
+
+  // 6. ขัดข้อง (เปิดกล้องอยู่แต่สัญญาณดับ / ยืนยันไม่ผ่าน)
+  let errDetail = camera.detail
+  if (!errDetail) {
+    if (camera.verification_status === 'failed') {
+      errDetail = 'การยืนยันกล้องไม่สำเร็จ'
+    } else if (camera.stream_online === false) {
+      errDetail = 'สัญญาณสตรีมมิ่งออฟไลน์'
+    } else {
+      errDetail = 'ไม่สามารถเชื่อมต่อสัญญาณได้'
+    }
+  }
+
+  return {
+    label: 'ขัดข้อง',
+    tone: 'error',
+    description: errDetail,
+    canRetry: true
+  }
 }
 
 function CameraManagement() {
@@ -81,6 +106,7 @@ function CameraManagement() {
 
   const [cameras, setCameras] = useState([])
   const [total, setTotal] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
   const [showFormModal, setShowFormModal] = useState(false)
   const [editingCamera, setEditingCamera] = useState(null)
@@ -88,6 +114,7 @@ function CameraManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResyncingAll, setIsResyncingAll] = useState(false)
+  const [checkingCameraIds, setCheckingCameraIds] = useState(new Set())
   const [formTouched, setFormTouched] = useState({})
   const [hasSubmittedForm, setHasSubmittedForm] = useState(false)
 
@@ -152,7 +179,7 @@ function CameraManagement() {
       setTotal(data.total)
       setIsLoading(false)
 
-      // ดึงสถานะ MediaMTX (stream_online) ของแต่ละกล้องแบบขนาน — ไม่มี endpoint แบบ bulk
+      // ดึงสถานะกล้อง (stream_online, verification_status, is_starting, status, detail) ของแต่ละกล้องแบบขนาน
       // ไม่บล็อกการแสดงตารางหลัก ถ้ากล้องไหน error ก็ไม่ล้มทั้งหน้า แค่ badge กล้องนั้นจะโชว์ "กำลังตรวจสอบ..."
       const statusResults = await Promise.allSettled(
         data.items.map((c) => getCameraStatusAPI(c.id))
@@ -162,7 +189,14 @@ function CameraManagement() {
         prev.map((c, index) => {
           const result = statusResults[index]
           if (result?.status === 'fulfilled') {
-            return { ...c, stream_online: result.value.stream_online }
+            return {
+              ...c,
+              stream_online: result.value.stream_online,
+              verification_status: result.value.verification_status ?? c.verification_status,
+              is_starting: result.value.is_starting,
+              status: result.value.status,
+              detail: result.value.detail
+            }
           }
           return c
         })
@@ -183,13 +217,26 @@ function CameraManagement() {
     fetchCameras()
   }, [fetchCameras])
 
+  // รีเซ็ตหน้ากลับเป็นหน้า 1 เมื่อค้นหาหรือเปลี่ยนหมู่บ้าน
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchInput, selectedVillageId])
+
   const activeCount = cameras.filter((c) => c.is_active).length
   const inactiveCount = cameras.filter((c) => !c.is_active).length
 
-  const filteredCameras = cameras.filter((c) => {
+  const filteredCameras = useMemo(() => {
     const keyword = searchInput.toLowerCase().trim()
-    return keyword === '' || c.name.toLowerCase().includes(keyword)
-  })
+    return keyword === '' ? cameras : cameras.filter((c) => c.name.toLowerCase().includes(keyword))
+  }, [cameras, searchInput])
+
+  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / PAGE_SIZE))
+  const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
+
+  const paginatedCameras = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredCameras.slice(start, start + PAGE_SIZE)
+  }, [filteredCameras, currentPage])
 
   // ---------- ONVIF Panel Helpers ----------
   function resetOnvifPanel() {
@@ -597,8 +644,8 @@ function CameraManagement() {
       Swal.fire({
         icon: 'success',
         title: `ซิงค์ ${camera.name} แล้ว`,
-        showConfirmButton: false,
-        timer: 1500
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: 'var(--sidebar-bg)'
       })
       fetchCameras()
     } catch (error) {
@@ -608,6 +655,58 @@ function CameraManagement() {
         title: 'ซิงค์ไม่สำเร็จ',
         text: 'เกิดข้อผิดพลาด กรุณาลองใหม่',
         confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    }
+  }
+
+  async function handleVerificationCheck(camera) {
+    const camId = camera.id
+    if (checkingCameraIds.has(camId)) return
+
+    setCheckingCameraIds((prev) => new Set(prev).add(camId))
+    try {
+      const res = await checkCameraVerificationAPI(camId)
+      // ดึงสถานะล่าสุดเฉพาะกล้องตัวนี้มาอัปเดต state แบบเฉพาะแถว
+      try {
+        const statusRes = await getCameraStatusAPI(camId)
+        setCameras((prev) =>
+          prev.map((c) =>
+            c.id === camId
+              ? {
+                  ...c,
+                  stream_online: statusRes.stream_online,
+                  verification_status: statusRes.verification_status ?? c.verification_status,
+                  is_starting: statusRes.is_starting,
+                  status: statusRes.status,
+                  detail: statusRes.detail
+                }
+              : c
+          )
+        )
+      } catch (err) {
+        console.error('Failed to fetch updated camera status:', err)
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: `ส่งคำขอตรวจสอบ ${camera.name} แล้ว`,
+        text: res.note || 'ระบบกำลังตรวจสอบสัญญาณกล้องใหม่อีกครั้ง',
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        icon: 'error',
+        title: 'ตรวจสอบไม่สำเร็จ',
+        text: error.response?.data?.detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+    } finally {
+      setCheckingCameraIds((prev) => {
+        const next = new Set(prev)
+        next.delete(camId)
+        return next
       })
     }
   }
@@ -660,121 +759,109 @@ function CameraManagement() {
                 รายการกล้อง LPR ทั้งหมดในระบบ — ใช้ร่วมกับหน้า Monitor และ Dashboard
               </p>
             </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="cm-header-actions">
+              <div className="cm-search-wrap">
+                <FaMagnifyingGlass className="cm-search-icon" />
+                <input
+                  type="text"
+                  className="cm-search-input"
+                  placeholder="ค้นหาตามชื่อกล้อง..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+              </div>
+              {/* ปุ่ม Resync All กล้องทั้งหมดกับ Streaming — เฉพาะ Superadmin/Admin */}
               <button
-                className="btn-add-camera"
+                className="btn-resync-all"
                 onClick={handleResyncAll}
-                disabled={isResyncingAll}
-                style={{ background: 'rgb(37, 99, 235)' }}
+                disabled={isResyncingAll || cameras.length === 0}
+                title="สั่งระบบ Streaming ดึงและเชื่อมต่อกล้องทั้งหมดใหม่อีกครั้ง"
               >
-                <FaRotate /> {isResyncingAll ? 'กำลังซิงค์...' : 'Resync All'}
+                <FaRotate className={isResyncingAll ? 'cm-spin' : ''} />
+                <span>{isResyncingAll ? 'กำลังซิงค์ทั้งหมด...' : 'Resync All'}</span>
               </button>
               <button className="btn-add-camera" onClick={openAddModal}>
-                <FaCirclePlus /> Add Camera
+                <FaPlus />
+                <span>Add Camera</span>
               </button>
             </div>
           </div>
 
-          <div className="cm-search-wrap">
-            <FaSearch className="cm-search-icon" />
-            <input
-              type="text"
-              placeholder="ค้นหาชื่อกล้อง..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="cm-search-input"
-            />
-          </div>
-
-          <div className="table-responsive">
+          <div className="cm-table-responsive">
             <table className="cm-table">
               <thead>
                 <tr>
                   <th>Camera Name</th>
                   {showVillageColumn && <th>Village</th>}
-                  <th>Location (lat, long)</th>
+                  <th>Location (Lat, Long)</th>
                   <th>Direction</th>
-                  <th>Power Status</th>
-                  <th>AI Vision Status</th>
-                  <th>Streaming Status</th>
-                  <th>Action</th>
+                  <th>Camera Status</th>
+                  <th style={{ width: 140 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={showVillageColumn ? 8 : 7}>
+                    <td colSpan={showVillageColumn ? 6 : 5}>
                       <Spinner text="Loading cameras..." />
                     </td>
                   </tr>
-                ) : filteredCameras.length > 0 ? (
-                  filteredCameras.map((c) => (
-                    <tr key={c.id}>
-                      <td className="cm-camera-name">{c.name}</td>
-                      {showVillageColumn && <td>{getVillageName(c.village_id)}</td>}
-                      <td className="cm-location">
-                        {Number(c.lat).toFixed(6)}, {Number(c.long).toFixed(6)}
-                      </td>
-                      <td>
-                        <span className={`cm-direction-badge ${c.direction || 'entry'}`}>
-                          {DIRECTION_LABELS[c.direction] || '-'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`cm-status-badge ${c.is_active ? 'online' : 'offline'}`}>
-                          {c.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="cm-sync-cell">
-                        {(() => {
-                          const badge = getSyncStatusBadge(c)
-                          return (
-                            <>
-                              <span
-                                className={`cm-sync-badge ${badge.tone}`}
-                                onClick={badge.clickable ? () => handleResyncOne(c) : undefined}
-                                title={badge.clickable ? 'คลิกเพื่อส่งคำขอซิงค์ใหม่' : undefined}
-                              >
-                                {badge.label}
-                              </span>
-                              {c.syncWarning && (
-                                <span
-                                  className="cm-sync-warning-icon"
-                                  title={`Sync error: ${c.syncWarning.failedServices?.join(', ') || 'unknown'}`}
-                                >
-                                  <FaTriangleExclamation />
-                                </span>
-                              )}
-                              <p className="cm-sync-time">{formatSyncedAt(c.ai_vision_synced_at)}</p>
-                            </>
-                          )
-                        })()}
-                      </td>
-                      <td>
-                        {(() => {
-                          const streamBadge = getStreamingStatusBadge(c)
-                          return (
-                            <span className={`cm-status-badge ${streamBadge.tone}`}>
-                              {streamBadge.label}
+                ) : paginatedCameras.length > 0 ? (
+                  paginatedCameras.map((c) => {
+                    const isChecking = checkingCameraIds.has(c.id)
+                    const badge = getUnifiedCameraStatusBadge(c, isChecking)
+                    return (
+                      <tr key={c.id}>
+                        <td className="cm-camera-name">{c.name}</td>
+                        {showVillageColumn && <td>{getVillageName(c.village_id)}</td>}
+                        <td className="cm-location">
+                          {Number(c.lat).toFixed(6)}, {Number(c.long).toFixed(6)}
+                        </td>
+                        <td>
+                          <span className={`cm-direction-badge ${c.direction || 'entry'}`}>
+                            {DIRECTION_LABELS[c.direction] || '-'}
+                          </span>
+                        </td>
+                        <td className="cm-status-cell">
+                          <div className="cm-status-unified-wrapper">
+                            <span
+                              className={`cm-status-badge ${badge.tone}`}
+                              onClick={badge.canRetry && !isChecking ? () => handleVerificationCheck(c) : undefined}
+                              style={badge.canRetry && !isChecking ? { cursor: 'pointer' } : undefined}
+                              title={badge.canRetry && !isChecking ? 'คลิกเพื่อตรวจสอบการเชื่อมต่อใหม่' : undefined}
+                            >
+                              <span className={`cm-status-dot ${badge.tone}`}></span>
+                              {badge.label}
                             </span>
-                          )
-                        })()}
-                      </td>
-                      <td>
-                        <div className="cm-actions">
-                          <button className="cm-icon-btn edit" onClick={() => openEditModal(c)}>
-                            <FaPen />
-                          </button>
-                          <button className="cm-icon-btn delete" onClick={() => handleDelete(c)}>
-                            <FaTrashCan />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            {badge.description && (
+                              <p className="cm-status-hint">{badge.description}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cm-actions">
+                            <button
+                              className="cm-icon-btn reset"
+                              disabled={isChecking}
+                              onClick={() => !isChecking && handleVerificationCheck(c)}
+                              title={isChecking ? 'กำลังตรวจสอบ...' : 'ตรวจสอบสถานะกล้องใหม่'}
+                            >
+                              <FaRotate className={isChecking ? 'cm-spin' : ''} />
+                            </button>
+                            <button className="cm-icon-btn edit" onClick={() => openEditModal(c)} title="แก้ไขกล้อง">
+                              <FaPen />
+                            </button>
+                            <button className="cm-icon-btn delete" onClick={() => handleDelete(c)} title="ลบกล้อง">
+                              <FaTrashCan />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={showVillageColumn ? 8 : 7}>
+                    <td colSpan={showVillageColumn ? 6 : 5}>
                       <EmptyState
                         icon={<FaVideo />}
                         title="No cameras found"
@@ -785,6 +872,41 @@ function CameraManagement() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="cm-table-footer">
+            <p className="cm-total-count">
+              Showing {paginatedCameras.length} of {filteredCameras.length.toLocaleString()} cameras
+            </p>
+            {totalPages > 1 && (
+              <div className="pagination">
+                <button
+                  className="page-btn"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  title="หน้าก่อนหน้า"
+                >
+                  &lt;
+                </button>
+                {visiblePages.map((page) => (
+                  <button
+                    key={page}
+                    className={`page-btn ${page === currentPage ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  className="page-btn"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  title="หน้าถัดไป"
+                >
+                  &gt;
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

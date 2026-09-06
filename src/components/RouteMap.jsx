@@ -53,6 +53,57 @@ async function fetchRoadPath(fromPoint, toPoint) {
   return validCoords.length >= 2 ? validCoords : null;
 }
 
+// คำนวณกระจายหมุดแบบเหลื่อมรอบจุดศูนย์กลาง (Radial Offset) เมื่อตรวจจับได้ที่พิกัดกล้องเดียวกันหลายครั้ง
+function calculateOffsetPoints(points) {
+  const locGroups = new Map();
+  points.forEach((p) => {
+    if (!isValidLatLong(p.lat, p.long)) return;
+    const key = `${Number(p.lat).toFixed(5)},${Number(p.long).toFixed(5)}`;
+    if (!locGroups.has(key)) {
+      locGroups.set(key, []);
+    }
+    locGroups.get(key).push(p);
+  });
+
+  const offsetMap = new Map();
+  // รัศมีความเหลื่อมประมาณ 15-20 เมตร (0.00016 องศา) บนแผนที่
+  const BASE_RADIUS = 0.00016;
+
+  locGroups.forEach((groupPoints) => {
+    const count = groupPoints.length;
+    if (count === 1) {
+      const p = groupPoints[0];
+      const pid = String(p.id ?? p.detectionId);
+      offsetMap.set(pid, { lat: p.lat, long: p.long });
+      return;
+    }
+
+    groupPoints.forEach((p, idx) => {
+      const pid = String(p.id ?? p.detectionId);
+      // ถ้ารถผ่านมากกว่า 8 ครั้ง ให้แบ่งออกเป็น 2 วงรอบซ้อนกัน
+      const ring = idx < 8 ? 1 : 1.6;
+      const ringCount = idx < 8 ? Math.min(count, 8) : count - 8;
+      const ringIdx = idx < 8 ? idx : idx - 8;
+
+      const angle = (2 * Math.PI * ringIdx) / ringCount - Math.PI / 2;
+      const radius = BASE_RADIUS * ring;
+
+      const latOffset = Math.sin(angle) * radius;
+      const latRad = (Number(p.lat) * Math.PI) / 180;
+      const lonOffset = Math.cos(angle) * (radius / Math.max(Math.cos(latRad), 0.1));
+
+      offsetMap.set(pid, {
+        lat: Number(p.lat) + latOffset,
+        long: Number(p.long) + lonOffset,
+        originalLat: Number(p.lat),
+        originalLong: Number(p.long)
+      });
+    });
+  });
+
+  return offsetMap;
+}
+
 // จัดมุมมองแผนที่ให้ครอบคลุมทุกจุด — อัตราส่วนการซูมมุมกว้าง สะอาด สบายตา แบบเดียวกับหน้า Dashboard
 function fitMapToPoints(map, points) {
   if (!map || !points || points.length === 0) return;
@@ -210,6 +261,8 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
     return { top, left };
   }, []);
 
+  const offsetPointsMap = useMemo(() => calculateOffsetPoints(routePoints), [routePoints]);
+
   // เปิดเมธอด focusPoint ให้ RouteTracking.jsx สั่งจาก timeline ได้
   useImperativeHandle(ref, () => ({
     focusPoint(pointId, shouldPan = true) {
@@ -222,29 +275,25 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
       // กันพิกัดไม่ถูกต้อง (NaN/undefined) หลุดเข้า map.location() แล้วโดน "Invalid location"
       if (!point || !isValidLatLong(point.lat, point.long)) return;
 
+      const offsetPos = offsetPointsMap.get(String(pointId)) || { lat: point.lat, long: point.long };
+
       if (shouldPan) {
-        map.location({ lon: point.long, lat: point.lat }, true);
+        map.location({ lon: offsetPos.long, lat: offsetPos.lat }, true);
       }
 
-      // อัปเดตตัวเลขบนหมุดที่ตำแหน่งนั้นให้เป็นเลข order ปัจจุบัน พร้อมเปิดการ์ดข้อมูล
+      // อัปเดตไฮไลท์บนหมุดที่ตำแหน่งนั้น พร้อมเปิดการ์ดข้อมูล
       const delay = shouldPan ? FOCUS_ANIMATION_DELAY_MS : 50;
       setTimeout(() => {
         const container = mapRef.current;
         if (!container) return;
 
-        const locKey = `${point.lat.toFixed(5)},${point.long.toFixed(5)}`;
         const allPins = container.querySelectorAll('.rt-map-marker-pin');
         allPins.forEach((p) => p.classList.remove('rt-pin-active'));
 
-        const locPins = container.querySelectorAll(`[data-route-location="${locKey}"]`);
-        locPins.forEach((pin) => {
-          pin.classList.add('rt-pin-active');
-          const span = pin.querySelector('span');
-          if (span) span.textContent = point.order;
-        });
-
-        const targetPin = container.querySelector(`[data-route-point-id="${pointId}"]`) || locPins[0];
+        const targetPin = container.querySelector(`[data-route-point-id="${pointId}"]`);
         if (!targetPin) return;
+
+        targetPin.classList.add('rt-pin-active');
 
         const style = computeCardPosition(targetPin);
         if (style) setHoveredPoint({ point, style, pinned: true });
@@ -314,19 +363,19 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
             return;
           }
 
+          const pointId = String(point.id ?? point.detectionId);
+          const offsetPos = offsetPointsMap.get(pointId) || { lat: point.lat, long: point.long };
           const pinColor = '#16a34a';
-          const pointId = point.id ?? point.detectionId;
-          const locKey = `${point.lat.toFixed(5)},${point.long.toFixed(5)}`;
 
           try {
             const marker = new window.longdo.Marker(
-              { lon: point.long, lat: point.lat },
+              { lon: offsetPos.long, lat: offsetPos.lat },
               {
                 clickable: true,
                 icon: {
                   offset: { x: 16, y: 32 },
                   html: `
-                    <div class="rt-map-marker-pin" data-route-point-id="${pointId}" data-route-order="${point.order}" data-route-location="${locKey}" style="
+                    <div class="rt-map-marker-pin" data-route-point-id="${pointId}" data-route-order="${point.order}" style="
                       width: 32px;
                       height: 32px;
                       border-radius: 50% 50% 50% 0;
@@ -355,7 +404,7 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
             );
 
             map.Overlays.add(marker);
-            drawnPoints.push(point);
+            drawnPoints.push({ lat: offsetPos.lat, long: offsetPos.long });
           } catch (error) {
             // จุดนี้พิกัดผ่าน isValidLatLong แล้วแต่ Longdo ยังปฏิเสธ (เช่น lat/long เกินขอบเขตโลกจริง)
             console.warn(`สร้าง Marker จุดที่ ${point.order} ไม่สำเร็จ (พิกัด: ${point.lat}, ${point.long}):`, error);
