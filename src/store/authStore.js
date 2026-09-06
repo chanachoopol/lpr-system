@@ -13,6 +13,45 @@ import useVillageStore from './villageStore'
 import useNotificationStore from './notificationStore'
 
 const REFRESH_BUFFER_MS = 60 * 1000 // ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริง 60 วิ กัน network latency
+const USER_PROFILE_STORAGE_KEY = 'lpr_user_profile'
+
+function getCachedUserProfile() {
+  try {
+    const raw = localStorage.getItem(USER_PROFILE_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function setCachedUserProfile(user) {
+  try {
+    if (user) {
+      localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(user))
+    } else {
+      localStorage.removeItem(USER_PROFILE_STORAGE_KEY)
+    }
+  } catch {
+    // ป้องกันกรณี localStorage ติด quota หรือ disabled
+  }
+}
+
+function removeCachedUserProfile() {
+  try {
+    localStorage.removeItem(USER_PROFILE_STORAGE_KEY)
+  } catch {
+    // Ignore
+  }
+}
+
+function normalizeUser(profile) {
+  if (!profile) return null
+  return {
+    ...profile,
+    fullName: profile.fullname || profile.fullName || profile.username,
+    fullname: profile.fullname || profile.fullName || profile.username
+  }
+}
 
 let refreshTimerId = null
 
@@ -42,9 +81,11 @@ const useAuthStore = create((set, get) => ({
 
   // อัปเดตข้อมูล user บางส่วน
   updateUser: (partialUser) => {
-    set((state) => ({
-      user: state.user ? { ...state.user, ...partialUser } : null
-    }))
+    set((state) => {
+      const updatedUser = state.user ? { ...state.user, ...partialUser } : null
+      setCachedUserProfile(updatedUser)
+      return { user: updatedUser }
+    })
   },
 
   // อัปเดต avatarUrl ใน store
@@ -56,13 +97,15 @@ const useAuthStore = create((set, get) => ({
     set({ avatarUrl: newUrl })
   },
 
-  // เรียกตอน login สำเร็จจาก Login.jsx — บันทึก Token ลง Cookie แบบ Dynamic และตั้ง Timer
+  // เรียกตอน login สำเร็จจาก Login.jsx — บันทึก Token ลง Cookie แบบ Dynamic, แคช Profile และตั้ง Timer
   login: (user, accessToken, expiresIn = null) => {
+    const normalizedUser = normalizeUser(user)
     setAccessTokenCookie(accessToken, expiresIn)
-    set({ user, accessToken, isLoggedIn: true, isLoading: false })
+    setCachedUserProfile(normalizedUser)
+    set({ user: normalizedUser, accessToken, isLoggedIn: true, isLoading: false })
     get().scheduleRefresh(accessToken)
-    if (user?.id) {
-      getUserAvatarBlobURL(user.id)
+    if (normalizedUser?.id) {
+      getUserAvatarBlobURL(normalizedUser.id)
         .then((url) => get().setAvatarUrl(url))
         .catch(() => get().setAvatarUrl(null))
     }
@@ -120,16 +163,35 @@ const useAuthStore = create((set, get) => ({
         const cookieToken = getAccessTokenCookie()
         const remainingMs = getTokenRemainingMs(cookieToken)
 
-        // 1. ถ้ามี access_token ใน Cookie และยังไม่หมดอายุ -> กู้คืน Session ได้ทันทีแบบ Instant
+        // 1. ถ้ามี access_token ใน Cookie และยังไม่หมดอายุ -> กู้คืน Session
         if (cookieToken && remainingMs && remainingMs > 5000) {
+          const cachedUser = getCachedUserProfile()
+
+          if (cachedUser) {
+            // Instant 0-Network Restore ทันที ไม่ยิง Request ไป Backend
+            set({
+              user: cachedUser,
+              accessToken: cookieToken,
+              isLoggedIn: true,
+              isLoading: false
+            })
+            get().scheduleRefresh(cookieToken)
+            useVillageStore.getState().initSelectedVillage(cachedUser)
+
+            if (cachedUser?.id) {
+              getUserAvatarBlobURL(cachedUser.id)
+                .then((url) => get().setAvatarUrl(url))
+                .catch(() => get().setAvatarUrl(null))
+            }
+            return
+          }
+
+          // Fallback: ถ้าไม่มี cached user profile ใน localStorage ให้ยิงขอจาก Backend
           set({ accessToken: cookieToken })
           try {
             const profile = await getMyProfileAPI()
-            const normalizedUser = {
-              ...profile,
-              fullName: profile.fullname || profile.fullName || profile.username,
-              fullname: profile.fullname || profile.fullName || profile.username
-            }
+            const normalizedUser = normalizeUser(profile)
+            setCachedUserProfile(normalizedUser)
             set({
               user: normalizedUser,
               isLoggedIn: true,
@@ -154,11 +216,8 @@ const useAuthStore = create((set, get) => ({
         setAccessTokenCookie(data.access_token, data.expires_in)
         set({ accessToken: data.access_token })
         const profile = await getMyProfileAPI()
-        const normalizedUser = {
-          ...profile,
-          fullName: profile.fullname || profile.fullName || profile.username,
-          fullname: profile.fullname || profile.fullName || profile.username
-        }
+        const normalizedUser = normalizeUser(profile)
+        setCachedUserProfile(normalizedUser)
         set({
           user: normalizedUser,
           isLoggedIn: true,
@@ -193,7 +252,7 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
-  // เคลียร์ Session, ลบ Cookie, และรีเซ็ตทุก Store
+  // เคลียร์ Session, ลบ Cookie, แคช Profile และรีเซ็ตทุก Store
   clearSession: () => {
     const wasLoggedIn = get().isLoggedIn
     const currentAvatar = get().avatarUrl
@@ -202,6 +261,7 @@ const useAuthStore = create((set, get) => ({
     }
     clearRefreshTimer()
     removeAccessTokenCookie()
+    removeCachedUserProfile()
     inFlightRefresh = null
     sessionInitPromise = null
     set({ user: null, accessToken: null, avatarUrl: null, isLoggedIn: false, isLoading: false })
@@ -222,6 +282,7 @@ if (logoutChannel) {
 
     clearRefreshTimer()
     removeAccessTokenCookie()
+    removeCachedUserProfile()
     inFlightRefresh = null
     sessionInitPromise = null
     useAuthStore.setState({ user: null, accessToken: null, avatarUrl: null, isLoggedIn: false, isLoading: false })

@@ -51,20 +51,21 @@
 }
 
 .bl-kpi-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1b2a47;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin: 0 0 6px;
+  margin: 0 0 4px;
 }
 
 .bl-kpi-val {
   font-family: 'DM Sans', sans-serif;
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--text-main);
+  font-size: 40px;
+  font-weight: 800;
+  color: #1b2a47;
   margin: 0;
+  line-height: 1.1;
 }
 
 /* Table Header */
@@ -721,19 +722,24 @@
 
 .bl-external-icon {
   font-size: 16px;
-  color: var(--text-secondary);
+  color: #1b2a47;
   transition: transform 0.2s ease, color 0.2s ease;
 }
 
 .bl-external-text {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b2a47;
+  letter-spacing: 0.2px;
 }
 
 .bl-kpi-card.clickable:hover .bl-external-icon {
-  color: var(--text-main);
+  color: #2563eb;
   transform: translate(2px, -2px);
+}
+
+.bl-kpi-card.clickable:hover .bl-external-text {
+  color: #2563eb;
 }
 
 /* Action Buttons in Detections Table */

@@ -620,36 +620,34 @@ function History() {
             </table>
           </div>
 
-          {/* Pagination — จำกัดแค่ 4 ปุ่มพร้อมกัน ไม่ยาวเป็นพรืด */}
-          {totalPages > 1 && (
-            <div className="pagination">
-              <button
-                className="page-btn"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-              >
-                ‹
-              </button>
+          {/* Pagination — แสดงตลอดเวลาเพื่อรักษาระยะ Layout ให้สวยงามคงที่ */}
+          <div className="pagination">
+            <button
+              className="page-btn"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(currentPage - 1)}
+            >
+              ‹
+            </button>
 
-              {visiblePages.map((page) => (
-                <button
-                  key={page}
-                  className={`page-btn ${currentPage === page ? 'active' : ''}`}
-                  onClick={() => setCurrentPage(page)}
-                >
-                  {page}
-                </button>
-              ))}
-
+            {visiblePages.map((page) => (
               <button
-                className="page-btn"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
+                key={page}
+                className={`page-btn ${currentPage === page ? 'active' : ''}`}
+                onClick={() => setCurrentPage(page)}
               >
-                ›
+                {page}
               </button>
-            </div>
-          )}
+            ))}
+
+            <button
+              className="page-btn"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(currentPage + 1)}
+            >
+              ›
+            </button>
+          </div>
         </div>
 
       </div>
