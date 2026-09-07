@@ -4,6 +4,7 @@ import Swal from 'sweetalert2'
 import {
   getSSEAlertsTicketAPI,
   getSSESecurityAlertsTicketAPI,
+  getSSEPresenceTicketAPI,
   BASE_URL,
   getNotificationsAPI,
   getUnreadNotificationCountAPI,
@@ -14,6 +15,7 @@ import {
   getCameraByIdAPI
 } from '../data/api'
 import useAuthStore from './authStore'
+import usePresenceStore, { extractOnlineUserIds } from './presenceStore'
 
 const RECONNECT_DELAY_MS = 3000
 const NOTIF_PAGE_SIZE = 20
@@ -22,8 +24,6 @@ const BLACKLIST_LOOKUP_WINDOW_MS = 5 * 60 * 1000 // ขอบเขตย้อ�
 
 let eventSource = null
 let reconnectTimer = null
-let securityEventSource = null
-let securityReconnectTimer = null
 let isManuallyClosed = false
 
 // ---------- คิวของ Blacklist Alert (จัดการผ่าน Zustand Store เพื่อ render เป็น 3D Stacked Cards) ----------
@@ -238,49 +238,246 @@ const useNotificationStore = create((set, get) => ({
     get().fetchUnreadCount()
 
     try {
-      const { ticket } = await getSSEAlertsTicketAPI()
-      const es = new EventSource(`${BASE_URL}/api/sse/alerts?ticket=${ticket}`)
+      const currentUser = useAuthStore.getState().user
+      const isAdminOrSuperadmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin'
+
+      // ขอ Ticket ทั้งหมดพร้อมกันแบบขนาน
+      const [alertsRes, secRes, presRes] = await Promise.all([
+        getSSEAlertsTicketAPI().catch((err) => {
+          console.error('ขอ alerts ticket ไม่สำเร็จ:', err)
+          return null
+        }),
+        isAdminOrSuperadmin
+          ? getSSESecurityAlertsTicketAPI().catch((err) => {
+              console.error('ขอ security alerts ticket ไม่สำเร็จ:', err)
+              return null
+            })
+          : Promise.resolve(null),
+        getSSEPresenceTicketAPI().catch((err) => {
+          console.error('ขอ presence ticket ไม่สำเร็จ:', err)
+          return null
+        })
+      ])
+
+      const alertTicket = alertsRes?.ticket
+      const securityTicket = secRes?.ticket
+      const presenceTicket = presRes?.ticket
+
+      if (!alertTicket && !securityTicket && !presenceTicket) {
+        throw new Error('ไม่สามารถขอ SSE ticket ได้')
+      }
+
+      const params = new URLSearchParams()
+      if (alertTicket) params.set('alerts_ticket', alertTicket)
+      if (securityTicket) params.set('security_ticket', securityTicket)
+      if (presenceTicket) params.set('presence_ticket', presenceTicket)
+
+      const es = new EventSource(`${BASE_URL}/api/sse/stream?${params.toString()}`)
       eventSource = es
 
+      // Keep-alive ping
       es.addEventListener('ping', () => {})
 
+      function handleDetectionEvent(data) {
+        set({ latestDetection: { ...data, _ts: Date.now() } })
+
+        const user = useAuthStore.getState().user
+        const isSuperadmin = user?.role === 'superadmin'
+        const userVillageId = user?.village_id
+        const detVillageId = data.village_id || data.camera?.village_id
+
+        const isSameVillage = !userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)
+        const shouldAlert = !isSuperadmin && isSameVillage
+
+        const isBlacklist = Boolean(
+          data.is_blacklist ||
+          data.is_black_list ||
+          data.is_blacklisted ||
+          data.category === 'blacklist' ||
+          data.type === 'blacklist' ||
+          data.blacklist
+        )
+        const isWhitelist = Boolean(
+          data.is_whitelist ||
+          data.is_white_list ||
+          data.is_whitelisted ||
+          data.category === 'whitelist' ||
+          data.type === 'whitelist' ||
+          data.whitelist
+        )
+
+        if (isBlacklist) {
+          triggerBlacklistModalAlert(data, shouldAlert, get().pushBlacklistAlert)
+        } else if (isWhitelist) {
+          triggerWhitelistToast(data, shouldAlert)
+        }
+      }
+
+      function handleCameraVerifiedEvent(data) {
+        set({
+          latestCameraEvent: {
+            type: 'verified',
+            camera_id: data.camera_id || data.id,
+            camera_name: data.camera_name,
+            verification_status: data.verification_status || 'verified',
+            is_active: data.is_active ?? true,
+            village_id: data.village_id,
+            _ts: Date.now(),
+            ...data
+          }
+        })
+        const user = useAuthStore.getState().user
+        if (user?.role === 'admin' || user?.role === 'superadmin') {
+          toast.success(`Camera Synced${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+        }
+      }
+
+      function handleCameraFailedEvent(data, isTimeout = false) {
+        set({
+          latestCameraEvent: {
+            type: 'verification_failed',
+            camera_id: data.camera_id || data.id,
+            camera_name: data.camera_name,
+            verification_status: data.verification_status || 'failed',
+            is_active: data.is_active ?? false,
+            village_id: data.village_id,
+            _ts: Date.now(),
+            ...data
+          }
+        })
+        const user = useAuthStore.getState().user
+        if (user?.role === 'admin' || user?.role === 'superadmin') {
+          toast.error(
+            isTimeout
+              ? `Camera Verification Timeout${data.camera_name ? ` — ${data.camera_name}` : ''}`
+              : `Camera Verification Failed${data.camera_name ? ` — ${data.camera_name}` : ''}`
+          )
+        }
+      }
+
+      function handleCameraSyncFailedEvent(data) {
+        set({
+          latestCameraEvent: {
+            type: 'sync_failed',
+            camera_id: data.camera_id || data.id,
+            camera_name: data.camera_name,
+            failed_services: data.failed_services || [],
+            village_id: data.village_id,
+            _ts: Date.now(),
+            ...data
+          }
+        })
+        const user = useAuthStore.getState().user
+        if (user?.role === 'admin' || user?.role === 'superadmin') {
+          toast.error(`Camera Sync Failed${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+        }
+      }
+
+      function formatLockDuration(seconds) {
+        const sec = Number(seconds)
+        if (isNaN(sec) || sec <= 0) return 'ชั่วคราว'
+        if (sec < 60) return `${sec} วินาที`
+        const min = Math.floor(sec / 60)
+        const remSec = sec % 60
+        if (remSec === 0) return `${min} นาที (${sec} วินาที)`
+        return `${min} นาที ${remSec} วินาที`
+      }
+
+      function handleSecurityAlertEvent(data) {
+        set({ latestSecurityAlert: { ...data, _ts: Date.now() } })
+
+        const user = useAuthStore.getState().user
+        const isSuperadmin = user?.role === 'superadmin'
+        const userVillageId = user?.village_id
+        const alertVillageId = data.village_id
+
+        const isSameVillage = !userVillageId || !alertVillageId || String(userVillageId) === String(alertVillageId)
+        const shouldAlert = isSuperadmin || isSameVillage
+
+        if (shouldAlert && (user?.role === 'admin' || isSuperadmin)) {
+          const durationText = formatLockDuration(data.locked_for_seconds)
+          toast.error(
+            `ตรวจพบการพยายามล็อกอินผิดซ้ำๆ: บัญชี "${data.username || 'Unknown'}" (IP: ${data.ip_address || '-'}) ถูกระงับชั่วคราว ${durationText}`,
+            { duration: 8000 }
+          )
+        }
+        get().fetchNotifications()
+        get().fetchUnreadCount()
+      }
+
+      // 1. ดักรับ Event 'alert' ตามมาตรฐานใหม่
+      es.addEventListener('alert', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          const action = data.action || data.type || data.event
+
+          if (action === 'blacklist_alert') {
+            const user = useAuthStore.getState().user
+            const isSuperadmin = user?.role === 'superadmin'
+            const userVillageId = user?.village_id
+            const detVillageId = data.village_id || data.camera?.village_id
+            triggerBlacklistModalAlert(data, !isSuperadmin && (!userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)), get().pushBlacklistAlert)
+          } else if (action === 'whitelist_alert') {
+            const user = useAuthStore.getState().user
+            const isSuperadmin = user?.role === 'superadmin'
+            const userVillageId = user?.village_id
+            const detVillageId = data.village_id || data.camera?.village_id
+            triggerWhitelistToast(data, !isSuperadmin && (!userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)))
+          } else if (action === 'camera_verified') {
+            handleCameraVerifiedEvent(data)
+          } else if (action === 'camera_verification_failed') {
+            handleCameraFailedEvent(data)
+          } else if (action === 'camera_verification_timeout') {
+            handleCameraFailedEvent(data, true)
+          } else if (action === 'camera_sync_failed') {
+            handleCameraSyncFailedEvent(data)
+          } else if (action === 'login_bruteforce_detected') {
+            handleSecurityAlertEvent(data)
+          } else {
+            handleDetectionEvent(data)
+          }
+        } catch (err) {
+          console.error('parse alert event error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
+        }
+      })
+
+      // 2. ดักรับ Event 'security_alert' และ 'login_bruteforce_detected'
+      es.addEventListener('security_alert', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          handleSecurityAlertEvent(data)
+        } catch (err) {
+          console.error('parse security_alert error:', err)
+        }
+      })
+
+      es.addEventListener('login_bruteforce_detected', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          handleSecurityAlertEvent(data)
+        } catch (err) {
+          console.error('parse login_bruteforce_detected error:', err)
+        }
+      })
+
+      // 3. ดักรับ Event 'presence_update'
+      es.addEventListener('presence_update', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          usePresenceStore.getState().setOnlineUsers(extractOnlineUserIds(data))
+        } catch (err) {
+          console.error('parse presence_update error:', err)
+        }
+      })
+
+      // 4. Sub-events เฉพาะตัว (เพื่อความเข้ากันได้ 100%)
       es.addEventListener('detection_created', (e) => {
         try {
           const data = JSON.parse(e.data)
-          set({ latestDetection: { ...data, _ts: Date.now() } })
-
-          const currentUser = useAuthStore.getState().user
-          const isSuperadmin = currentUser?.role === 'superadmin'
-          const userVillageId = currentUser?.village_id
-          const detVillageId = data.village_id || data.camera?.village_id
-
-          // เงื่อนไข 1: ไม่แจ้งเตือน superadmin (แจ้งเตือนเฉพาะ admin และ user เท่านั้น)
-          // เงื่อนไข 2: ไม่แจ้งเตือนข้ามหมู่บ้าน (ต้องเป็นหมู่บ้านเดียวกันเท่านั้น)
-          const isSameVillage = !userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)
-          const shouldAlert = !isSuperadmin && isSameVillage
-
-          const isBlacklist = Boolean(
-            data.is_blacklist ||
-            data.is_black_list ||
-            data.is_blacklisted ||
-            data.category === 'blacklist' ||
-            data.type === 'blacklist' ||
-            data.blacklist
-          )
-          const isWhitelist = Boolean(
-            data.is_whitelist ||
-            data.is_white_list ||
-            data.is_whitelisted ||
-            data.category === 'whitelist' ||
-            data.type === 'whitelist' ||
-            data.whitelist
-          )
-
-          if (isBlacklist) {
-            triggerBlacklistModalAlert(data, shouldAlert, get().pushBlacklistAlert)
-          } else if (isWhitelist) {
-            triggerWhitelistToast(data, shouldAlert)
-          }
+          handleDetectionEvent(data)
         } catch (err) {
           console.error('parse detection_created error:', err)
         } finally {
@@ -289,19 +486,16 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
-      // Blacklist — modal 3D Stacked Alerts กลางจอทันที (ไม่ใช้ toast มุมขวา)
       es.addEventListener('blacklist_alert', (e) => {
         try {
           const data = JSON.parse(e.data)
           set({ latestDetection: { ...data, _ts: Date.now() } })
-          const currentUser = useAuthStore.getState().user
-          const isSuperadmin = currentUser?.role === 'superadmin'
-          const userVillageId = currentUser?.village_id
+          const user = useAuthStore.getState().user
+          const isSuperadmin = user?.role === 'superadmin'
+          const userVillageId = user?.village_id
           const detVillageId = data.village_id || data.camera?.village_id
           const isSameVillage = !userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)
-          const shouldAlert = !isSuperadmin && isSameVillage
-
-          triggerBlacklistModalAlert(data, shouldAlert, get().pushBlacklistAlert)
+          triggerBlacklistModalAlert(data, !isSuperadmin && isSameVillage, get().pushBlacklistAlert)
         } catch (err) {
           console.error('parse blacklist_alert error:', err)
         } finally {
@@ -310,19 +504,16 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
-      // Whitelist — Toast แจ้งเตือนมุมขวา + ส่งต่อข้อมูล Real-time
       es.addEventListener('whitelist_alert', (e) => {
         try {
           const data = JSON.parse(e.data)
           set({ latestDetection: { ...data, _ts: Date.now() } })
-          const currentUser = useAuthStore.getState().user
-          const isSuperadmin = currentUser?.role === 'superadmin'
-          const userVillageId = currentUser?.village_id
+          const user = useAuthStore.getState().user
+          const isSuperadmin = user?.role === 'superadmin'
+          const userVillageId = user?.village_id
           const detVillageId = data.village_id || data.camera?.village_id
           const isSameVillage = !userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)
-          const shouldAlert = !isSuperadmin && isSameVillage
-
-          triggerWhitelistToast(data, shouldAlert)
+          triggerWhitelistToast(data, !isSuperadmin && isSameVillage)
         } catch (err) {
           console.error('parse whitelist_alert error:', err)
         } finally {
@@ -334,23 +525,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('camera_verified', (e) => {
         try {
           const data = JSON.parse(e.data)
-          set({
-            latestCameraEvent: {
-              type: 'verified',
-              camera_id: data.camera_id || data.id,
-              camera_name: data.camera_name,
-              verification_status: data.verification_status || 'verified',
-              is_active: data.is_active ?? true,
-              village_id: data.village_id,
-              _ts: Date.now(),
-              ...data
-            }
-          })
-          const currentUser = useAuthStore.getState().user
-          // แจ้งเตือนเฉพาะผู้มีสิทธิ์จัดการกล้อง (admin และ superadmin)
-          if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
-            toast.success(`Camera Synced${data.camera_name ? ` — ${data.camera_name}` : ''}`)
-          }
+          handleCameraVerifiedEvent(data)
         } catch (err) {
           console.error('parse camera_verified error:', err)
         } finally {
@@ -362,22 +537,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('camera_verification_failed', (e) => {
         try {
           const data = e.data ? JSON.parse(e.data) : {}
-          set({
-            latestCameraEvent: {
-              type: 'verification_failed',
-              camera_id: data.camera_id || data.id,
-              camera_name: data.camera_name,
-              verification_status: data.verification_status || 'failed',
-              is_active: data.is_active ?? false,
-              village_id: data.village_id,
-              _ts: Date.now(),
-              ...data
-            }
-          })
-          const currentUser = useAuthStore.getState().user
-          if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
-            toast.error(`Camera Verification Failed${data.camera_name ? ` — ${data.camera_name}` : ''}`)
-          }
+          handleCameraFailedEvent(data)
         } catch (err) {
           console.error('parse camera_verification_failed error:', err)
         } finally {
@@ -389,22 +549,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('camera_verification_timeout', (e) => {
         try {
           const data = e.data ? JSON.parse(e.data) : {}
-          set({
-            latestCameraEvent: {
-              type: 'verification_failed',
-              camera_id: data.camera_id || data.id,
-              camera_name: data.camera_name,
-              verification_status: data.verification_status || 'failed',
-              is_active: data.is_active ?? false,
-              village_id: data.village_id,
-              _ts: Date.now(),
-              ...data
-            }
-          })
-          const currentUser = useAuthStore.getState().user
-          if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
-            toast.error(`Camera Verification Timeout${data.camera_name ? ` — ${data.camera_name}` : ''}`)
-          }
+          handleCameraFailedEvent(data, true)
         } catch (err) {
           console.error('parse camera_verification_timeout error:', err)
         } finally {
@@ -416,21 +561,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('camera_sync_failed', (e) => {
         try {
           const data = e.data ? JSON.parse(e.data) : {}
-          set({
-            latestCameraEvent: {
-              type: 'sync_failed',
-              camera_id: data.camera_id || data.id,
-              camera_name: data.camera_name,
-              failed_services: data.failed_services || [],
-              village_id: data.village_id,
-              _ts: Date.now(),
-              ...data
-            }
-          })
-          const currentUser = useAuthStore.getState().user
-          if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
-            toast.error(`Camera Sync Failed${data.camera_name ? ` — ${data.camera_name}` : ''}`)
-          }
+          handleCameraSyncFailedEvent(data)
         } catch (err) {
           console.error('parse camera_sync_failed error:', err)
         } finally {
@@ -439,106 +570,33 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
-      function formatLockDuration(seconds) {
-        const sec = Number(seconds)
-        if (isNaN(sec) || sec <= 0) return 'ชั่วคราว'
-        if (sec < 60) {
-          return `${sec} วินาที`
-        }
-        const min = Math.floor(sec / 60)
-        const remSec = sec % 60
-        if (remSec === 0) {
-          return `${min} นาที (${sec} วินาที)`
-        }
-        return `${min} นาที ${remSec} วินาที`
-      }
-
-      function handleSecurityAlertEvent(data) {
-        console.log('[SSE] Security Alert received:', data)
-        set({ latestSecurityAlert: { ...data, _ts: Date.now() } })
-
-        const currentUser = useAuthStore.getState().user
-        const isSuperadmin = currentUser?.role === 'superadmin'
-        const userVillageId = currentUser?.village_id
-        const alertVillageId = data.village_id
-
-        const isSameVillage = !userVillageId || !alertVillageId || String(userVillageId) === String(alertVillageId)
-        const shouldAlert = isSuperadmin || isSameVillage
-
-        if (shouldAlert && (currentUser?.role === 'admin' || isSuperadmin)) {
-          const durationText = formatLockDuration(data.locked_for_seconds)
-          toast.error(
-            `ตรวจพบการพยายามล็อกอินผิดซ้ำๆ: บัญชี "${data.username || 'Unknown'}" (IP: ${data.ip_address || '-'}) ถูกระงับชั่วคราว ${durationText}`,
-            { duration: 8000 }
-          )
-        }
-        get().fetchNotifications()
-        get().fetchUnreadCount()
-      }
-
-      // 1. ดักจับจากช่อง Alert หลัก
-      es.addEventListener('login_bruteforce_detected', (e) => {
+      es.addEventListener('message', (e) => {
         try {
           const data = e.data ? JSON.parse(e.data) : {}
-          handleSecurityAlertEvent(data)
-        } catch (err) {
-          console.error('parse login_bruteforce_detected error:', err)
-        }
+          if (data.action === 'login_bruteforce_detected' || data.type === 'security') {
+            handleSecurityAlertEvent(data)
+          }
+        } catch {}
       })
 
-      // 2. เปิดช่อง Security Alerts พิเศษ (/api/sse/security-alerts) สำหรับ Admin / Superadmin
-      const currentUser = useAuthStore.getState().user
-      if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') {
-        try {
-          if (!securityEventSource) {
-            const { ticket: secTicket } = await getSSESecurityAlertsTicketAPI()
-            const secEs = new EventSource(`${BASE_URL}/api/sse/security-alerts?ticket=${secTicket}`)
-            securityEventSource = secEs
-
-            secEs.addEventListener('ping', () => {})
-            secEs.addEventListener('login_bruteforce_detected', (e) => {
-              try {
-                const data = e.data ? JSON.parse(e.data) : {}
-                handleSecurityAlertEvent(data)
-              } catch (err) {
-                console.error('parse secEs login_bruteforce_detected error:', err)
-              }
-            })
-            secEs.addEventListener('message', (e) => {
-              try {
-                const data = e.data ? JSON.parse(e.data) : {}
-                if (data.action === 'login_bruteforce_detected' || data.type === 'security') {
-                  handleSecurityAlertEvent(data)
-                }
-              } catch {}
-            })
-
-            secEs.onerror = () => {
-              secEs.close()
-              securityEventSource = null
-            }
-          }
-        } catch (secErr) {
-          console.error('เปิด securityEventSource ไม่สำเร็จ:', secErr)
-        }
+      es.onopen = () => {
+        set({ isConnected: true })
+        usePresenceStore.getState().setConnected(true)
       }
-
-      es.onopen = () => set({ isConnected: true })
 
       es.onerror = () => {
         set({ isConnected: false })
+        usePresenceStore.getState().setConnected(false)
         es.close()
         eventSource = null
-        if (securityEventSource) {
-          securityEventSource.close()
-          securityEventSource = null
-        }
         if (!isManuallyClosed) {
           reconnectTimer = setTimeout(() => get().connect(), RECONNECT_DELAY_MS)
         }
       }
     } catch (error) {
-      console.error('ขอ SSE ticket ไม่สำเร็จ:', error)
+      console.error('เชื่อมต่อ SSE ไม่สำเร็จ:', error)
+      set({ isConnected: false })
+      usePresenceStore.getState().setConnected(false)
       if (!isManuallyClosed) {
         reconnectTimer = setTimeout(() => get().connect(), RECONNECT_DELAY_MS)
       }
@@ -548,16 +606,12 @@ const useNotificationStore = create((set, get) => ({
   disconnect: () => {
     isManuallyClosed = true
     clearTimeout(reconnectTimer)
-    clearTimeout(securityReconnectTimer)
     if (eventSource) {
       eventSource.close()
       eventSource = null
     }
-    if (securityEventSource) {
-      securityEventSource.close()
-      securityEventSource = null
-    }
     set({ isConnected: false })
+    usePresenceStore.getState().setConnected(false)
   },
 
   markAllRead: async () => {

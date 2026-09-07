@@ -7,7 +7,6 @@ import useAuthStore from './store/authStore'
 import useNotificationStore from './store/notificationStore'
 import ProtectedRoute from './components/ProtectedRoute'
 import Spinner from './components/Spinner'
-import usePresenceStore from './store/presenceStore'
 import BlacklistAlertModal from './components/BlacklistAlertModal'
 
 import Login from './pages/Login'
@@ -90,21 +89,18 @@ function App() {
   const theme = useThemeStore((state) => state.theme)
   const { initSession, isLoggedIn } = useAuthStore()
   const { connect, disconnect } = useNotificationStore()
-  const { connect: connectPresence, disconnect: disconnectPresence } = usePresenceStore() // 👈 เพิ่ม
 
   // อ่าน cookie และ restore สถานะ login ทันทีตอน app เริ่มต้น
   useEffect(() => {
-  initSession()
-}, [])
+    initSession()
+  }, [])
 
-  // เปิด SSE ทันทีที่ login (รวมถึงตอน restore session จาก cookie), ปิดตอน logout
+  // เปิด Multiplexed SSE ทันทีที่ login (รวมถึงตอน restore session จาก cookie), ปิดตอน logout
   useEffect(() => {
     if (isLoggedIn) {
       connect()
-      connectPresence() // 👈 เพิ่ม — เปิดพร้อมกับ alert SSE
     } else {
       disconnect()
-      disconnectPresence() // 👈 เพิ่ม
     }
   }, [isLoggedIn])
 
