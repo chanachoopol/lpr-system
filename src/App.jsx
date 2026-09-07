@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useThemeStore } from './store/themeStore'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
@@ -6,6 +6,10 @@ import { AnimatePresence } from 'framer-motion'
 import useAuthStore from './store/authStore'
 import useNotificationStore from './store/notificationStore'
 import ProtectedRoute from './components/ProtectedRoute'
+import Spinner from './components/Spinner'
+import usePresenceStore from './store/presenceStore'
+import BlacklistAlertModal from './components/BlacklistAlertModal'
+
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
 import Dashboard from './pages/Dashboard'
@@ -20,9 +24,8 @@ import ConfirmEmailChange from './pages/ConfirmEmailChange'
 import ResetPassword from './pages/ResetPassword'
 import ChangePassword from './pages/ChangePassword'
 import Profile from './pages/Profile'
-import usePresenceStore from './store/presenceStore'
 import RouteTracking from './pages/RouteTracking'
-import BlacklistAlertModal from './components/BlacklistAlertModal'
+
 function AnimatedRoutes() {
   const location = useLocation()
 
@@ -73,11 +76,11 @@ function AnimatedRoutes() {
             <CameraManagement />
           </ProtectedRoute>
         } />
-        {<Route path="/audit-logs" element={
+        <Route path="/audit-logs" element={
           <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
             <AuditLog />
           </ProtectedRoute>
-          } />}
+        } />
       </Routes>
     </AnimatePresence>
   )

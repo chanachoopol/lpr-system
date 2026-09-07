@@ -447,6 +447,11 @@ export async function getDetectionsAPI(params) {
   return response.data
 }
 
+// In-memory cache for Blob URLs with size limit to prevent memory leaks and redundant downloads
+const authedImageCache = new Map()
+const inFlightImageRequests = new Map()
+const MAX_IMAGE_CACHE_ENTRIES = 120
+
 export async function getAuthedImageURL(imageEndpointUrl) {
   if (!imageEndpointUrl) return null
 
@@ -462,8 +467,58 @@ export async function getAuthedImageURL(imageEndpointUrl) {
     // fallback ใช้ imageEndpointUrl เดิม
   }
 
-  const response = await api.get(cleanUrl, { responseType: 'blob' })
-  return URL.createObjectURL(response.data)
+  // 1. ถ้ามีใน Cache อยู่แล้ว -> คืนค่าทันที 0ms ไม่ต้องยิงซ้ำ
+  if (authedImageCache.has(cleanUrl)) {
+    return authedImageCache.get(cleanUrl)
+  }
+
+  // 2. ถ้ามี request URL นี้กำลังดาวน์โหลดอยู่ -> reuse promise เดียวกัน ป้องกันการยิงซ้ำซ้อน
+  if (inFlightImageRequests.has(cleanUrl)) {
+    return inFlightImageRequests.get(cleanUrl)
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const response = await api.get(cleanUrl, { responseType: 'blob' })
+      const blobUrl = URL.createObjectURL(response.data)
+
+      // จัดการขนาด Cache ไม่ให้ล้น (LRU)
+      if (authedImageCache.size >= MAX_IMAGE_CACHE_ENTRIES) {
+        const oldestKey = authedImageCache.keys().next().value
+        const oldBlob = authedImageCache.get(oldestKey)
+        if (oldBlob) URL.revokeObjectURL(oldBlob)
+        authedImageCache.delete(oldestKey)
+      }
+
+      authedImageCache.set(cleanUrl, blobUrl)
+      return blobUrl
+    } catch (err) {
+      authedImageCache.delete(cleanUrl)
+      throw err
+    } finally {
+      inFlightImageRequests.delete(cleanUrl)
+    }
+  })()
+
+  inFlightImageRequests.set(cleanUrl, fetchPromise)
+  return fetchPromise
+}
+
+export function invalidateAuthedImageCache(imageEndpointUrl) {
+  if (!imageEndpointUrl) return
+  let cleanUrl = imageEndpointUrl
+  try {
+    if (typeof cleanUrl === 'string' && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
+      const parsed = new URL(cleanUrl)
+      cleanUrl = parsed.pathname + parsed.search
+    }
+  } catch (e) {}
+
+  if (authedImageCache.has(cleanUrl)) {
+    const oldBlob = authedImageCache.get(cleanUrl)
+    if (oldBlob) URL.revokeObjectURL(oldBlob)
+    authedImageCache.delete(cleanUrl)
+  }
 }
 
 // ==================== Auth APIs ====================

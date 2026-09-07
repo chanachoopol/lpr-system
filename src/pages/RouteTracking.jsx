@@ -426,7 +426,6 @@ useEffect(() => {
     }
 
     let isCancelled = false;
-    const createdUrls = [];
     setIsLoadingRouteImages(true);
 
     Promise.allSettled(
@@ -435,7 +434,6 @@ useEffect(() => {
         if (!src) return [item.detection_id, null];
 
         const url = await getAuthedImageURL(src);
-        createdUrls.push(url);
         return [item.detection_id, url];
       })
     )
@@ -459,9 +457,6 @@ useEffect(() => {
 
     return () => {
       isCancelled = true;
-      createdUrls.forEach((url) => {
-        URL.revokeObjectURL(url);
-      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapItemsKey]);

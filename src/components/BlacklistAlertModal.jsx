@@ -36,8 +36,12 @@ function StackedAlertCard({ alert, index, totalCount, onAcknowledge }) {
     resolvedAlert.image_path
 
   useEffect(() => {
+    // โหลดรูปเฉพาะการ์ดที่อยู่ด้านหน้าสุด (isActive) หรือถ้าได้รูปมาแล้วไม่ต้องโหลดซ้ำ
+    if (!isActive && !imageUrl) {
+      return
+    }
+
     let isCancelled = false
-    let currentBlobUrl = null
 
     async function resolveAndLoadImage() {
       setIsLoadingImage(true)
@@ -69,7 +73,6 @@ function StackedAlertCard({ alert, index, totalCount, onAcknowledge }) {
         if (directSource && !isCancelled) {
           const url = await getAuthedImageURL(directSource)
           if (!isCancelled && url) {
-            currentBlobUrl = url
             setImageUrl(url)
           }
         }
@@ -84,11 +87,8 @@ function StackedAlertCard({ alert, index, totalCount, onAcknowledge }) {
 
     return () => {
       isCancelled = true
-      if (currentBlobUrl) {
-        URL.revokeObjectURL(currentBlobUrl)
-      }
     }
-  }, [alert.license_plate, imageSource])
+  }, [isActive, alert.license_plate, imageSource, imageUrl])
 
   const remainingCount = totalCount - 1
 

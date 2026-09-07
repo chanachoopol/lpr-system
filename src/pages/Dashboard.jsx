@@ -356,14 +356,6 @@ function Dashboard() {
     }
   }, [selectedItem])
 
-  // คืนหน่วยความจำ blob URL ทิ้งเมื่อ modalImages เปลี่ยนหรือ unmount กัน memory leak
-  useEffect(() => {
-    return () => {
-      if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
-      if (modalImages.full) URL.revokeObjectURL(modalImages.full)
-    }
-  }, [modalImages])
-
   // ---------- Modal รายการรถขาเข้า / ขาออก วันนี้ ----------
   const [directionModal, setDirectionModal] = useState(null) // { direction: 'entry' | 'exit', title: string } | null
   const [directionList, setDirectionList] = useState([])
@@ -441,8 +433,7 @@ function Dashboard() {
   }
 
   function closeModal() {
-    if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
-    if (modalImages.full) URL.revokeObjectURL(modalImages.full)
+    setModalImages({ crop: null, full: null })
     setSelectedItem(null)
   }
 

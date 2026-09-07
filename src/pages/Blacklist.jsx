@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   FaTriangleExclamation,
   FaTrashCan,
   FaXmark,
   FaPlus,
-  FaArrowUpRightFromSquare
+  FaArrowUpRightFromSquare,
+  FaArrowDownWideShort,
+  FaArrowUpWideShort,
+  FaSort
 } from 'react-icons/fa6'
 import { FaCar, FaSearch, FaCheck, FaPen, FaEye, FaRoute, FaCalendarAlt, FaRedo } from 'react-icons/fa'
 import DatePicker from 'react-datepicker'
@@ -48,7 +51,7 @@ export function isThaiLicensePlateValid(plate) {
 
 const MANAGE_ROLES = ['user', 'admin', 'superadmin']
 const SEARCH_DEBOUNCE_MS = 350
-const ROWS_PER_PAGE = 10
+const DEFAULT_ROWS_PER_PAGE = 8
 const MAX_VISIBLE_PAGES = 4
 const JOIN_PAGE_SIZE = 100
 const JOIN_MAX_PAGES = 10
@@ -136,8 +139,35 @@ function Blacklist() {
   const [debouncedDetectionSearch, setDebouncedDetectionSearch] = useState('')
   const [startDate, setStartDate] = useState(null)
   const [endDate, setEndDate] = useState(null)
+  const [sortOrder, setSortOrder] = useState('desc') // 'desc' = ล่าสุด, 'asc' = เก่าสุด
   const [currentPage, setCurrentPage] = useState(1)
+  const [dynamicRowsPerPage, setDynamicRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE)
   const [cameras, setCameras] = useState([])
+  const tableContainerRef = useRef(null)
+
+  // คำนวณจำนวนแถวที่พอดีกับขนาดหน้าจอจริงอัตโนมัติ (Dynamic Rows per Page)
+  useEffect(() => {
+    const el = tableContainerRef.current
+    if (!el) return
+
+    const calculateRows = () => {
+      const height = el.clientHeight
+      if (!height) return
+      const headerHeight = 40
+      const rowHeight = 49
+      const available = height - headerHeight
+      if (available > 0) {
+        const calculated = Math.max(4, Math.floor(available / rowHeight))
+        setDynamicRowsPerPage(calculated)
+      }
+    }
+
+    calculateRows()
+    const observer = new ResizeObserver(calculateRows)
+    observer.observe(el)
+
+    return () => observer.disconnect()
+  }, [])
 
   // ---------- Modal ดูรูปรายละเอียดรถ (Image Modal) ----------
   const [selectedItem, setSelectedItem] = useState(null)
@@ -519,15 +549,28 @@ function saveHistoricalWhitelistPlates(map) {
       )
     }
 
-    return list
-  }, [matchingDetections, debouncedDetectionSearch, startDate, endDate])
+    // เรียงลำดับข้อมูลตามวันที่ตรวจจับ (ล่าสุด / เก่าสุด)
+    return [...list].sort((a, b) => {
+      const timeA = new Date(a.time_detect).getTime() || 0
+      const timeB = new Date(b.time_detect).getTime() || 0
+      return sortOrder === 'desc' ? timeB - timeA : timeA - timeB
+    })
+  }, [matchingDetections, debouncedDetectionSearch, startDate, endDate, sortOrder])
 
   // Pagination สำหรับตาราง Detections
-  const totalPages = Math.max(1, Math.ceil(filteredDetections.length / ROWS_PER_PAGE))
+  const totalPages = Math.max(1, Math.ceil(filteredDetections.length / dynamicRowsPerPage))
+
+  // ปรับ currentPage หากเกิน totalPages เมื่อ dynamicRowsPerPage เปลี่ยน
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   const paginatedDetections = useMemo(() => {
-    const start = (currentPage - 1) * ROWS_PER_PAGE
-    return filteredDetections.slice(start, start + ROWS_PER_PAGE)
-  }, [filteredDetections, currentPage])
+    const start = (currentPage - 1) * dynamicRowsPerPage
+    return filteredDetections.slice(start, start + dynamicRowsPerPage)
+  }, [filteredDetections, currentPage, dynamicRowsPerPage])
 
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
 
@@ -553,6 +596,7 @@ function saveHistoricalWhitelistPlates(map) {
     setDebouncedDetectionSearch('')
     setStartDate(null)
     setEndDate(null)
+    setSortOrder('desc')
     setCurrentPage(1)
   }
 
@@ -562,6 +606,7 @@ function saveHistoricalWhitelistPlates(map) {
     setDebouncedDetectionSearch('')
     setStartDate(null)
     setEndDate(null)
+    setSortOrder('desc')
     setCurrentPage(1)
   }
 
@@ -819,17 +864,8 @@ function saveHistoricalWhitelistPlates(map) {
     }
   }, [selectedItem])
 
-  // Cleanup Blob URL เมื่อเปลี่ยนรูปหรือ unmount
-  useEffect(() => {
-    return () => {
-      if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
-      if (modalImages.full) URL.revokeObjectURL(modalImages.full)
-    }
-  }, [modalImages])
-
   function closeModal() {
-    if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
-    if (modalImages.full) URL.revokeObjectURL(modalImages.full)
+    setModalImages({ crop: null, full: null })
     setSelectedItem(null)
   }
 
@@ -989,7 +1025,20 @@ function saveHistoricalWhitelistPlates(map) {
                 />
               </div>
 
-              {(detectionSearch || startDate || endDate) && (
+              {/* ปุ่ม Sort เรียงลำดับวันที่ ล่าสุด / เก่าสุด */}
+              <button
+                className={`btn-sort-bl ${sortOrder === 'asc' ? 'asc' : ''}`}
+                onClick={() => {
+                  setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+                  setCurrentPage(1)
+                }}
+                title={sortOrder === 'desc' ? 'เรียงตามวันที่: ล่าสุด ➔ เก่าสุด (คลิกเพื่อสลับ)' : 'เรียงตามวันที่: เก่าสุด ➔ ล่าสุด (คลิกเพื่อสลับ)'}
+              >
+                {sortOrder === 'desc' ? <FaArrowDownWideShort /> : <FaArrowUpWideShort />}
+                <span>{sortOrder === 'desc' ? 'ล่าสุด' : 'เก่าสุด'}</span>
+              </button>
+
+              {(detectionSearch || startDate || endDate || sortOrder !== 'desc') && (
                 <button
                   className="btn-reset bl-btn-reset"
                   onClick={handleResetDetectionFilter}
@@ -1001,12 +1050,28 @@ function saveHistoricalWhitelistPlates(map) {
             </div>
           </div>
 
-          <div className="table-responsive">
+          <div className="table-responsive" ref={tableContainerRef}>
             <table className="bl-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Date</th>
+                  <th
+                    className="bl-sortable-th"
+                    onClick={() => {
+                      setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+                      setCurrentPage(1)
+                    }}
+                    title="คลิกเพื่อเรียงลำดับตามวันที่"
+                  >
+                    <div className="bl-th-sort-inner">
+                      <span>Date</span>
+                      {sortOrder === 'desc' ? (
+                        <FaArrowDownWideShort className="bl-th-sort-icon" />
+                      ) : (
+                        <FaArrowUpWideShort className="bl-th-sort-icon asc" />
+                      )}
+                    </div>
+                  </th>
                   <th>Time</th>
                   <th>License Plate</th>
                   <th>Province</th>
@@ -1028,7 +1093,7 @@ function saveHistoricalWhitelistPlates(map) {
                   paginatedDetections.map((item, index) => {
                     return (
                       <tr key={item.id || index}>
-                      <td>{(currentPage - 1) * ROWS_PER_PAGE + index + 1}</td>
+                      <td>{(currentPage - 1) * dynamicRowsPerPage + index + 1}</td>
                       <td>{formatDate(item.time_detect)}</td>
                       <td>{formatTime(item.time_detect)}</td>
                       <td>
@@ -1116,36 +1181,41 @@ function saveHistoricalWhitelistPlates(map) {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="pagination">
-              <button
-                className="page-btn"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-              >
-                ‹
-              </button>
-
-              {visiblePages.map((page) => (
+          {/* Table Footer with Total Count and Pagination */}
+          <div className="bl-table-footer">
+            <p className="bl-total-count">
+              Showing {paginatedDetections.length} of {filteredDetections.length.toLocaleString()} records
+            </p>
+            {totalPages > 1 && (
+              <div className="pagination">
                 <button
-                  key={page}
-                  className={`page-btn ${currentPage === page ? 'active' : ''}`}
-                  onClick={() => setCurrentPage(page)}
+                  className="page-btn"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
                 >
-                  {page}
+                  ‹
                 </button>
-              ))}
 
-              <button
-                className="page-btn"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-              >
-                ›
-              </button>
-            </div>
-          )}
+                {visiblePages.map((page) => (
+                  <button
+                    key={page}
+                    className={`page-btn ${currentPage === page ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  className="page-btn"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                >
+                  ›
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
       </div>

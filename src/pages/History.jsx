@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { FaSearch, FaEye, FaRedo } from 'react-icons/fa'
 import { FaXmark, FaPalette, FaRoute, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6'
@@ -15,18 +15,14 @@ import useVillageStore from '../store/villageStore'
 import { renderVillageDisplay } from '../components/VillageDisplay'
 
 const SEARCH_DEBOUNCE_MS = 400
-const MAX_VISIBLE_PAGES = 4 // จำนวนปุ่มเลขหน้าสูงสุดที่โชว์พร้อมกัน
+const MAX_VISIBLE_PAGES = 4
 
-function getDynamicHistoryLimit() {
-  if (typeof window === 'undefined') return 10
-  // คำนวณความสูงตารางที่เหลือ:
-  // Layout padding & Navbar (~110px) + History Filter Bar (~80px) + Gap (~14px)
-  // Table Card padding (~36px) + Table Header & Total (~36px) + thead (~40px) + Pagination (~48px)
-  // Overhead รวม ~364px
-  const availableTableHeight = window.innerHeight - 364
-  const rowHeight = 44
+function getInitialHistoryLimit() {
+  if (typeof window === 'undefined') return 8
+  const availableTableHeight = window.innerHeight - 360
+  const rowHeight = 48
   const rows = Math.floor(availableTableHeight / rowHeight)
-  return Math.max(3, rows)
+  return Math.max(4, rows)
 }
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
@@ -116,17 +112,32 @@ function History() {
   const [historyData, setHistoryData] = useState([])
   const [totalItems, setTotalItems] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(getDynamicHistoryLimit)
+  const [pageSize, setPageSize] = useState(getInitialHistoryLimit)
   const [isLoading, setIsLoading] = useState(true)
+  const tableContainerRef = useRef(null)
 
-  // ดักจับการ Resize หน้าจอเพื่อคำนวณจำนวนแถวให้พอดีหน้าจอแบบ Real-time
+  // คำนวณจำนวนแถวให้พอดีกับความสูงของตารางแบบ Real-time โดยไม่ให้มี scrollbar
   useEffect(() => {
-    function handleResize() {
-      const nextLimit = getDynamicHistoryLimit()
-      setPageSize((prev) => (prev !== nextLimit ? nextLimit : prev))
+    const el = tableContainerRef.current
+    if (!el) return
+
+    const calculateRows = () => {
+      const height = el.clientHeight
+      if (!height) return
+      const headerHeight = 40
+      const rowHeight = 48
+      const available = height - headerHeight
+      if (available > 0) {
+        const calculated = Math.max(4, Math.floor(available / rowHeight))
+        setPageSize((prev) => (prev !== calculated ? calculated : prev))
+      }
     }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+
+    calculateRows()
+    const observer = new ResizeObserver(calculateRows)
+    observer.observe(el)
+
+    return () => observer.disconnect()
   }, [])
 
   const [selectedItem, setSelectedItem] = useState(null)
@@ -347,14 +358,6 @@ function History() {
     }
   }, [selectedItem])
 
-  // คืนหน่วยความจำ blob URL ทิ้งเมื่อ modalImages เปลี่ยนหรือ unmount กัน memory leak
-  useEffect(() => {
-    return () => {
-      if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
-      if (modalImages.full) URL.revokeObjectURL(modalImages.full)
-    }
-  }, [modalImages])
-
   const [sortOrder, setSortOrder] = useState('desc') // 'desc' = ล่าสุดก่อน, 'asc' = เก่าสุดก่อน
 
   function toggleSortOrder() {
@@ -375,8 +378,7 @@ function History() {
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
 
   function closeModal() {
-    if (modalImages.crop) URL.revokeObjectURL(modalImages.crop)
-    if (modalImages.full) URL.revokeObjectURL(modalImages.full)
+    setModalImages({ crop: null, full: null })
     setSelectedItem(null)
   }
 
@@ -535,7 +537,7 @@ function History() {
             </div>
           </div>
 
-          <div className="table-responsive">
+          <div className="table-responsive" ref={tableContainerRef}>
             <table className="history-table">
               <thead>
                 <tr>

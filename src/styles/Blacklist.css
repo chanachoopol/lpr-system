@@ -1,42 +1,47 @@
 .blacklist-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding-bottom: 24px;
+  gap: 10px;
+  height: calc(100vh - 125px);
+  max-height: calc(100vh - 125px);
+  box-sizing: border-box;
+  overflow: hidden;
+  padding-bottom: 0;
 }
 
 /* KPI Cards */
 .bl-kpi-row {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .bl-kpi-card {
   background: var(--card-bg);
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  border-radius: 18px;
+  padding: 10px 16px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
   transition: transform 0.3s ease;
 }
 
 .bl-kpi-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
 }
 
 .bl-kpi-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 18px;
   flex-shrink: 0;
 }
 
@@ -51,21 +56,31 @@
 }
 
 .bl-kpi-label {
-  font-size: 14.5px;
+  font-size: 12px;
   font-weight: 700;
   color: #1b2a47;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin: 0 0 4px;
+  margin: 0 0 2px;
 }
 
 .bl-kpi-val {
   font-family: 'DM Sans', sans-serif;
-  font-size: 40px;
+  font-size: 24px;
   font-weight: 800;
   color: #1b2a47;
   margin: 0;
   line-height: 1.1;
+}
+
+/* Content Card within Blacklist Wrapper */
+.blacklist-wrapper .content-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px 18px;
 }
 
 /* Table Header */
@@ -73,9 +88,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .bl-table-title {
@@ -89,15 +105,22 @@
   font-size: 18px;
 }
 
-/* แถวขวาของ header: search + ปุ่ม Add */
+/* แถวขวาของ header: search + filter + sort */
 .bl-table-header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
-/* Table */
+/* Table & Scroll Container */
+.blacklist-wrapper .table-responsive {
+  flex: 1;
+  min-height: 0;
+  overflow-y: hidden;
+  overflow-x: auto;
+}
+
 .bl-table {
   width: 100%;
   border-collapse: collapse;
@@ -105,19 +128,23 @@
 
 .bl-table th {
   text-align: left;
-  padding: 12px 16px;
+  padding: 7px 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-bottom: 1px solid rgba(27, 42, 71, 0.06);
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(248, 250, 252, 0.95);
+  backdrop-filter: blur(4px);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .bl-table td {
-  padding: 16px;
-  font-size: 14px;
+  padding: 7px 12px;
+  font-size: 13.5px;
   color: var(--text-main);
   border-bottom: 1px solid rgba(27, 42, 71, 0.04);
   transition: background 0.15s;
@@ -248,16 +275,29 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .blacklist-wrapper {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
   .bl-kpi-row {
     grid-template-columns: 1fr;
   }
 
   .bl-table-header-actions {
     width: 100%;
+    flex-wrap: wrap;
   }
 
   .bl-search-wrap {
     flex: 1;
+  }
+
+  .bl-table-footer {
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
   }
 }
 /* Clickable KPI Card */
@@ -306,10 +346,10 @@
   border-radius: 12px;
   background: var(--bg-input);
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--text-main);
   outline: none;
-  width: 260px;
+  width: 210px;
   transition: all 0.2s ease;
   caret-color: var(--text-main);
 }
@@ -334,16 +374,16 @@
 
 .bl-datepicker-icon {
   position: absolute;
-  left: 12px;
+  left: 10px;
   color: rgb(148, 163, 184);
-  font-size: 13px;
+  font-size: 12.5px;
   pointer-events: none;
   z-index: 1;
 }
 
 .bl-datepicker-input {
-  width: 140px;
-  padding: 10px 12px 10px 34px;
+  width: 120px;
+  padding: 10px 10px 10px 30px;
   border: 1px solid rgba(27, 42, 71, 0.1);
   border-radius: 12px;
   background: var(--bg-input);
@@ -364,6 +404,63 @@
   color: var(--text-secondary);
   font-weight: 600;
   font-size: 14px;
+}
+
+/* Sort Button */
+.btn-sort-bl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(27, 42, 71, 0.12);
+  background: var(--card-bg, #ffffff);
+  color: var(--text-main, #1b2a47);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.btn-sort-bl:hover {
+  background: rgba(27, 42, 71, 0.06);
+  border-color: rgba(27, 42, 71, 0.25);
+}
+
+.btn-sort-bl.asc {
+  color: rgb(37, 99, 235);
+  border-color: rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+/* Sortable Table Header */
+.bl-sortable-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.bl-sortable-th:hover {
+  color: var(--text-main, #1b2a47);
+}
+
+.bl-th-sort-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.bl-th-sort-icon {
+  font-size: 11px;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.bl-th-sort-icon.asc {
+  color: rgb(37, 99, 235);
 }
 
 .bl-btn-reset {
@@ -486,13 +583,29 @@
   color: rgb(27, 42, 71);
 }
 
-/* Pagination */
+/* Table Footer & Pagination */
+.bl-table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(27, 42, 71, 0.06);
+  flex-shrink: 0;
+}
+
+.bl-total-count {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
 .pagination {
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 6px;
-  margin-top: 20px;
+  margin-top: 0;
 }
 
 .page-btn {
@@ -717,18 +830,18 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 2px;
 }
 
 .bl-external-icon {
-  font-size: 16px;
+  font-size: 13px;
   color: #1b2a47;
   transition: transform 0.2s ease, color 0.2s ease;
 }
 
 .bl-external-text {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   color: #1b2a47;
   letter-spacing: 0.2px;
 }
@@ -752,14 +865,14 @@
 .btn-bl-view {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 5px;
+  padding: 5px 10px;
   border-radius: 8px;
   border: 1px solid rgba(27, 42, 71, 0.15);
   background: rgb(255, 255, 255);
   color: rgb(27, 42, 71);
   font-family: 'DM Sans', sans-serif;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -774,14 +887,14 @@
 .btn-bl-route {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 5px;
+  padding: 5px 10px;
   border-radius: 8px;
   border: 1px solid rgba(37, 99, 235, 0.2);
   background: rgba(37, 99, 235, 0.08);
   color: rgb(37, 99, 235);
   font-family: 'DM Sans', sans-serif;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;

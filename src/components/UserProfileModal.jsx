@@ -82,9 +82,6 @@ function UserProfileModal({ user, onClose }) {
 
     return () => {
       isCancelled = true
-      if (avatarUrl) {
-        URL.revokeObjectURL(avatarUrl)
-      }
     }
   }, [userId])
 
