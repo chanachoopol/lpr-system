@@ -52,51 +52,59 @@ const DIRECTION_LABELS = {
 // ฟอร์ม ONVIF — เป็นแค่ตัวช่วยหา RTSP URI ไม่ใช่ field ที่ backend เก็บถาวร (session state เท่านั้น)
 const EMPTY_ONVIF_FORM = { host: '', port: 80, username: '', password: '' }
 
-// รวม 3 สถานะ (Power, AI Vision, Streaming) ให้เป็น Camera Status เดียวที่เข้าใจง่ายสำหรับผู้ใช้
+// รวมสถานะกล้อง (Power, AI Vision, Streaming / MediaMTX) ให้เป็น Camera Status เดียวที่เข้าใจง่าย
 function getUnifiedCameraStatusBadge(camera, isChecking = false) {
   // 1. กำลังโหลด/ตรวจสอบเฉพาะกล้องตัวนี้
   if (isChecking) {
     return { label: 'กำลังตรวจสอบสัญญาณ...', tone: 'starting', description: 'กำลังส่งคำขอตรวจสอบไปยังระบบ' }
   }
 
-  // 2. กำลังโหลดสถานะ
-  if (camera.stream_online === undefined && camera.status === undefined && camera.is_starting === undefined) {
-    return { label: 'กำลังตรวจสอบ...', tone: 'checking', description: '' }
-  }
-
-  // 3. ปิดใช้งานกล้อง
+  // 2. ปิดใช้งานกล้อง
   if (!camera.is_active) {
     return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ปิดการทำงานกล้อง' }
   }
 
-  // 4. กำลังเริ่มระบบ (เชื่อมต่อสัญญาณ / สตรีม)
-  if (camera.is_starting || camera.verification_status === 'pending') {
-    return { label: 'กำลังเริ่มระบบ...', tone: 'starting', description: 'กำลังเชื่อมต่อสัญญาณกล้อง' }
+  // 3. ขัดข้อง (เมื่อ backend status === false หรือ verification_status === 'failed' หรือ stream_online === false)
+  if (camera.status === false || camera.verification_status === 'failed' || (camera.status === undefined && camera.stream_online === false)) {
+    let errDetail = camera.detail
+    if (!errDetail) {
+      if (camera.verification_status === 'failed') {
+        errDetail = 'การยืนยันกล้องไม่สำเร็จ'
+      } else if (camera.stream_online === false) {
+        errDetail = 'สัญญาณสตรีมมิ่งออฟไลน์'
+      } else {
+        errDetail = 'ไม่สามารถเชื่อมต่อสัญญาณได้'
+      }
+    }
+    return {
+      label: 'ขัดข้อง',
+      tone: 'error',
+      description: errDetail,
+      canRetry: true
+    }
   }
 
-  // 5. พร้อมใช้งาน (ผ่านครบทั้ง 3 เงื่อนไข: is_active, verified, stream_online)
+  // 4. พร้อมใช้งาน (เมื่อ backend status === true หรือผ่านเงื่อนไข verified & stream_online)
   const isReady = camera.status === true || (camera.verification_status === 'verified' && camera.stream_online === true)
   if (isReady) {
     return { label: 'พร้อมใช้งาน', tone: 'ready', description: 'กล้องพร้อมตรวจจับ' }
   }
 
-  // 6. ขัดข้อง (เปิดกล้องอยู่แต่สัญญาณดับ / ยืนยันไม่ผ่าน)
-  let errDetail = camera.detail
-  if (!errDetail) {
-    if (camera.verification_status === 'failed') {
-      errDetail = 'การยืนยันกล้องไม่สำเร็จ'
-    } else if (camera.stream_online === false) {
-      errDetail = 'สัญญาณสตรีมมิ่งออฟไลน์'
-    } else {
-      errDetail = 'ไม่สามารถเชื่อมต่อสัญญาณได้'
-    }
+  // 5. กำลังเริ่มระบบ (เชื่อมต่อสัญญาณ / สตรีม)
+  if (camera.is_starting || camera.verification_status === 'pending') {
+    return { label: 'กำลังเริ่มระบบ...', tone: 'starting', description: 'กำลังเชื่อมต่อสัญญาณกล้อง' }
   }
 
+  // 6. กำลังโหลดสถานะ
+  if (camera.stream_online === undefined && camera.status === undefined) {
+    return { label: 'กำลังตรวจสอบ...', tone: 'checking', description: '' }
+  }
+
+  // Fallback
   return {
-    label: 'ขัดข้อง',
-    tone: 'error',
-    description: errDetail,
-    canRetry: true
+    label: camera.verification_status || 'พร้อมใช้งาน',
+    tone: 'ready',
+    description: ''
   }
 }
 
@@ -175,14 +183,14 @@ function CameraManagement() {
         page: 1,
         pageSize: 100
       })
-      setCameras(data.items)
-      setTotal(data.total)
+      const cameraItems = data.items || []
+      setCameras(cameraItems)
+      setTotal(data.total || cameraItems.length)
       setIsLoading(false)
 
-      // ดึงสถานะกล้อง (stream_online, verification_status, is_starting, status, detail) ของแต่ละกล้องแบบขนาน
-      // ไม่บล็อกการแสดงตารางหลัก ถ้ากล้องไหน error ก็ไม่ล้มทั้งหน้า แค่ badge กล้องนั้นจะโชว์ "กำลังตรวจสอบ..."
+      // ดึงสถานะกล้อง (status, stream_online, verification_status, is_starting, detail) จาก GET /api/cameras/{id}/status แบบคู่ขนาน
       const statusResults = await Promise.allSettled(
-        data.items.map((c) => getCameraStatusAPI(c.id))
+        cameraItems.map((c) => getCameraStatusAPI(c.id))
       )
 
       setCameras((prev) =>
