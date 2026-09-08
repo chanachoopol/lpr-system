@@ -275,16 +275,6 @@
   height: 250px;
 }
 
-.history-table tr.history-row-blacklist td,
-.bl-table tr.history-row-blacklist td {
-  background: rgba(239, 68, 68, 0.09) !important;
-}
-
-.history-table tr.history-row-blacklist:hover td,
-.bl-table tr.history-row-blacklist:hover td {
-  background: rgba(239, 68, 68, 0.16) !important;
-}
-
 .history-table tr.history-row-blacklist .plate-text,
 .bl-table tr.history-row-blacklist .plate-text,
 .bl-table tr.history-row-blacklist .bold-plate {
@@ -530,15 +520,33 @@
   width: 95% !important;
 }
 
+.bl-direction-modal .table-responsive {
+  height: 480px !important;
+  min-height: 480px !important;
+  max-height: 480px !important;
+  overflow: hidden !important;
+}
+
+.bl-direction-modal .bl-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
 .bl-direction-modal .bl-table th {
   color: var(--text-main, #1b2a47) !important;
   font-size: 13.5px !important;
   font-weight: 700 !important;
-  padding: 9px 12px !important;
+  padding: 8px 12px !important;
+  height: 38px !important;
+  box-sizing: border-box;
 }
 
 .bl-direction-modal .bl-table td {
-  font-size: 14px;
+  font-size: 14px !important;
+  padding: 7px 12px !important;
+  height: 44px !important;
+  box-sizing: border-box;
+  vertical-align: middle !important;
 }
 
 .bl-status-badge {
@@ -565,4 +573,10 @@
   background: rgba(100, 116, 139, 0.1);
   color: #64748b;
   font-weight: 500;
+}
+
+.modal-header-count {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 800;
+  color: var(--text-main, #1b2a47);
 }

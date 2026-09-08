@@ -15,7 +15,7 @@ import '../styles/Dashboard.css'
 import '../styles/History.css' // 👈 ใช้ style ของ modal ดูรูป (modal-img-section, image-fullscreen-overlay ฯลฯ) ร่วมกับหน้า History
 import '../styles/Blacklist.css' // 👈 ใช้ style ของตารางและ modal แบบเดียวกับ Blacklist Detection Records
 
-const DASHBOARD_RECENT_LIMIT = 8
+const DASHBOARD_RECENT_LIMIT = 20
 
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
@@ -354,9 +354,11 @@ function Dashboard() {
   const [directionPage, setDirectionPage] = useState(1)
   const [isLoadingDirection, setIsLoadingDirection] = useState(false)
 
-  const fetchDirectionDetections = useCallback(async (dir, page = 1) => {
+  const fetchDirectionDetections = useCallback(async (dir, page = 1, isInitial = false) => {
     if (!dir) return
-    setIsLoadingDirection(true)
+    if (isInitial) {
+      setIsLoadingDirection(true)
+    }
     try {
       const today = new Date()
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0)
@@ -386,7 +388,8 @@ function Dashboard() {
 
   function openDirectionModal(dir, title) {
     setDirectionModal({ direction: dir, title })
-    fetchDirectionDetections(dir, 1)
+    setDirectionList([])
+    fetchDirectionDetections(dir, 1, true)
   }
 
   function closeDirectionModal() {
@@ -436,7 +439,7 @@ function Dashboard() {
         <div className="stat-row">
           <div
             className="stat-card stat-card-clickable"
-            onClick={() => openDirectionModal('entry', 'รายการรถเข้า (วันนี้)')}
+            onClick={() => openDirectionModal('entry', 'รายการรถเข้าวันนี้')}
             title="คลิกเพื่อดูรายละเอียดรถเข้าวันนี้"
           >
             <p className="stat-label">จำนวนรถเข้าวันนี้</p>
@@ -446,7 +449,7 @@ function Dashboard() {
           </div>
           <div
             className="stat-card stat-card-clickable"
-            onClick={() => openDirectionModal('exit', 'รายการรถออก (วันนี้)')}
+            onClick={() => openDirectionModal('exit', 'รายการรถออกวันนี้')}
             title="คลิกเพื่อดูรายละเอียดรถออกวันนี้"
           >
             <p className="stat-label">จำนวนรถออกวันนี้</p>
@@ -585,121 +588,8 @@ function Dashboard() {
 
       </div>
 
-      {/* Modal รายการรถขาเข้า / ขาออก วันนี้ (สไตล์เดียวกับ Blacklist Detection Records) */}
-      {directionModal && (
-        <div className="modal-overlay" onClick={closeDirectionModal}>
-          <div className="modal-content modal-large bl-direction-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-header-left">
-                <h3>
-                  {directionModal.title} ({directionTotal.toLocaleString()})
-                </h3>
-              </div>
-              <div className="modal-header-right">
-                <button className="modal-close" onClick={closeDirectionModal}>
-                  <FaXmark />
-                </button>
-              </div>
-            </div>
-
-            <div className="modal-registered-body" style={{ padding: '20px 24px' }}>
-              <div className="table-responsive" style={{ maxHeight: 420, overflowY: 'auto' }}>
-                <table className="bl-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Date</th>
-                      <th>Time</th>
-                      <th>License Plate</th>
-                      <th>Province</th>
-                      <th>Color</th>
-                      <th>Camera</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoadingDirection ? (
-                      <tr>
-                        <td colSpan={8}>
-                          <Spinner text="กำลังโหลดข้อมูล..." />
-                        </td>
-                      </tr>
-                    ) : directionList.length > 0 ? (
-                      directionList.map((item, index) => {
-                        const isBlacklist = Boolean(
-                          item.is_blacklist ||
-                          item.is_blacklisted ||
-                          item.category === 'blacklist' ||
-                          item.type === 'blacklist'
-                        )
-                        return (
-                          <tr key={item.id || index} className={isBlacklist ? 'history-row-blacklist' : ''}>
-                            <td>{(directionPage - 1) * 10 + index + 1}</td>
-                            <td>{formatDate(item.time_detect)}</td>
-                            <td>{formatTime(item.time_detect)}</td>
-                            <td className="bold-plate" style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                              {item.license_plate}
-                            </td>
-                            <td>{item.province || '-'}</td>
-                            <td>{item.color || '-'}</td>
-                            <td>{getCameraNameOnly(item.camera_id, item.camera_name || item.camera?.name)}</td>
-                            <td>
-                              <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
-                                <FaEye /> View
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={8}>
-                          <EmptyState icon={<FaCar />} title="ไม่มีข้อมูลรถในช่วงเวลานี้" />
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination (สไตล์ Blacklist) */}
-              {Math.ceil(directionTotal / 10) > 1 && (
-                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    className="page-btn"
-                    disabled={directionPage === 1 || isLoadingDirection}
-                    onClick={() => fetchDirectionDetections(directionModal.direction, directionPage - 1)}
-                  >
-                    ‹
-                  </button>
-
-                  {getVisiblePageNumbers(directionPage, Math.ceil(directionTotal / 10), 4).map((page) => (
-                    <button
-                      key={page}
-                      className={`page-btn ${directionPage === page ? 'active' : ''}`}
-                      disabled={isLoadingDirection}
-                      onClick={() => fetchDirectionDetections(directionModal.direction, page)}
-                    >
-                      {page}
-                    </button>
-                  ))}
-
-                  <button
-                    className="page-btn"
-                    disabled={directionPage >= Math.ceil(directionTotal / 10) || isLoadingDirection}
-                    onClick={() => fetchDirectionDetections(directionModal.direction, directionPage + 1)}
-                  >
-                    ›
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal รายละเอียด — เหมือนหน้า History.jsx ทุกประการ */}
-      {selectedItem && (
+      {/* Modal รายละเอียด หรือ Modal รถเข้า-ออก (Single-Focus Modal: ไม่ซ้อนกัน) */}
+      {selectedItem ? (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -790,7 +680,117 @@ function Dashboard() {
             </div>
           </div>
         </div>
-      )}
+      ) : directionModal ? (
+        <div className="modal-overlay" onClick={closeDirectionModal}>
+          <div className="modal-content modal-large bl-direction-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-header-left">
+                <h3>
+                  {directionModal.title} <span className="modal-header-count">({directionTotal.toLocaleString()})</span>
+                </h3>
+              </div>
+              <div className="modal-header-right">
+                <button className="modal-close" onClick={closeDirectionModal}>
+                  <FaXmark />
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-registered-body" style={{ padding: '20px 24px' }}>
+              <div className="table-responsive">
+                <table className="bl-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>License Plate</th>
+                      <th>Province</th>
+                      <th>Color</th>
+                      <th>Camera</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLoadingDirection && directionList.length === 0 ? (
+                      <tr>
+                        <td colSpan={8}>
+                          <Spinner text="กำลังโหลดข้อมูล..." />
+                        </td>
+                      </tr>
+                    ) : directionList.length > 0 ? (
+                      directionList.map((item, index) => {
+                        const isBlacklist = Boolean(
+                          item.is_blacklist ||
+                          item.is_blacklisted ||
+                          item.category === 'blacklist' ||
+                          item.type === 'blacklist'
+                        )
+                        return (
+                          <tr key={item.id || index} className={isBlacklist ? 'history-row-blacklist' : ''}>
+                            <td>{(directionPage - 1) * 10 + index + 1}</td>
+                            <td>{formatDate(item.time_detect)}</td>
+                            <td>{formatTime(item.time_detect)}</td>
+                            <td className="bold-plate" style={{ fontWeight: 600 }}>
+                              {item.license_plate}
+                            </td>
+                            <td>{item.province || '-'}</td>
+                            <td>{item.color || '-'}</td>
+                            <td>{getCameraNameOnly(item.camera_id, item.camera_name || item.camera?.name)}</td>
+                            <td>
+                              <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
+                                <FaEye /> View
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={8}>
+                          <EmptyState icon={<FaCar />} title="ไม่มีข้อมูลรถในช่วงเวลานี้" />
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination (สไตล์ Blacklist) */}
+              {Math.ceil(directionTotal / 10) > 1 && (
+                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    className="page-btn"
+                    disabled={directionPage === 1 || isLoadingDirection}
+                    onClick={() => fetchDirectionDetections(directionModal.direction, directionPage - 1)}
+                  >
+                    ‹
+                  </button>
+
+                  {getVisiblePageNumbers(directionPage, Math.ceil(directionTotal / 10), 4).map((page) => (
+                    <button
+                      key={page}
+                      className={`page-btn ${directionPage === page ? 'active' : ''}`}
+                      disabled={isLoadingDirection}
+                      onClick={() => fetchDirectionDetections(directionModal.direction, page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    className="page-btn"
+                    disabled={directionPage >= Math.ceil(directionTotal / 10) || isLoadingDirection}
+                    onClick={() => fetchDirectionDetections(directionModal.direction, directionPage + 1)}
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* รูปเต็มจอ — คลิกรูปใน modal แล้วมาโผล่ตรงนี้ */}
       {fullscreenImage && (

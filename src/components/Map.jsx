@@ -6,7 +6,7 @@ const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af61186
 const CARD_WIDTH = 240
 const CARD_GAP = 14 // ระยะห่างระหว่างหมุดกับการ์ด (14px)
 
-// จัดมุมมองแผนที่ให้ครอบคลุมทุกหมุดกล้องอัตโนมัติ
+// จัดมุมมองแผนที่ให้ครอบคลุมทุกหมุดกล้องอัตโนมัติพร้อมมุมมองที่กว้างขึ้น
 function fitMapToCameras(map, cameras) {
   if (!map || !cameras || cameras.length === 0) return
 
@@ -18,7 +18,7 @@ function fitMapToCameras(map, cameras) {
 
   if (validPoints.length === 1) {
     map.location({ lon: validPoints[0].lon, lat: validPoints[0].lat }, true)
-    map.zoom(16, true)
+    map.zoom(14, true)
     return
   }
 
@@ -34,17 +34,16 @@ function fitMapToCameras(map, cameras) {
   const centerLat = (minLat + maxLat) / 2
   const maxSpan = Math.max(maxLon - minLon, maxLat - minLat)
 
-  let zoom = 15
+  let zoom = 14
   if (maxSpan > 1.0) zoom = 7
-  else if (maxSpan > 0.5) zoom = 9
-  else if (maxSpan > 0.2) zoom = 10
-  else if (maxSpan > 0.1) zoom = 11
-  else if (maxSpan > 0.05) zoom = 12
-  else if (maxSpan > 0.02) zoom = 13
-  else if (maxSpan > 0.01) zoom = 14
-  else if (maxSpan > 0.004) zoom = 15
-  else if (maxSpan > 0.001) zoom = 16
-  else zoom = 16
+  else if (maxSpan > 0.5) zoom = 8
+  else if (maxSpan > 0.2) zoom = 9
+  else if (maxSpan > 0.1) zoom = 10
+  else if (maxSpan > 0.05) zoom = 11
+  else if (maxSpan > 0.02) zoom = 12
+  else if (maxSpan > 0.01) zoom = 13
+  else if (maxSpan > 0.003) zoom = 14
+  else zoom = 14
 
   map.location({ lon: centerLon, lat: centerLat }, true)
   map.zoom(zoom, true)
@@ -59,7 +58,7 @@ function MapView({ cameras = [] }) {
   const camerasRef = useRef(cameras)
   camerasRef.current = cameras
   const [isMapReady, setIsMapReady] = useState(false)
-  const [currentZoom, setCurrentZoom] = useState(15)
+  const [currentZoom, setCurrentZoom] = useState(14)
 
   // hoveredCamera = { camera, style: {top, left} } | null
   const [hoveredCamera, setHoveredCamera] = useState(null)
@@ -85,7 +84,7 @@ function MapView({ cameras = [] }) {
           fitMapToCameras(map, camerasRef.current)
         } else {
           map.location({ lon: 100.632904, lat: 13.844849 }, true)
-          map.zoom(15, true)
+          map.zoom(14, true)
         }
 
         try {
@@ -112,6 +111,7 @@ function MapView({ cameras = [] }) {
               setCurrentZoom(map.zoom())
             } catch (e) {}
           })
+          setCurrentZoom(map.zoom() || 14)
         } catch (error) {
           console.warn('ผูก event zoom ไม่สำเร็จ:', error)
         }
@@ -143,6 +143,13 @@ function MapView({ cameras = [] }) {
       setIsMapReady(false)
     }
   }, [])
+
+  // เมื่อกล้องโหลดมา หรือมีการเปลี่ยนรายการกล้อง ให้จัดมุมมองครอบคลุมทุกจุดอัตโนมัติ
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map || !isMapReady || !cameras || cameras.length === 0) return
+    fitMapToCameras(map, cameras)
+  }, [cameras, isMapReady])
 
   // คำนวณตำแหน่งการ์ด: ลอยอยู่เหนือหัวหมุด 14px จัดกึ่งกลางพอดี (ไม่บังหมุด 100%)
   // ถ้าชนขอบบน จะสลับไปลอยอยู่ใต้ปลายหมุด 14px อัตโนมัติ
