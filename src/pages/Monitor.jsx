@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { FaVideo, FaThLarge, FaSearch } from 'react-icons/fa'
 import { FaXmark, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
@@ -15,6 +15,7 @@ import CameraGridTile from '../components/CameraGridTile'
 import useCameraStream from '../hooks/useCameraStream'
 
 const GRID_VIEW_VALUE = 'all' // 👈 ค่าพิเศษของ selectedCamera สำหรับโหมด Grid View
+const MONITOR_RECENT_LIMIT = 20
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
 
@@ -56,15 +57,6 @@ function formatTime(isoString) {
   })
 }
 
-function getDynamicMonitorLimit() {
-  if (typeof window === 'undefined') return 5
-  // คำนวณความสูงตารางที่เหลือ: หน้าจอรวม หักลบ Padding Layout (40), Navbar (72), Layout gap (20), Camera Bar (52), Monitor gap (12), Card Padding (32), Title (38), Plate Showcase (100), Table Header (38) = รวม ~384px เผื่อระยะขอบล่างเป็น 430px
-  const availableTableHeight = window.innerHeight - 430
-  const rowHeight = 40
-  const rows = Math.floor(availableTableHeight / rowHeight)
-  return Math.max(2, rows)
-}
-
 function Monitor() {
   const { user } = useAuthStore()
   const { selectedVillageId } = useVillageStore()
@@ -74,9 +66,9 @@ function Monitor() {
   const [selectedCamera, setSelectedCamera] = useState('')
   const [searchParams] = useSearchParams()
 
-  const [recentLimit, setRecentLimit] = useState(getDynamicMonitorLimit)
   const [latestCaptures, setLatestCaptures] = useState([])
   const [isLoadingDetections, setIsLoadingDetections] = useState(true)
+  const processedDetectionsRef = useRef(new Set())
 
   // Search & Sort states
   const [searchQuery, setSearchQuery] = useState('')
@@ -85,6 +77,9 @@ function Monitor() {
   function toggleSortOrder() {
     setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
   }
+
+  const [visibleRows, setVisibleRows] = useState(20)
+  const tableContainerRef = useRef(null)
 
   const processedCaptures = useMemo(() => {
     let list = [...latestCaptures]
@@ -109,14 +104,33 @@ function Monitor() {
     return list
   }, [latestCaptures, searchQuery, sortOrder])
 
-  // คำนวณจำนวนแถวที่พอดีกับหน้าจอเมื่อมีการปรับขนาดหน้าต่าง (Resize)
+  // คำนวณจำนวนแถวที่แสดงได้เต็ม 100% พอดีเป๊ะ (ปัดเศษทิ้ง) เมื่อหน้าจอเปลี่ยนขนาด
   useEffect(() => {
-    function handleResize() {
-      setRecentLimit(getDynamicMonitorLimit())
+    const el = tableContainerRef.current
+    if (!el) return
+
+    const updateRows = () => {
+      const height = el.clientHeight
+      if (height > 0) {
+        // thead = 36px, row = 44px
+        const maxRows = Math.floor((height - 36) / 44)
+        setVisibleRows(Math.max(1, maxRows))
+      }
     }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+
+    updateRows()
+
+    const observer = new ResizeObserver(() => {
+      updateRows()
+    })
+    observer.observe(el)
+
+    return () => observer.disconnect()
   }, [])
+
+  const visibleCaptures = useMemo(() => {
+    return processedCaptures.slice(0, visibleRows)
+  }, [processedCaptures, visibleRows])
 
   // 👇 Grid View — true เมื่อเลือก "ทุกกล้อง"
   const isGridMode = selectedCamera === GRID_VIEW_VALUE
@@ -164,7 +178,7 @@ function Monitor() {
     fetchCameras()
   }, [user, selectedVillageId, searchParams])
 
-  // ดึง latest detection ตาม recentLimit ตอนเลือกกล้องหรือเมื่อขยาย/ย่อหน้าจอ
+  // ดึง latest detection ตาม MONITOR_RECENT_LIMIT ตอนเลือกกล้อง
   useEffect(() => {
     if (!selectedCamera || isGridMode) return
 
@@ -175,7 +189,7 @@ function Monitor() {
         const data = await getDetectionsAPI({
           camera_id: selectedCamera,
           page: 1,
-          page_size: recentLimit
+          page_size: MONITOR_RECENT_LIMIT
         })
         if (!isCancelled) {
           const rawCaptures = Array.isArray(data?.items)
@@ -184,7 +198,7 @@ function Monitor() {
             ? data.latest_captures
             : []
           setLatestCaptures(
-            rawCaptures.slice(0, recentLimit).map((c) => ({
+            rawCaptures.slice(0, MONITOR_RECENT_LIMIT).map((c) => ({
               id: c.id || c.detection_id,
               time_detect: c.time_detect,
               license_plate: c.license_plate,
@@ -207,7 +221,7 @@ function Monitor() {
     return () => {
       isCancelled = true
     }
-  }, [selectedCamera, isGridMode, recentLimit])
+  }, [selectedCamera, isGridMode])
 
   // อัปเดตรายการตรวจจับแบบ real-time ผ่าน SSE (Push จาก Backend ทันทีเมื่อตรวจจับได้ โดยไม่ยิง API ซ้ำ)
   useEffect(() => {
@@ -218,22 +232,48 @@ function Monitor() {
 
     if (!matchesCamera) return
 
+    const detKey = latestDetection.detection_id || `${latestDetection.license_plate}-${latestDetection.time_detect}`
+    if (processedDetectionsRef.current.has(detKey)) {
+      return
+    }
+    processedDetectionsRef.current.add(detKey)
+    if (processedDetectionsRef.current.size > 100) {
+      const firstKey = processedDetectionsRef.current.values().next().value
+      processedDetectionsRef.current.delete(firstKey)
+    }
+
+    const isBlacklist = Boolean(
+      latestDetection.is_blacklist ||
+      latestDetection.is_blacklisted ||
+      latestDetection.category === 'blacklist' ||
+      latestDetection.type === 'blacklist'
+    )
+    const detId = latestDetection.detection_id || `det-${Date.now()}`
+
     setLatestCaptures((prev) => {
-      if (prev.some((item) => item.id === latestDetection.detection_id)) return prev
-      const isBlacklist = Boolean(latestDetection.is_blacklist)
+      if (
+        prev.some(
+          (item) =>
+            item.id === detId ||
+            (item.license_plate === latestDetection.license_plate &&
+              item.time_detect === latestDetection.time_detect)
+        )
+      ) {
+        return prev
+      }
       const newItem = {
-        id: latestDetection.detection_id,
-        time_detect: latestDetection.time_detect,
+        id: detId,
+        time_detect: latestDetection.time_detect || new Date().toISOString(),
         license_plate: latestDetection.license_plate,
-        province: latestDetection.province,
-        color: latestDetection.color,
+        province: latestDetection.province || '-',
+        color: latestDetection.color || '-',
         is_blacklist: isBlacklist
       }
-      return [newItem, ...prev].slice(0, recentLimit)
+      return [newItem, ...prev].slice(0, MONITOR_RECENT_LIMIT)
     })
-  }, [latestDetection, selectedCamera, isGridMode, recentLimit])
+  }, [latestDetection, selectedCamera, isGridMode])
 
-  const latestCapture = latestCaptures[0] || null
+  const latestCapture = processedCaptures[0] || null
 
   return (
     <Layout title="Monitor">
@@ -340,23 +380,23 @@ function Monitor() {
               </div>
             </div>
 
-            <div className="monitor-right content-card">
-              <div className="monitor-table-header">
+            <div className="content-card table-section monitor-right">
+              <div className="dash-table-header">
                 <h3 className="card-title" style={{ margin: 0 }}>Latest Capture</h3>
-                <div className="monitor-table-header-right">
-                  <div className="monitor-search-wrap">
-                    <FaSearch className="monitor-search-icon" />
+                <div className="dash-table-header-right">
+                  <div className="dash-search-wrap">
+                    <FaSearch className="dash-search-icon" />
                     <input
                       type="text"
                       placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="monitor-search-input"
+                      className="dash-search-input"
                     />
                     {searchQuery && (
                       <button
                         type="button"
-                        className="monitor-search-clear"
+                        className="dash-search-clear"
                         onClick={() => setSearchQuery('')}
                         title="ล้างคำค้นหา"
                       >
@@ -391,7 +431,7 @@ function Monitor() {
                 </div>
               </div>
 
-              <div className="table-container">
+              <div className="table-responsive" ref={tableContainerRef}>
                 <table className="history-table">
                   <thead>
                     <tr>
@@ -408,13 +448,13 @@ function Monitor() {
                           <Spinner text="กำลังโหลดข้อมูล..." />
                         </td>
                       </tr>
-                    ) : processedCaptures.length > 0 ? (
-                      processedCaptures.map((item) => {
+                    ) : visibleCaptures.length > 0 ? (
+                      visibleCaptures.map((item) => {
                         const isBlacklist = Boolean(item.is_blacklist)
                         return (
                           <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
                             <td>{formatTime(item.time_detect)}</td>
-                            <td className={`bold-plate ${isBlacklist ? 'plate-text' : ''}`}>
+                            <td className="plate-text">
                               {item.license_plate}
                             </td>
                             <td>{item.province}</td>
@@ -435,7 +475,6 @@ function Monitor() {
                   </tbody>
                 </table>
               </div>
-
             </div>
           </div>
         )}
