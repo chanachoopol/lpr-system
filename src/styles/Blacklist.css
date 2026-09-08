@@ -204,21 +204,23 @@
   transform: scale(1.05);
 }
 
-/* ปุ่ม Add to Blacklist */
+/* ปุ่ม Add to Blacklist / Whitelist */
 .btn-add-blacklist {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
   background: rgb(27, 42, 71);
   color: rgb(255, 255, 255);
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
@@ -322,8 +324,8 @@
 
 /* Description */
 .bl-description {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 14px;
+  color: rgb(27, 42, 71);
   margin: 4px 0 0;
 }
 
@@ -924,6 +926,49 @@
   max-width: 820px;
 }
 
+.modal-content.modal-large.bl-direction-modal,
+.bl-direction-modal {
+  max-width: 920px !important;
+  width: 95% !important;
+}
+
+.bl-direction-modal .table-responsive {
+  height: 425px !important;
+  min-height: 425px !important;
+  max-height: 425px !important;
+  overflow: hidden !important;
+}
+
+.bl-direction-modal .bl-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bl-direction-modal .bl-table th {
+  color: var(--text-main, #1b2a47) !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  padding: 8px 12px !important;
+  height: 38px !important;
+  box-sizing: border-box;
+}
+
+.bl-direction-modal .bl-table td {
+  font-size: 14px !important;
+  padding: 6px 12px !important;
+  height: 46px !important;
+  box-sizing: border-box;
+  vertical-align: middle !important;
+}
+
+.bl-direction-modal .btn-edit,
+.bl-direction-modal .btn-delete {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
 .modal-content.modal-detail {
   max-width: 620px;
 }
@@ -1048,4 +1093,101 @@
 .bl-row-highlight,
 .bl-row-highlight td {
   animation: blRowPulse 4.5s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+/* Modal Header Search & Sort Styles (Match Dashboard KPI Popup) */
+.modal-header-count {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 800;
+  color: var(--text-main, #1b2a47);
+}
+
+.blacklist-wrapper .dash-search-wrap,
+.modal-content .dash-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 220px;
+  max-width: 100%;
+}
+
+.blacklist-wrapper .dash-search-icon,
+.modal-content .dash-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.blacklist-wrapper .dash-search-input,
+.modal-content .dash-search-input {
+  width: 100%;
+  padding: 6px 28px 6px 30px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: var(--bg-input, #f8fafc);
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 8px;
+  color: var(--text-main, #1b2a47);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.blacklist-wrapper .dash-search-input:focus,
+.modal-content .dash-search-input:focus {
+  border-color: rgb(27, 42, 71);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(27, 42, 71, 0.08);
+}
+
+.blacklist-wrapper .dash-search-clear,
+.modal-content .dash-search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  font-size: 12px;
+  transition: color 0.15s;
+}
+
+.blacklist-wrapper .dash-search-clear:hover,
+.modal-content .dash-search-clear:hover {
+  color: #ef4444;
+}
+
+.blacklist-wrapper .btn-sort-icon-toggle,
+.modal-content .btn-sort-icon-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  background: var(--bg-main, #ffffff);
+  color: #1b2a47;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.blacklist-wrapper .btn-sort-icon-toggle:hover,
+.modal-content .btn-sort-icon-toggle:hover {
+  background: #f1f5f9;
+  border-color: rgba(27, 42, 71, 0.3);
+  transform: translateY(-1px);
+}
+
+.blacklist-wrapper .btn-sort-icon-toggle .sort-btn-icon,
+.modal-content .btn-sort-icon-toggle .sort-btn-icon {
+  font-size: 14px;
+  color: #3b82f6;
 }

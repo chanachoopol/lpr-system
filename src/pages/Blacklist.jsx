@@ -52,6 +52,8 @@ export function isThaiLicensePlateValid(plate) {
 const MANAGE_ROLES = ['user', 'admin', 'superadmin']
 const SEARCH_DEBOUNCE_MS = 350
 const DEFAULT_ROWS_PER_PAGE = 8
+const REGISTERED_PAGE_SIZE = 8
+const TODAY_PAGE_SIZE = 8
 const MAX_VISIBLE_PAGES = 4
 const JOIN_PAGE_SIZE = 100
 const JOIN_MAX_PAGES = 10
@@ -121,6 +123,8 @@ function Blacklist() {
   const [registeredTotal, setRegisteredTotal] = useState(0)
   const [isLoadingRegistered, setIsLoadingRegistered] = useState(true)
   const [registeredSearch, setRegisteredSearch] = useState('')
+  const [registeredSortOrder, setRegisteredSortOrder] = useState('desc') // 'desc' = ล่าสุด, 'asc' = เก่าสุด
+  const [registeredPage, setRegisteredPage] = useState(1)
   const [showRegisteredModal, setShowRegisteredModal] = useState(false)
 
   // ---------- ฟอร์มเพิ่ม / แก้ไข (Add / Edit Form Modal) ----------
@@ -144,6 +148,12 @@ function Blacklist() {
   const [dynamicRowsPerPage, setDynamicRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE)
   const [cameras, setCameras] = useState([])
   const tableContainerRef = useRef(null)
+
+  // ---------- Modal รายการตรวจจับวันนี้ (Detected Today Modal) ----------
+  const [showTodayModal, setShowTodayModal] = useState(false)
+  const [todaySearchQuery, setTodaySearchQuery] = useState('')
+  const [todaySortOrder, setTodaySortOrder] = useState('desc')
+  const [todayPage, setTodayPage] = useState(1)
 
   // คำนวณจำนวนแถวที่พอดีกับขนาดหน้าจอจริงอัตโนมัติ (Dynamic Rows per Page)
   useEffect(() => {
@@ -234,8 +244,24 @@ function Blacklist() {
         ? await getBlacklistAPI({ villageId: selectedVillageId || undefined, pageSize: 100 })
         : await getWhitelistAPI({ villageId: selectedVillageId || undefined, pageSize: 100 })
 
-      setRegisteredList(data?.items || [])
-      setRegisteredTotal(data?.total || (data?.items || []).length)
+      const items = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data)
+        ? data
+        : []
+
+      const totalCount = typeof data?.total_items === 'number'
+        ? data.total_items
+        : typeof data?.total_count === 'number'
+        ? data.total_count
+        : typeof data?.count === 'number'
+        ? data.count
+        : Math.max(items.length, typeof data?.total === 'number' ? data.total : 0)
+
+      setRegisteredList(items)
+      setRegisteredTotal(totalCount)
     } catch (error) {
       console.error(error)
     } finally {
@@ -574,24 +600,106 @@ function saveHistoricalWhitelistPlates(map) {
 
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
 
-  // กรองตารางใน Modal Registered
+  const toggleRegisteredSortOrder = () => {
+    setRegisteredSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+  }
+
+  // กรองและเรียงลำดับตารางใน Modal Registered
   const filteredRegisteredList = useMemo(() => {
-    if (!registeredSearch.trim()) return registeredList
-    const q = registeredSearch.trim().toLowerCase()
-    return registeredList.filter(
-      (item) =>
-        (item.license_plate || '').toLowerCase().includes(q) ||
-        (item.province || '').toLowerCase().includes(q) ||
-        (item.reason || '').toLowerCase().includes(q) ||
-        (item.name || '').toLowerCase().includes(q)
-    )
-  }, [registeredList, registeredSearch])
+    let list = registeredList
+    if (registeredSearch.trim()) {
+      const q = registeredSearch.trim().toLowerCase()
+      list = list.filter(
+        (item) =>
+          (item.license_plate || '').toLowerCase().includes(q) ||
+          (item.province || '').toLowerCase().includes(q) ||
+          (item.reason || '').toLowerCase().includes(q) ||
+          (item.name || '').toLowerCase().includes(q) ||
+          (item.note || '').toLowerCase().includes(q)
+      )
+    }
+    return [...list].sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime() || a.id || 0
+      const timeB = new Date(b.created_at).getTime() || b.id || 0
+      return registeredSortOrder === 'desc' ? timeB - timeA : timeA - timeB
+    })
+  }, [registeredList, registeredSearch, registeredSortOrder])
+
+  const totalRegisteredPages = Math.max(1, Math.ceil(filteredRegisteredList.length / REGISTERED_PAGE_SIZE))
+
+  // ปรับ registeredPage หากเกิน totalRegisteredPages เมื่อค้นหาหรือลบข้อมูล
+  useEffect(() => {
+    if (registeredPage > totalRegisteredPages) {
+      setRegisteredPage(totalRegisteredPages)
+    }
+  }, [registeredPage, totalRegisteredPages])
+
+  const displayedRegisteredItems = useMemo(() => {
+    const start = (registeredPage - 1) * REGISTERED_PAGE_SIZE
+    return filteredRegisteredList.slice(start, start + REGISTERED_PAGE_SIZE)
+  }, [filteredRegisteredList, registeredPage])
+
+  const visibleRegisteredPages = getVisiblePageNumbers(registeredPage, totalRegisteredPages, MAX_VISIBLE_PAGES)
+
+  // ---------- ข้อมูลและการคำนวณสำหรับ Today Modal ----------
+  const toggleTodaySortOrder = () => {
+    setTodaySortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+  }
+
+  const todayDetectionsList = useMemo(() => {
+    const todayStr = dateKeyOf(new Date().toISOString())
+    return matchingDetections.filter((d) => dateKeyOf(d.time_detect) === todayStr)
+  }, [matchingDetections])
+
+  const filteredTodayDetections = useMemo(() => {
+    let list = todayDetectionsList
+    if (todaySearchQuery.trim()) {
+      const q = todaySearchQuery.trim().toLowerCase()
+      list = list.filter(
+        (d) =>
+          (d.license_plate || '').toLowerCase().includes(q) ||
+          (d.province || '').toLowerCase().includes(q) ||
+          (d.color || '').toLowerCase().includes(q) ||
+          (d.camera_name || d.camera?.name || '').toLowerCase().includes(q) ||
+          (d.matchedReason || '').toLowerCase().includes(q) ||
+          (d.matchedName || '').toLowerCase().includes(q)
+      )
+    }
+    return [...list].sort((a, b) => {
+      const timeA = new Date(a.time_detect).getTime() || 0
+      const timeB = new Date(b.time_detect).getTime() || 0
+      return todaySortOrder === 'desc' ? timeB - timeA : timeA - timeB
+    })
+  }, [todayDetectionsList, todaySearchQuery, todaySortOrder])
+
+  const totalTodayPages = Math.max(1, Math.ceil(filteredTodayDetections.length / TODAY_PAGE_SIZE))
+
+  useEffect(() => {
+    if (todayPage > totalTodayPages) {
+      setTodayPage(totalTodayPages)
+    }
+  }, [todayPage, totalTodayPages])
+
+  const displayedTodayItems = useMemo(() => {
+    const start = (todayPage - 1) * TODAY_PAGE_SIZE
+    return filteredTodayDetections.slice(start, start + TODAY_PAGE_SIZE)
+  }, [filteredTodayDetections, todayPage])
+
+  const visibleTodayPages = getVisiblePageNumbers(todayPage, totalTodayPages, MAX_VISIBLE_PAGES)
 
   // สลับแท็บ
   function handleTabChange(tab) {
+    if (tab === activeTab) return
     setActiveTab(tab)
     setSearchParams({ tab }, { replace: true })
+    setRegisteredList([])
+    setRegisteredTotal(0)
     setRegisteredSearch('')
+    setRegisteredSortOrder('desc')
+    setRegisteredPage(1)
+    setTodaySearchQuery('')
+    setTodaySortOrder('desc')
+    setTodayPage(1)
     setDetectionSearch('')
     setDebouncedDetectionSearch('')
     setStartDate(null)
@@ -699,6 +807,71 @@ function saveHistoricalWhitelistPlates(map) {
     const provOk = isValidThaiProvince(formData?.province || '')
     return villageOk && nameOk && plateOk && provOk
   }, [formData, isBlacklistTab, isSuperAdmin, formVillageId])
+
+  // ตรวจสอบว่ามีการเปลี่ยนแปลงข้อมูลในฟอร์มหรือไม่ (Dirty check)
+  const checkIsFormDirty = useCallback(() => {
+    if (editingEntry) {
+      if (isBlacklistTab) {
+        return (
+          (formData.plate || '').trim() !== (editingEntry.license_plate || '').trim() ||
+          (formData.province || '').trim() !== (editingEntry.province || '').trim() ||
+          (formData.reason || '').trim() !== (editingEntry.reason || '').trim() ||
+          (isSuperAdmin && String(formVillageId || '') !== String(editingEntry.village_id || ''))
+        )
+      } else {
+        return (
+          (formData.name || '').trim() !== (editingEntry.name || '').trim() ||
+          (formData.plate || '').trim() !== (editingEntry.license_plate || '').trim() ||
+          (formData.province || '').trim() !== (editingEntry.province || '').trim() ||
+          (formData.note || '').trim() !== (editingEntry.note || '').trim() ||
+          (isSuperAdmin && String(formVillageId || '') !== String(editingEntry.village_id || ''))
+        )
+      }
+    } else {
+      if (isBlacklistTab) {
+        return Boolean((formData.plate || '').trim() || (formData.province || '').trim() || (formData.reason || '').trim())
+      } else {
+        return Boolean(
+          (formData.name || '').trim() ||
+          (formData.plate || '').trim() ||
+          (formData.province || '').trim() ||
+          (formData.note || '').trim()
+        )
+      }
+    }
+  }, [formData, editingEntry, isBlacklistTab, isSuperAdmin, formVillageId])
+
+  // ปิด Modal ฟอร์ม พร้อม SweetAlert เตือนหากมีการแก้ไขค้างไว้
+  const handleAttemptCloseFormModal = useCallback(() => {
+    if (isSubmitting) return
+    if (checkIsFormDirty()) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'คุณมีการแก้ไขที่ยังไม่ได้บันทึก',
+        text: 'คุณต้องการยกเลิกการแก้ไขใช่หรือไม่? ข้อมูลที่คุณแก้ไขจะไม่ถูกบันทึก',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ใช่, ไม่บันทึก',
+        cancelButtonText: 'แก้ไขต่อ',
+        reverseButtons: true
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setShowFormModal(false)
+          setEditingEntry(null)
+          setFormData(isBlacklistTab ? EMPTY_BLACKLIST_FORM : EMPTY_WHITELIST_FORM)
+          setFormTouched({})
+          setHasSubmittedForm(false)
+        }
+      })
+    } else {
+      setShowFormModal(false)
+      setEditingEntry(null)
+      setFormData(isBlacklistTab ? EMPTY_BLACKLIST_FORM : EMPTY_WHITELIST_FORM)
+      setFormTouched({})
+      setHasSubmittedForm(false)
+    }
+  }, [isSubmitting, checkIsFormDirty, isBlacklistTab])
 
   // บันทึกฟอร์ม เพิ่ม / แก้ไข
   async function handleFormSubmit(e) {
@@ -875,10 +1048,12 @@ function saveHistoricalWhitelistPlates(map) {
       if (e.key === 'Escape') {
         if (fullscreenImage) {
           setFullscreenImage(null)
+        } else if (showFormModal) {
+          handleAttemptCloseFormModal()
         } else if (selectedItem) {
           closeModal()
-        } else if (showFormModal && !isSubmitting) {
-          setShowFormModal(false)
+        } else if (showTodayModal) {
+          setShowTodayModal(false)
         } else if (showRegisteredModal) {
           setShowRegisteredModal(false)
         }
@@ -886,7 +1061,7 @@ function saveHistoricalWhitelistPlates(map) {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [fullscreenImage, selectedItem, showFormModal, showRegisteredModal, isSubmitting, modalImages])
+  }, [fullscreenImage, showFormModal, handleAttemptCloseFormModal, selectedItem, showTodayModal, showRegisteredModal])
 
   function handleGoToRouteTracking(item) {
     if (!item) return
@@ -940,13 +1115,21 @@ function saveHistoricalWhitelistPlates(map) {
           </div>
 
           {/* การ์ด 2: แสดงจำนวนตรวจจับได้วันนี้ */}
-          <div className="bl-kpi-card">
+          <div
+            className="bl-kpi-card clickable"
+            onClick={() => setShowTodayModal(true)}
+            title={`คลิกเพื่อดูรายการที่ตรวจจับได้วันนี้ (${isBlacklistTab ? 'Blacklist' : 'Whitelist'})`}
+          >
             <div className="bl-kpi-icon orange">
               <FaCar />
             </div>
             <div className="bl-kpi-info">
               <p className="bl-kpi-label">Detected Today</p>
               <h2 className="bl-kpi-val">{isLoadingDetections ? '—' : foundTodayCount}</h2>
+            </div>
+            <div className="bl-kpi-external">
+              <FaArrowUpRightFromSquare className="bl-external-icon" />
+              <span className="bl-external-text">ดูรายการวันนี้</span>
             </div>
           </div>
         </div>
@@ -955,19 +1138,14 @@ function saveHistoricalWhitelistPlates(map) {
         <div className="content-card">
           <div className="bl-table-header">
             <div className="bl-table-title">
-              {isBlacklistTab ? (
-                <FaTriangleExclamation className="bl-title-icon" />
-              ) : (
-                <FaCheck className="bl-title-icon whitelist" />
-              )}
               <div>
                 <h3 className="card-title" style={{ margin: 0 }}>
                   {isBlacklistTab ? 'Blacklist Detection Records' : 'Whitelist Detection Records'}
                 </h3>
                 <p className="bl-description">
                   {isBlacklistTab
-                    ? 'ประวัติยานพาหนะติดบัญชีดำที่กล้องตรวจจับได้ทั้งหมด เรียงตามวันที่ล่าสุด'
-                    : 'ประวัติยานพาหนะลูกบ้าน/ได้รับอนุญาตที่กล้องตรวจจับได้ทั้งหมด เรียงตามวันที่ล่าสุด'}
+                    ? 'ประวัติป้ายทะเบียนต้องสงสัยที่กล้องตรวจจับได้ทั้งหมด'
+                    : 'ประวัติยานพาหนะลูกบ้าน/ได้รับอนุญาตที่กล้องตรวจจับได้ทั้งหมด'}
                 </p>
               </div>
             </div>
@@ -1220,174 +1398,19 @@ function saveHistoricalWhitelistPlates(map) {
 
       </div>
 
-      {/* Modal 1: แสดงรายการรถที่ลงทะเบียนไว้ทั้งหมดในระบบ (Registered Vehicles Management) */}
-      {showRegisteredModal && (
-        <div className="modal-overlay" onClick={() => setShowRegisteredModal(false)}>
-          <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-header-left">
-                <h3>
-                  {isBlacklistTab ? 'Registered Blacklist' : 'Registered Whitelist'} (
-                  {filteredRegisteredList.length})
-                </h3>
-              </div>
-              <div className="modal-header-right">
-                {canManage && (
-                  <button className="btn-add-blacklist" onClick={openAddModal}>
-                    <FaPlus /> เพิ่ม {isBlacklistTab ? 'Blacklist' : 'Whitelist'}
-                  </button>
-                )}
-                <button className="modal-close" onClick={() => setShowRegisteredModal(false)}>
-                  <FaXmark />
-                </button>
-              </div>
-            </div>
-
-            <div className="modal-registered-body">
-              <div className="bl-search-wrap" style={{ marginBottom: 16 }}>
-                <FaSearch className="bl-search-icon" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาป้ายทะเบียนในระบบ..."
-                  value={registeredSearch}
-                  onChange={(e) => setRegisteredSearch(e.target.value)}
-                  className="bl-search-input"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div className="table-responsive" style={{ maxHeight: 380, overflowY: 'auto' }}>
-                <table className="bl-table">
-                  <thead>
-                    {isBlacklistTab ? (
-                      <tr>
-                        <th>License Plate</th>
-                        <th>Province</th>
-                        {isSuperAdmin && <th>Village</th>}
-                        <th>Reason</th>
-                        <th>Date Added</th>
-                        {canManage && <th>Action</th>}
-                      </tr>
-                    ) : (
-                      <tr>
-                        <th>License Plate</th>
-                        <th>Province</th>
-                        {isSuperAdmin && <th>Village</th>}
-                        <th>Name</th>
-                        <th>Note</th>
-                        <th>Date Added</th>
-                        {canManage && <th>Action</th>}
-                      </tr>
-                    )}
-                  </thead>
-                  <tbody>
-                    {isLoadingRegistered ? (
-                      <tr>
-                        <td colSpan={(isBlacklistTab ? 4 : 5) + (canManage ? 1 : 0) + (isSuperAdmin ? 1 : 0)}>
-                          <Spinner text="กำลังโหลดรายชื่อ..." />
-                        </td>
-                      </tr>
-                    ) : filteredRegisteredList.length > 0 ? (
-                      filteredRegisteredList.map((item) =>
-                        isBlacklistTab ? (
-                          <tr key={item.id}>
-                            <td>
-                              <span className="bl-plate-badge">{item.license_plate}</span>
-                            </td>
-                            <td>{item.province || '-'}</td>
-                            {isSuperAdmin && (
-                              <td>{renderVillage(item.village_id || item.villageId, item.village_name || item.villageName)}</td>
-                            )}
-                            <td>
-                              <span className="bl-reason-badge">{item.reason}</span>
-                            </td>
-                            <td>{formatDate(item.created_at)}</td>
-                            {canManage && (
-                              <td>
-                                <div className="bl-action-group">
-                                  <button
-                                    className="btn-edit"
-                                    onClick={() => openEditModal(item)}
-                                    title="แก้ไข"
-                                  >
-                                    <FaPen />
-                                  </button>
-                                  <button
-                                    className="btn-delete"
-                                    onClick={() => handleDelete(item.id, item.license_plate)}
-                                    title="ลบ"
-                                  >
-                                    <FaTrashCan />
-                                  </button>
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        ) : (
-                          <tr key={item.id}>
-                            <td>
-                              <span className="bl-plate-badge whitelist">{item.license_plate}</span>
-                            </td>
-                            <td>{item.province || '-'}</td>
-                            {isSuperAdmin && (
-                              <td>{renderVillage(item.village_id || item.villageId, item.village_name || item.villageName)}</td>
-                            )}
-                            <td>{item.name || '-'}</td>
-                            <td>{item.note || '-'}</td>
-                            <td>{formatDate(item.created_at)}</td>
-                            {canManage && (
-                              <td>
-                                <div className="bl-action-group">
-                                  <button
-                                    className="btn-edit"
-                                    onClick={() => openEditModal(item)}
-                                    title="แก้ไข"
-                                  >
-                                    <FaPen />
-                                  </button>
-                                  <button
-                                    className="btn-delete"
-                                    onClick={() => handleDelete(item.id, item.license_plate)}
-                                    title="ลบ"
-                                  >
-                                    <FaTrashCan />
-                                  </button>
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        )
-                      )
-                    ) : (
-                      <tr>
-                        <td colSpan={(isBlacklistTab ? 4 : 5) + (canManage ? 1 : 0) + (isSuperAdmin ? 1 : 0)}>
-                          <EmptyState
-                            icon={isBlacklistTab ? <FaTriangleExclamation /> : <FaCheck />}
-                            title={`ไม่มีข้อมูล ${isBlacklistTab ? 'Blacklist' : 'Whitelist'} ในระบบ`}
-                            description="กดปุ่มเพิ่มเพื่อบันทึกยานพาหนะเข้าระบบ"
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal 2: เพิ่ม / แก้ไข Blacklist & Whitelist Form */}
-      {showFormModal && (
-        <div className="modal-overlay" onClick={() => !isSubmitting && setShowFormModal(false)}>
+      {/* Modal Priority Tree (Single-Focus Modal: แสดงทีละหน้าต่าง ไม่ซ้อนทับกัน) */}
+      {showFormModal ? (
+        /* Modal 2: เพิ่ม / แก้ไข Blacklist & Whitelist Form */
+        <div className="modal-overlay" onClick={handleAttemptCloseFormModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
                 {editingEntry ? 'แก้ไข' : 'เพิ่ม'} {isBlacklistTab ? 'Blacklist' : 'Whitelist'}
               </h3>
               <button
+                type="button"
                 className="modal-close"
-                onClick={() => setShowFormModal(false)}
+                onClick={handleAttemptCloseFormModal}
                 disabled={isSubmitting}
               >
                 <FaXmark />
@@ -1554,7 +1577,7 @@ function saveHistoricalWhitelistPlates(map) {
                 <button
                   type="button"
                   className="btn-cancel-add"
-                  onClick={() => setShowFormModal(false)}
+                  onClick={handleAttemptCloseFormModal}
                   disabled={isSubmitting}
                 >
                   ยกเลิก
@@ -1578,10 +1601,8 @@ function saveHistoricalWhitelistPlates(map) {
             </form>
           </div>
         </div>
-      )}
-
-      {/* Modal 3: ดูรายละเอียดภาพถ่ายและข้อมูล (History Style) */}
-      {selectedItem && (
+      ) : selectedItem ? (
+        /* Modal 3: ดูรายละเอียดภาพถ่ายและข้อมูล (History Style / Single-Focus) */
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content modal-detail" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -1672,7 +1693,385 @@ function saveHistoricalWhitelistPlates(map) {
             </div>
           </div>
         </div>
-      )}
+      ) : showTodayModal ? (
+        /* Modal 2: แสดงรายการรถที่ตรวจจับได้วันนี้ (Detected Today Modal) */
+        <div className="modal-overlay" onClick={() => setShowTodayModal(false)}>
+          <div className="modal-content modal-large bl-direction-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-header-left">
+                <h3>
+                  {isBlacklistTab ? 'Blacklist Detected Today' : 'Whitelist Detected Today'}{' '}
+                  <span className="modal-header-count">({filteredTodayDetections.length})</span>
+                </h3>
+              </div>
+              <div className="modal-header-right">
+                <div className="dash-search-wrap">
+                  <FaSearch className="dash-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
+                    value={todaySearchQuery}
+                    onChange={(e) => {
+                      setTodaySearchQuery(e.target.value)
+                      setTodayPage(1)
+                    }}
+                    className="dash-search-input"
+                  />
+                  {todaySearchQuery && (
+                    <button
+                      type="button"
+                      className="dash-search-clear"
+                      onClick={() => {
+                        setTodaySearchQuery('')
+                        setTodayPage(1)
+                      }}
+                      title="ล้างคำค้นหา"
+                    >
+                      <FaXmark />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-sort-icon-toggle"
+                  onClick={toggleTodaySortOrder}
+                  title={
+                    todaySortOrder === 'desc'
+                      ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)'
+                      : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'
+                  }
+                >
+                  {todaySortOrder === 'desc' ? (
+                    <FaArrowDownWideShort className="sort-btn-icon" />
+                  ) : (
+                    <FaArrowUpWideShort className="sort-btn-icon" />
+                  )}
+                </button>
+
+                <button className="modal-close" onClick={() => setShowTodayModal(false)}>
+                  <FaXmark />
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-registered-body" style={{ padding: '20px 24px' }}>
+              <div className="table-responsive">
+                <table className="bl-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>License Plate</th>
+                      <th>Province</th>
+                      <th>Color</th>
+                      {isSuperAdmin && <th>Village</th>}
+                      <th>Camera</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLoadingDetections && matchingDetections.length === 0 ? (
+                      <tr>
+                        <td colSpan={isSuperAdmin ? 9 : 8}>
+                          <Spinner text="กำลังโหลดข้อมูล..." />
+                        </td>
+                      </tr>
+                    ) : displayedTodayItems.length > 0 ? (
+                      displayedTodayItems.map((item, index) => (
+                        <tr key={item.id || index}>
+                          <td>{(todayPage - 1) * TODAY_PAGE_SIZE + index + 1}</td>
+                          <td>{formatDate(item.time_detect)}</td>
+                          <td>{formatTime(item.time_detect)}</td>
+                          <td className="bold-plate" style={{ fontWeight: 700, color: '#ef4444' }}>
+                            {item.license_plate}
+                          </td>
+                          <td>{item.province || '-'}</td>
+                          <td>{item.color || '-'}</td>
+                          {isSuperAdmin && (
+                            <td>{renderVillage(item.village_id || item.camera?.village_id, item.village_name || item.camera?.village?.name)}</td>
+                          )}
+                          <td>{renderCameraDisplay(item.camera_id, item.camera_name || item.camera?.name)}</td>
+                          <td>
+                            <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
+                              <FaEye /> View
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={isSuperAdmin ? 9 : 8}>
+                          <EmptyState
+                            icon={<FaCar />}
+                            title={todaySearchQuery ? 'ไม่พบข้อมูลที่ค้นหา' : `ไม่มีรายการตรวจจับ ${isBlacklistTab ? 'Blacklist' : 'Whitelist'} วันนี้`}
+                            description={todaySearchQuery ? 'ลองเปลี่ยนคำค้นหาป้ายทะเบียน จังหวัด หรือสี' : undefined}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalTodayPages > 1 && (
+                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    className="page-btn"
+                    disabled={todayPage <= 1}
+                    onClick={() => setTodayPage((p) => Math.max(1, p - 1))}
+                  >
+                    ‹
+                  </button>
+
+                  {visibleTodayPages.map((page) => (
+                    <button
+                      key={page}
+                      className={`page-btn ${todayPage === page ? 'active' : ''}`}
+                      onClick={() => setTodayPage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    className="page-btn"
+                    disabled={todayPage >= totalTodayPages}
+                    onClick={() => setTodayPage((p) => Math.min(totalTodayPages, p + 1))}
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : showRegisteredModal ? (
+        /* Modal 1: แสดงรายการรถที่ลงทะเบียนไว้ทั้งหมดในระบบ (Registered Vehicles Management) */
+        <div className="modal-overlay" onClick={() => setShowRegisteredModal(false)}>
+          <div className="modal-content modal-large bl-direction-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-header-left">
+                <h3>
+                  {isBlacklistTab ? 'Registered Blacklist' : 'Registered Whitelist'}{' '}
+                  <span className="modal-header-count">({filteredRegisteredList.length})</span>
+                </h3>
+              </div>
+              <div className="modal-header-right">
+                {canManage && (
+                  <button className="btn-add-blacklist" onClick={openAddModal}>
+                    <FaPlus /> เพิ่ม {isBlacklistTab ? 'Blacklist' : 'Whitelist'}
+                  </button>
+                )}
+
+                <div className="dash-search-wrap">
+                  <FaSearch className="dash-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
+                    value={registeredSearch}
+                    onChange={(e) => {
+                      setRegisteredSearch(e.target.value)
+                      setRegisteredPage(1)
+                    }}
+                    className="dash-search-input"
+                  />
+                  {registeredSearch && (
+                    <button
+                      type="button"
+                      className="dash-search-clear"
+                      onClick={() => {
+                        setRegisteredSearch('')
+                        setRegisteredPage(1)
+                      }}
+                      title="ล้างคำค้นหา"
+                    >
+                      <FaXmark />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-sort-icon-toggle"
+                  onClick={toggleRegisteredSortOrder}
+                  title={
+                    registeredSortOrder === 'desc'
+                      ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)'
+                      : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'
+                  }
+                >
+                  {registeredSortOrder === 'desc' ? (
+                    <FaArrowDownWideShort className="sort-btn-icon" />
+                  ) : (
+                    <FaArrowUpWideShort className="sort-btn-icon" />
+                  )}
+                </button>
+
+                <button className="modal-close" onClick={() => setShowRegisteredModal(false)}>
+                  <FaXmark />
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-registered-body">
+              <div className="table-responsive">
+                <table className="bl-table">
+                  <thead>
+                    {isBlacklistTab ? (
+                      <tr>
+                        <th>#</th>
+                        <th>License Plate</th>
+                        <th>Province</th>
+                        {isSuperAdmin && <th>Village</th>}
+                        <th>Reason</th>
+                        <th>Date Added</th>
+                        {canManage && <th>Action</th>}
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th>#</th>
+                        <th>License Plate</th>
+                        <th>Province</th>
+                        {isSuperAdmin && <th>Village</th>}
+                        <th>Name</th>
+                        <th>Note</th>
+                        <th>Date Added</th>
+                        {canManage && <th>Action</th>}
+                      </tr>
+                    )}
+                  </thead>
+                  <tbody>
+                    {isLoadingRegistered ? (
+                      <tr>
+                        <td colSpan={(isBlacklistTab ? 5 : 6) + (canManage ? 1 : 0) + (isSuperAdmin ? 1 : 0)}>
+                          <Spinner text="กำลังโหลดรายชื่อ..." />
+                        </td>
+                      </tr>
+                    ) : displayedRegisteredItems.length > 0 ? (
+                      displayedRegisteredItems.map((item, index) =>
+                        isBlacklistTab ? (
+                          <tr key={item.id}>
+                            <td>{(registeredPage - 1) * REGISTERED_PAGE_SIZE + index + 1}</td>
+                            <td className="bold-plate" style={{ fontWeight: 700, color: '#ef4444' }}>
+                              {item.license_plate}
+                            </td>
+                            <td>{item.province || '-'}</td>
+                            {isSuperAdmin && (
+                              <td>{renderVillage(item.village_id || item.villageId, item.village_name || item.villageName)}</td>
+                            )}
+                            <td>
+                              <span className="bl-reason-badge">{item.reason}</span>
+                            </td>
+                            <td>{formatDate(item.created_at)}</td>
+                            {canManage && (
+                              <td>
+                                <div className="bl-action-group">
+                                  <button
+                                    className="btn-edit"
+                                    onClick={() => openEditModal(item)}
+                                    title="แก้ไข"
+                                  >
+                                    <FaPen />
+                                  </button>
+                                  <button
+                                    className="btn-delete"
+                                    onClick={() => handleDelete(item.id, item.license_plate)}
+                                    title="ลบ"
+                                  >
+                                    <FaTrashCan />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        ) : (
+                          <tr key={item.id}>
+                            <td>{(registeredPage - 1) * REGISTERED_PAGE_SIZE + index + 1}</td>
+                            <td className="bold-plate" style={{ fontWeight: 700 }}>
+                              {item.license_plate}
+                            </td>
+                            <td>{item.province || '-'}</td>
+                            {isSuperAdmin && (
+                              <td>{renderVillage(item.village_id || item.villageId, item.village_name || item.villageName)}</td>
+                            )}
+                            <td>{item.name || '-'}</td>
+                            <td>{item.note || '-'}</td>
+                            <td>{formatDate(item.created_at)}</td>
+                            {canManage && (
+                              <td>
+                                <div className="bl-action-group">
+                                  <button
+                                    className="btn-edit"
+                                    onClick={() => openEditModal(item)}
+                                    title="แก้ไข"
+                                  >
+                                    <FaPen />
+                                  </button>
+                                  <button
+                                    className="btn-delete"
+                                    onClick={() => handleDelete(item.id, item.license_plate)}
+                                    title="ลบ"
+                                  >
+                                    <FaTrashCan />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        )
+                      )
+                    ) : (
+                      <tr>
+                        <td colSpan={(isBlacklistTab ? 5 : 6) + (canManage ? 1 : 0) + (isSuperAdmin ? 1 : 0)}>
+                          <EmptyState
+                            icon={isBlacklistTab ? <FaTriangleExclamation /> : <FaCheck />}
+                            title={`ไม่มีข้อมูล ${isBlacklistTab ? 'Blacklist' : 'Whitelist'} ในระบบ`}
+                            description={registeredSearch ? 'ไม่พบข้อมูลที่ตรงกับคำค้นหา' : 'กดปุ่มเพิ่มเพื่อบันทึกยานพาหนะเข้าระบบ'}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalRegisteredPages > 1 && (
+                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    className="page-btn"
+                    disabled={registeredPage <= 1}
+                    onClick={() => setRegisteredPage((p) => Math.max(1, p - 1))}
+                  >
+                    ‹
+                  </button>
+
+                  {visibleRegisteredPages.map((page) => (
+                    <button
+                      key={page}
+                      className={`page-btn ${registeredPage === page ? 'active' : ''}`}
+                      onClick={() => setRegisteredPage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    className="page-btn"
+                    disabled={registeredPage >= totalRegisteredPages}
+                    onClick={() => setRegisteredPage((p) => Math.min(totalRegisteredPages, p + 1))}
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Modal 4: ดูภาพแบบ Fullscreen */}
       {fullscreenImage && (
