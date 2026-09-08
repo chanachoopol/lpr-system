@@ -57,6 +57,19 @@ function getDirectionLabel(direction) {
   return '-';
 }
 
+function getVisiblePageNumbers(current, total, maxVisible) {
+  if (total <= maxVisible) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  let start = Math.max(1, current - Math.floor(maxVisible / 2));
+  let end = start + maxVisible - 1;
+  if (end > total) {
+    end = total;
+    start = end - maxVisible + 1;
+  }
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
 function RouteTracking() {
   const { selectedVillageId } = useVillageStore();
   const [searchParams] = useSearchParams();
@@ -79,6 +92,54 @@ function RouteTracking() {
   const [vehicleGroups, setVehicleGroups] = useState([]);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const routeMapRef = useRef(null);
+
+  // Pagination & Dynamic Rows
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
+  const tableContainerRef = useRef(null);
+
+  // คำนวณจำนวนแถวให้พอดีกับความสูงของตารางแบบ Real-time โดยไม่ให้มี scrollbar
+  const calculateRows = useCallback(() => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+    const height = el.clientHeight;
+    if (!height) return;
+    const headerHeight = 40;
+    const rowHeight = 44;
+    const available = height - headerHeight;
+    if (available > 0) {
+      const calculated = Math.max(3, Math.floor(available / rowHeight));
+      setPageSize((prev) => (prev !== calculated ? calculated : prev));
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+
+    calculateRows();
+    const observer = new ResizeObserver(calculateRows);
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [calculateRows, hasSearched, selectedVehicle, vehicleGroups.length]);
+
+  const totalPages = Math.max(1, Math.ceil(vehicleGroups.length / pageSize));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedGroups = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return vehicleGroups.slice(start, start + pageSize);
+  }, [vehicleGroups, currentPage, pageSize]);
+
+  const visiblePages = useMemo(() => {
+    return getVisiblePageNumbers(currentPage, totalPages, 5);
+  }, [currentPage, totalPages]);
 
   const runSearch = useCallback(
     async (queryValue, rangeFrom, rangeTo, options = {}) => {
@@ -117,6 +178,7 @@ function RouteTracking() {
       setIsSearching(true);
       setHasSearched(true);
       setSelectedVehicle(null);
+      setCurrentPage(1);
 
       try {
         const data = await getRouteTrackingAPI({
@@ -138,12 +200,23 @@ function RouteTracking() {
         ;(data?.items || []).forEach((dateGroup) => {
           ;(dateGroup?.cars || []).forEach((car) => {
             ;(car?.detections || []).forEach((detection) => {
+              const isBlacklist = Boolean(
+                detection.is_blacklist ||
+                detection.is_blacklisted ||
+                detection.category === 'blacklist' ||
+                detection.type === 'blacklist' ||
+                car.is_blacklist ||
+                car.is_blacklisted ||
+                car.category === 'blacklist' ||
+                car.type === 'blacklist'
+              );
               matched.push({
                 ...detection,
                 license_plate: car.license_plate || '',
                 province: car.province || '',
                 color: detection.color || '',
-                route_date: dateGroup.date || dateKeyOf(detection.time_detect)
+                route_date: dateGroup.date || dateKeyOf(detection.time_detect),
+                is_blacklist: isBlacklist
               });
             });
           });
@@ -163,8 +236,13 @@ function RouteTracking() {
               plate: item.license_plate,
               province: item.province,
               date: day,
+              is_blacklist: Boolean(item.is_blacklist),
               items: []
             });
+          }
+
+          if (item.is_blacklist) {
+            groupMap.get(key).is_blacklist = true;
           }
 
           /*
@@ -222,6 +300,7 @@ function RouteTracking() {
     setVehicleGroups([]);
     setSelectedVehicle(null);
     setHasSearched(false);
+    setCurrentPage(1);
   }, [defaultDateFrom, today]);
 
   // ค้นหาแบบ Real-time อัตโนมัติเมื่อพิมพ์ป้ายทะเบียน หรือเปลี่ยนช่วงวันที่
@@ -492,12 +571,14 @@ useEffect(() => {
 
         {/* Search */}
         <div className="content-card rt-search-card">
-          <h3 className="card-title" style={{ margin: 0 }}>
-            ค้นหาเส้นทางการเคลื่อนที่
-          </h3>
-          <p className="rt-description">
-            พิมพ์ป้ายทะเบียนเพื่อค้นหาเส้นทางการเคลื่อนที่ของรถ
-          </p>
+          <div className="rt-search-header">
+            <h3 className="card-title" style={{ margin: 0 }}>
+              ค้นหาเส้นทางการเคลื่อนที่
+            </h3>
+            <p className="rt-description">
+              พิมพ์ป้ายทะเบียนเพื่อค้นหาเส้นทางการเคลื่อนที่ของรถ
+            </p>
+          </div>
 
           <div className="rt-search-row">
             <div className="rt-search-field rt-search-field-plate">
@@ -577,7 +658,7 @@ useEffect(() => {
           </div>
         ) : !selectedVehicle ? (
           /* Search Result */
-          <div className="content-card">
+          <div className="content-card rt-table-card">
             <div className="rt-table-header">
               <h3 className="card-title" style={{ margin: 0 }}>
                 ผลการค้นหา
@@ -594,57 +675,90 @@ useEffect(() => {
                 description="ไม่พบป้ายทะเบียนนี้ในช่วงเวลาที่เลือก"
               />
             ) : (
-              <div className="table-responsive">
-                <table className="rt-table">
-                  <thead>
-                    <tr>
-                      <th>ทะเบียน</th>
-                      <th>จังหวัด</th>
-                      <th>วันที่</th>
-                      <th>สี</th>
-                      <th>จำนวนครั้งที่พบ</th>
-                      <th>พบล่าสุด</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vehicleGroups.map((group) => {
-                      const latestItem = group.items[group.items.length - 1];
-                      return (
-                        <tr
-                          key={`${group.plate}|${group.province}|${group.date}`}
-                          className="rt-row-clickable"
-                          onClick={() => handleSelectVehicle(group)}
-                        >
-                          <td className="plate-text">{group.plate}</td>
-                          <td>{group.province || '-'}</td>
-                          <td>{formatDate(group.items[0]?.time_detect)}</td>
-                          <td>{latestItem?.color || '-'}</td>
-                          <td>{group.items.length} ครั้ง</td>
-                          <td>{formatDateTime(latestItem?.time_detect)}</td>
-                          <td>
-                            <button
-                              className="btn-view-route"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSelectVehicle(group);
-                              }}
-                            >
-                              <FaMapLocationDot />
-                              ดูเส้นทาง
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="table-responsive" ref={tableContainerRef}>
+                  <table className="rt-table">
+                    <thead>
+                      <tr>
+                        <th>ทะเบียน</th>
+                        <th>จังหวัด</th>
+                        <th>วันที่</th>
+                        <th>สี</th>
+                        <th>จำนวนครั้งที่พบ</th>
+                        <th>พบล่าสุด</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedGroups.map((group) => {
+                        const latestItem = group.items[group.items.length - 1];
+                        return (
+                          <tr
+                            key={`${group.plate}|${group.province}|${group.date}`}
+                            className="rt-row-clickable"
+                            onClick={() => handleSelectVehicle(group)}
+                          >
+                            <td className={`plate-text ${group.is_blacklist ? 'plate-blacklist' : ''}`}>
+                              {group.plate}
+                            </td>
+                            <td>{group.province || '-'}</td>
+                            <td>{formatDate(group.items[0]?.time_detect)}</td>
+                            <td>{latestItem?.color || '-'}</td>
+                            <td>{group.items.length} ครั้ง</td>
+                            <td>{formatDateTime(latestItem?.time_detect)}</td>
+                            <td>
+                              <button
+                                className="btn-view-route"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectVehicle(group);
+                                }}
+                              >
+                                <FaMapLocationDot />
+                                ดูเส้นทาง
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="pagination">
+                  <button
+                    className="page-btn"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                  >
+                    ‹
+                  </button>
+
+                  {visiblePages.map((page) => (
+                    <button
+                      key={page}
+                      className={`page-btn ${currentPage === page ? 'active' : ''}`}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    className="page-btn"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    ›
+                  </button>
+                </div>
+              </>
             )}
           </div>
         ) : (
           /* Route Detail */
-          <>
+          <div className="rt-detail-container">
             <button className="rt-back-btn" onClick={handleBackToList}>
               <FaArrowLeft />
               กลับไปยังรายการที่พบ
@@ -793,7 +907,7 @@ useEffect(() => {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
 

@@ -375,7 +375,7 @@ function Monitor() {
 
         {isGridMode ? (
           /* ---------- Grid View ---------- */
-          <div className="content-card">
+          <div className="content-card monitor-grid-card">
             <h3 className="card-title">
               <FaThLarge style={{ marginRight: 8 }} />
               All Cameras ({cameras.length})

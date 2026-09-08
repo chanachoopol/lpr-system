@@ -8,6 +8,8 @@
   padding: 0;
   margin: 0;
   box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
 }
 
 .monitor-wrapper.single-view {
@@ -17,7 +19,9 @@
 }
 
 .monitor-wrapper.grid-view {
-  min-height: calc(100vh - 136px);
+  height: calc(100vh - 136px);
+  max-height: calc(100vh - 136px);
+  overflow: hidden;
 }
 
 /* แถบเลือกกล้องด้านบน */
@@ -381,10 +385,48 @@
 }
 /* ==================== Grid View (All Cameras) ==================== */
 
+.monitor-grid-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.monitor-grid-card .card-title {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
 .camera-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  padding-bottom: 6px;
+}
+
+/* Scrollbar สไตล์โมเดิร์นจุดเดียวเฉพาะใน All Cameras Grid */
+.camera-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.camera-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.camera-grid::-webkit-scrollbar-thumb {
+  background: rgba(27, 42, 71, 0.2);
+  border-radius: 4px;
+}
+
+.camera-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(27, 42, 71, 0.35);
 }
 
 .grid-tile {
