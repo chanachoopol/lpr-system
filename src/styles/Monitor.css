@@ -149,6 +149,7 @@
 
 /* ฝั่งข้อมูลด้านขวา (ตาราง Latest Capture สไตล์เดียวกับ Dashboard Content Card) */
 .monitor-right {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 16px 20px;
@@ -413,7 +414,90 @@
   }
 }
 /* เพิ่มขนาดตัวหนังสือเฉพาะคอลัมน์ Province และ Color */
-.monitor-right .history-table td:nth-child(3),
-.monitor-right .history-table td:nth-child(4) {
-  font-size: 14.5px; /* 👈 กำหนดขนาดที่ต้องการ */
+.monitor-right .history-table td:nth-child(4),
+.monitor-right .history-table td:nth-child(5) {
+  font-size: 14.5px;
+}
+
+.monitor-right .history-table td.plate-text.plate-hoverable {
+  cursor: default;
+}
+
+/* ==================== Floating Vehicle Hover Preview ==================== */
+.vehicle-hover-preview {
+  position: absolute;
+  width: 220px;
+  border-radius: 12px;
+  background: #0f172a;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.45), 0 3px 10px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  z-index: 999;
+  pointer-events: none;
+  animation: previewFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: bottom center;
+}
+
+@keyframes previewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hover-preview-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hover-preview-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hover-preview-no-img {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-family: 'DM Sans', sans-serif;
+  text-align: center;
+}
+
+.hover-preview-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.5) 60%, rgba(15, 23, 42, 0) 100%);
+  padding: 12px 10px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.hover-preview-badge .hover-preview-plate {
+  color: #ffffff;
+  font-family: 'Prompt', sans-serif;
+  font-weight: 700;
+}
+
+.hover-preview-badge .hover-preview-time {
+  font-size: 10px;
+  font-weight: 500;
+  color: #cbd5e1;
+  font-family: 'DM Sans', sans-serif;
 }

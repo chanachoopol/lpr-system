@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { FaVideo, FaThLarge, FaSearch } from 'react-icons/fa'
 import { FaXmark, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/Monitor.css'
-import { getCamerasAPI, getDetectionsAPI } from '../data/api'
+import { getCamerasAPI, getDetectionsAPI, getAuthedImageURL } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import useNotificationStore from '../store/notificationStore'
@@ -55,6 +55,11 @@ function formatTime(isoString) {
     minute: '2-digit',
     second: '2-digit'
   })
+}
+
+function formatDate(isoString) {
+  if (!isoString) return '-'
+  return new Date(isoString).toLocaleDateString('th-TH')
 }
 
 function Monitor() {
@@ -178,6 +183,64 @@ function Monitor() {
     fetchCameras()
   }, [user, selectedVillageId, searchParams])
 
+  const [hoveredPreview, setHoveredPreview] = useState(null)
+  const imageCacheRef = useRef(new Map())
+
+  const handlePlateMouseEnter = useCallback(async (item, e) => {
+    const td = e.currentTarget
+    const rightCard = td.closest('.monitor-right')
+    if (!rightCard || !td) return
+
+    const tdRect = td.getBoundingClientRect()
+    const cardRect = rightCard.getBoundingClientRect()
+
+    const PREVIEW_WIDTH = 220
+    const PREVIEW_HEIGHT = 145
+
+    // คำนวณตำแหน่ง: ลอยอยู่เหนือแถวนั้นพอดี (ตรงตำแหน่งป้ายทะเบียน)
+    let top = tdRect.top - cardRect.top - PREVIEW_HEIGHT - 6
+    // ถ้าชนขอบบน ให้สลับไปลอยใต้แถวแทนอัตโนมัติ
+    if (top < 10) {
+      top = tdRect.bottom - cardRect.top + 6
+    }
+
+    // แนวนอน: วางตรงกลางช่องป้ายทะเบียน
+    let left = tdRect.left - cardRect.left + (tdRect.width / 2) - (PREVIEW_WIDTH / 2)
+    if (left < 10) left = 10
+    if (left + PREVIEW_WIDTH > cardRect.width - 10) {
+      left = cardRect.width - PREVIEW_WIDTH - 10
+    }
+
+    const rawImage = item.image_full || item.image_crop
+    let imageURL = null
+
+    if (rawImage) {
+      if (imageCacheRef.current.has(rawImage)) {
+        imageURL = imageCacheRef.current.get(rawImage)
+      } else {
+        try {
+          imageURL = await getAuthedImageURL(rawImage)
+          if (imageURL) {
+            imageCacheRef.current.set(rawImage, imageURL)
+          }
+        } catch (err) {
+          console.error('Failed to load hover image:', err)
+        }
+      }
+    }
+
+    setHoveredPreview({
+      item,
+      top,
+      left,
+      imageURL
+    })
+  }, [])
+
+  const handlePlateMouseLeave = useCallback(() => {
+    setHoveredPreview(null)
+  }, [])
+
   // ดึง latest detection ตาม MONITOR_RECENT_LIMIT ตอนเลือกกล้อง
   useEffect(() => {
     if (!selectedCamera || isGridMode) return
@@ -204,6 +267,8 @@ function Monitor() {
               license_plate: c.license_plate,
               province: c.province || '-',
               color: c.color || '-',
+              image_full: c.image_full,
+              image_crop: c.image_crop,
               is_blacklist: Boolean(c.is_blacklist || c.is_blacklisted || c.category === 'blacklist' || c.type === 'blacklist')
             }))
           )
@@ -267,6 +332,8 @@ function Monitor() {
         license_plate: latestDetection.license_plate,
         province: latestDetection.province || '-',
         color: latestDetection.color || '-',
+        image_full: latestDetection.image_full,
+        image_crop: latestDetection.image_crop,
         is_blacklist: isBlacklist
       }
       return [newItem, ...prev].slice(0, MONITOR_RECENT_LIMIT)
@@ -435,6 +502,7 @@ function Monitor() {
                 <table className="history-table">
                   <thead>
                     <tr>
+                      <th>Date</th>
                       <th>Time</th>
                       <th>License Plate</th>
                       <th>Province</th>
@@ -444,7 +512,7 @@ function Monitor() {
                   <tbody>
                     {isLoadingDetections ? (
                       <tr>
-                        <td colSpan="4">
+                        <td colSpan="5">
                           <Spinner text="กำลังโหลดข้อมูล..." />
                         </td>
                       </tr>
@@ -453,8 +521,13 @@ function Monitor() {
                         const isBlacklist = Boolean(item.is_blacklist)
                         return (
                           <tr key={item.id} className={isBlacklist ? 'history-row-blacklist' : ''}>
+                            <td>{formatDate(item.time_detect)}</td>
                             <td>{formatTime(item.time_detect)}</td>
-                            <td className="plate-text">
+                            <td
+                              className="plate-text plate-hoverable"
+                              onMouseEnter={(e) => handlePlateMouseEnter(item, e)}
+                              onMouseLeave={handlePlateMouseLeave}
+                            >
                               {item.license_plate}
                             </td>
                             <td>{item.province}</td>
@@ -464,7 +537,7 @@ function Monitor() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="4">
+                        <td colSpan="5">
                           <EmptyState
                             title={searchQuery ? "ไม่พบข้อมูลที่ค้นหา" : "No capture yet"}
                             description={searchQuery ? "ลองเปลี่ยนคำค้นหาป้ายทะเบียนหรือจังหวัด" : "Waiting for vehicle detection..."}
@@ -475,6 +548,32 @@ function Monitor() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Floating Vehicle Photo Preview on Hover (ลอยอยู่เหนือช่องป้ายทะเบียน) */}
+              {hoveredPreview && (
+                <div
+                  className="vehicle-hover-preview"
+                  style={{
+                    top: hoveredPreview.top,
+                    left: hoveredPreview.left
+                  }}
+                >
+                  <div className="hover-preview-img-wrap">
+                    {hoveredPreview.imageURL ? (
+                      <img
+                        src={hoveredPreview.imageURL}
+                        alt={hoveredPreview.item.license_plate}
+                      />
+                    ) : (
+                      <div className="hover-preview-no-img">ไม่มีภาพถ่ายรถ</div>
+                    )}
+                    <div className="hover-preview-badge">
+                      <span className="hover-preview-plate">{hoveredPreview.item.license_plate}</span>
+                      <span className="hover-preview-time">{formatTime(hoveredPreview.item.time_detect)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

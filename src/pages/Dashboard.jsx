@@ -289,13 +289,17 @@ function Dashboard() {
   const processedHistory = useMemo(() => {
     let list = [...history]
 
-    // 1. กรองคำค้นหา (ป้ายทะเบียน หรือ จังหวัด) แบบ real-time
+    // 1. กรองคำค้นหา (ป้ายทะเบียน, จังหวัด, สี หรือชื่อกล้อง) แบบ real-time
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase()
       list = list.filter((item) => {
         const plate = String(item.license_plate || '').toLowerCase()
         const province = String(item.province || '').toLowerCase()
-        return plate.includes(q) || province.includes(q)
+        const color = String(item.color || '').toLowerCase()
+        const cam = String(
+          getCameraNameOnly(item.camera_id, item.camera_name || item.camera?.name) || ''
+        ).toLowerCase()
+        return plate.includes(q) || province.includes(q) || color.includes(q) || cam.includes(q)
       })
     }
 
@@ -307,7 +311,7 @@ function Dashboard() {
     })
 
     return list
-  }, [history, searchQuery, sortOrder])
+  }, [history, searchQuery, sortOrder, cameras])
 
   // ---------- Modal ดูรายละเอียด/รูปภาพ (pattern เดียวกับ History.jsx) ----------
   const [selectedItem, setSelectedItem] = useState(null)
@@ -350,11 +354,14 @@ function Dashboard() {
   // ---------- Modal รายการรถขาเข้า / ขาออก วันนี้ ----------
   const [directionModal, setDirectionModal] = useState(null) // { direction: 'entry' | 'exit', title: string } | null
   const [directionList, setDirectionList] = useState([])
-  const [directionTotal, setDirectionTotal] = useState(0)
   const [directionPage, setDirectionPage] = useState(1)
   const [isLoadingDirection, setIsLoadingDirection] = useState(false)
+  const [directionSearchQuery, setDirectionSearchQuery] = useState('')
+  const [directionSortOrder, setDirectionSortOrder] = useState('desc')
 
-  const fetchDirectionDetections = useCallback(async (dir, page = 1, isInitial = false) => {
+  const DIRECTION_PAGE_SIZE = 10
+
+  const fetchDirectionDetections = useCallback(async (dir, isInitial = false) => {
     if (!dir) return
     if (isInitial) {
       setIsLoadingDirection(true)
@@ -368,17 +375,16 @@ function Dashboard() {
         direction: dir,
         time_detect_from: startOfDay.toISOString(),
         time_detect_to: endOfDay.toISOString(),
-        page: page,
-        page_size: 10
+        page: 1,
+        page_size: 100
       }
       if (selectedVillageId) {
         params.village_id = selectedVillageId
       }
 
       const res = await getDetectionsAPI(params)
-      setDirectionList(res.items || [])
-      setDirectionTotal(res.total || 0)
-      setDirectionPage(page)
+      const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : []
+      setDirectionList(items)
     } catch (err) {
       console.error('โหลดรายการรถตามทิศทางไม่สำเร็จ:', err)
     } finally {
@@ -389,15 +395,57 @@ function Dashboard() {
   function openDirectionModal(dir, title) {
     setDirectionModal({ direction: dir, title })
     setDirectionList([])
-    fetchDirectionDetections(dir, 1, true)
+    setDirectionSearchQuery('')
+    setDirectionSortOrder('desc')
+    setDirectionPage(1)
+    fetchDirectionDetections(dir, true)
   }
 
   function closeDirectionModal() {
     setDirectionModal(null)
     setDirectionList([])
-    setDirectionTotal(0)
+    setDirectionSearchQuery('')
+    setDirectionSortOrder('desc')
     setDirectionPage(1)
   }
+
+  function toggleDirectionSortOrder() {
+    setDirectionSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+  }
+
+  const processedDirectionList = useMemo(() => {
+    let list = [...directionList]
+
+    // 1. กรองคำค้นหา (ป้ายทะเบียน, จังหวัด, สี หรือชื่อกล้อง) แบบ real-time
+    if (directionSearchQuery.trim()) {
+      const q = directionSearchQuery.trim().toLowerCase()
+      list = list.filter((item) => {
+        const plate = String(item.license_plate || '').toLowerCase()
+        const province = String(item.province || '').toLowerCase()
+        const color = String(item.color || '').toLowerCase()
+        const camName = String(
+          getCameraNameOnly(item.camera_id, item.camera_name || item.camera?.name) || ''
+        ).toLowerCase()
+        return plate.includes(q) || province.includes(q) || color.includes(q) || camName.includes(q)
+      })
+    }
+
+    // 2. จัดเรียงข้อมูลตามเวลา (ใหม่ไปเก่า / เก่าไปใหม่)
+    list.sort((a, b) => {
+      const tA = new Date(a.time_detect || 0).getTime()
+      const tB = new Date(b.time_detect || 0).getTime()
+      return directionSortOrder === 'asc' ? tA - tB : tB - tA
+    })
+
+    return list
+  }, [directionList, directionSearchQuery, directionSortOrder, cameras])
+
+  const totalDirectionPages = Math.ceil(processedDirectionList.length / DIRECTION_PAGE_SIZE) || 1
+  const displayedDirectionItems = useMemo(() => {
+    const start = (directionPage - 1) * DIRECTION_PAGE_SIZE
+    return processedDirectionList.slice(start, start + DIRECTION_PAGE_SIZE)
+  }, [processedDirectionList, directionPage])
+
 
   // ปิด modal / fullscreen เมื่อกดปุ่ม Escape
   useEffect(() => {
@@ -686,10 +734,55 @@ function Dashboard() {
             <div className="modal-header">
               <div className="modal-header-left">
                 <h3>
-                  {directionModal.title} <span className="modal-header-count">({directionTotal.toLocaleString()})</span>
+                  {directionModal.title}{' '}
+                  <span className="modal-header-count">({processedDirectionList.length.toLocaleString()})</span>
                 </h3>
               </div>
               <div className="modal-header-right">
+                <div className="dash-search-wrap">
+                  <FaSearch className="dash-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาป้ายทะเบียน / จังหวัด..."
+                    value={directionSearchQuery}
+                    onChange={(e) => {
+                      setDirectionSearchQuery(e.target.value)
+                      setDirectionPage(1)
+                    }}
+                    className="dash-search-input"
+                  />
+                  {directionSearchQuery && (
+                    <button
+                      type="button"
+                      className="dash-search-clear"
+                      onClick={() => {
+                        setDirectionSearchQuery('')
+                        setDirectionPage(1)
+                      }}
+                      title="ล้างคำค้นหา"
+                    >
+                      <FaXmark />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-sort-icon-toggle"
+                  onClick={toggleDirectionSortOrder}
+                  title={
+                    directionSortOrder === 'desc'
+                      ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)'
+                      : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'
+                  }
+                >
+                  {directionSortOrder === 'desc' ? (
+                    <FaArrowDownWideShort className="sort-btn-icon" />
+                  ) : (
+                    <FaArrowUpWideShort className="sort-btn-icon" />
+                  )}
+                </button>
+
                 <button className="modal-close" onClick={closeDirectionModal}>
                   <FaXmark />
                 </button>
@@ -718,8 +811,8 @@ function Dashboard() {
                           <Spinner text="กำลังโหลดข้อมูล..." />
                         </td>
                       </tr>
-                    ) : directionList.length > 0 ? (
-                      directionList.map((item, index) => {
+                    ) : displayedDirectionItems.length > 0 ? (
+                      displayedDirectionItems.map((item, index) => {
                         const isBlacklist = Boolean(
                           item.is_blacklist ||
                           item.is_blacklisted ||
@@ -728,7 +821,7 @@ function Dashboard() {
                         )
                         return (
                           <tr key={item.id || index} className={isBlacklist ? 'history-row-blacklist' : ''}>
-                            <td>{(directionPage - 1) * 10 + index + 1}</td>
+                            <td>{(directionPage - 1) * DIRECTION_PAGE_SIZE + index + 1}</td>
                             <td>{formatDate(item.time_detect)}</td>
                             <td>{formatTime(item.time_detect)}</td>
                             <td className="bold-plate" style={{ fontWeight: 600 }}>
@@ -748,7 +841,11 @@ function Dashboard() {
                     ) : (
                       <tr>
                         <td colSpan={8}>
-                          <EmptyState icon={<FaCar />} title="ไม่มีข้อมูลรถในช่วงเวลานี้" />
+                          <EmptyState
+                            icon={<FaCar />}
+                            title={directionSearchQuery ? 'ไม่พบข้อมูลที่ค้นหา' : 'ไม่มีข้อมูลรถในช่วงเวลานี้'}
+                            description={directionSearchQuery ? 'ลองเปลี่ยนคำค้นหาป้ายทะเบียน จังหวัด สี หรือกล้อง' : undefined}
+                          />
                         </td>
                       </tr>
                     )}
@@ -757,22 +854,22 @@ function Dashboard() {
               </div>
 
               {/* Pagination (สไตล์ Blacklist) */}
-              {Math.ceil(directionTotal / 10) > 1 && (
+              {totalDirectionPages > 1 && (
                 <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
                   <button
                     className="page-btn"
                     disabled={directionPage === 1 || isLoadingDirection}
-                    onClick={() => fetchDirectionDetections(directionModal.direction, directionPage - 1)}
+                    onClick={() => setDirectionPage((p) => Math.max(1, p - 1))}
                   >
                     ‹
                   </button>
 
-                  {getVisiblePageNumbers(directionPage, Math.ceil(directionTotal / 10), 4).map((page) => (
+                  {getVisiblePageNumbers(directionPage, totalDirectionPages, 4).map((page) => (
                     <button
                       key={page}
                       className={`page-btn ${directionPage === page ? 'active' : ''}`}
                       disabled={isLoadingDirection}
-                      onClick={() => fetchDirectionDetections(directionModal.direction, page)}
+                      onClick={() => setDirectionPage(page)}
                     >
                       {page}
                     </button>
@@ -780,8 +877,8 @@ function Dashboard() {
 
                   <button
                     className="page-btn"
-                    disabled={directionPage >= Math.ceil(directionTotal / 10) || isLoadingDirection}
-                    onClick={() => fetchDirectionDetections(directionModal.direction, directionPage + 1)}
+                    disabled={directionPage >= totalDirectionPages || isLoadingDirection}
+                    onClick={() => setDirectionPage((p) => Math.min(totalDirectionPages, p + 1))}
                   >
                     ›
                   </button>
