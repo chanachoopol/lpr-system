@@ -83,8 +83,13 @@ function RouteTracking() {
   }, [today]);
 
   const [queryInput, setQueryInput] = useState('');
-  const [dateFrom, setDateFrom] = useState(defaultDateFrom);
-  const [dateTo, setDateTo] = useState(today);
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
+  const [formErrors, setFormErrors] = useState({
+    plate: false,
+    dateFrom: false,
+    dateTo: false
+  });
 
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -144,36 +149,31 @@ function RouteTracking() {
   const runSearch = useCallback(
     async (queryValue, rangeFrom, rangeTo, options = {}) => {
       const query = (queryValue !== undefined ? queryValue : queryInput).trim();
+      const from = rangeFrom !== undefined ? rangeFrom : dateFrom;
+      const to = rangeTo !== undefined ? rangeTo : dateTo;
 
-      if (!query) {
+      const errors = {
+        plate: !query,
+        dateFrom: !from,
+        dateTo: !to
+      };
+
+      if (errors.plate || errors.dateFrom || errors.dateTo) {
         if (!options.silent) {
-          Swal.fire({
-            icon: 'warning',
-            title: 'กรุณากรอกป้ายทะเบียน',
-            text: 'ต้องระบุป้ายทะเบียนก่อนค้นหา',
-            confirmButtonColor: 'var(--sidebar-bg)'
-          });
+          setFormErrors(errors);
         }
         return [];
       }
 
-      const from = rangeFrom !== undefined ? rangeFrom : dateFrom;
-      const to = rangeTo !== undefined ? rangeTo : dateTo;
+      setFormErrors({ plate: false, dateFrom: false, dateTo: false });
 
-      let finalFrom = from;
-      let finalTo = to;
-
-      if (!finalFrom || !finalTo) {
-        finalTo = new Date();
-        finalFrom = new Date(finalTo);
-        finalFrom.setDate(finalFrom.getDate() - 30);
-      }
-
-      const startOfDay = new Date(finalFrom);
+      const startOfDay = new Date(from);
       startOfDay.setHours(0, 0, 0, 0);
+      const dateFromParam = formatAPIDate(startOfDay);
 
-      const endOfDay = new Date(finalTo);
+      const endOfDay = new Date(to);
       endOfDay.setHours(23, 59, 59, 999);
+      const dateToParam = formatAPIDate(endOfDay);
 
       setIsSearching(true);
       setHasSearched(true);
@@ -184,8 +184,8 @@ function RouteTracking() {
         const data = await getRouteTrackingAPI({
           licensePlate: query,
           villageId: selectedVillageId || undefined,
-          dateFrom: formatAPIDate(startOfDay),
-          dateTo: formatAPIDate(endOfDay),
+          dateFrom: dateFromParam,
+          dateTo: dateToParam,
           page: 1,
           pageSize: 20
         });
@@ -295,26 +295,40 @@ function RouteTracking() {
   // ฟังก์ชันรีเซ็ตค่าการค้นหากลับสู่สถานะเริ่มต้น
   const handleReset = useCallback(() => {
     setQueryInput('');
-    setDateFrom(defaultDateFrom);
-    setDateTo(today);
+    setDateFrom(null);
+    setDateTo(null);
+    setFormErrors({ plate: false, dateFrom: false, dateTo: false });
     setVehicleGroups([]);
     setSelectedVehicle(null);
     setHasSearched(false);
     setCurrentPage(1);
-  }, [defaultDateFrom, today]);
+  }, []);
 
-  // ค้นหาแบบ Real-time อัตโนมัติเมื่อพิมพ์ป้ายทะเบียน หรือเปลี่ยนช่วงวันที่
+  // ค้นหาแบบ Real-time อัตโนมัติเมื่อพิมพ์ป้ายทะเบียน และเลือกช่วงวันที่ครบ
   useEffect(() => {
     if (searchParams.get('plate')) return;
 
     const timer = setTimeout(() => {
       const trimmed = queryInput.trim();
-      if (!trimmed) {
+
+      // ถ้าไม่มีข้อมูลครบทั้ง 3 ช่อง ให้ล้างผลการค้นหาทันที
+      if (!trimmed || !dateFrom || !dateTo) {
         setVehicleGroups([]);
         setHasSearched(false);
         setSelectedVehicle(null);
+
+        const hasStarted = Boolean(trimmed || dateFrom || dateTo);
+        if (hasStarted) {
+          setFormErrors({
+            plate: !trimmed,
+            dateFrom: !dateFrom,
+            dateTo: !dateTo
+          });
+        }
         return;
       }
+
+      setFormErrors({ plate: false, dateFrom: false, dateTo: false });
       runSearch(trimmed, dateFrom, dateTo, { silent: true });
     }, 400);
 
@@ -582,14 +596,34 @@ useEffect(() => {
 
           <div className="rt-search-row">
             <div className="rt-search-field rt-search-field-plate">
-              <label>ป้ายทะเบียน</label>
+              <label>
+                ป้ายทะเบียน
+                {!queryInput.trim() && (
+                  <span className="rt-required-star">
+                    * {formErrors.plate && <span className="rt-inline-error">(กรุณากรอกป้ายทะเบียน)</span>}
+                  </span>
+                )}
+              </label>
               <div className="rt-input-wrap">
                 <FaSearch className="rt-input-icon" />
                 <input
                   type="text"
                   placeholder="เช่น กข1234"
                   value={queryInput}
-                  onChange={(e) => setQueryInput(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setQueryInput(val);
+                    if (!val.trim()) {
+                      setVehicleGroups([]);
+                      setHasSearched(false);
+                      setSelectedVehicle(null);
+                      if (dateFrom || dateTo) {
+                        setFormErrors((prev) => ({ ...prev, plate: true }));
+                      }
+                    } else {
+                      setFormErrors((prev) => ({ ...prev, plate: false }));
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') runSearch();
                   }}
@@ -598,33 +632,71 @@ useEffect(() => {
             </div>
 
             <div className="rt-search-field">
-              <label>จากวันที่</label>
+              <label>
+                จากวันที่
+                {!dateFrom && (
+                  <span className="rt-required-star">
+                    * {formErrors.dateFrom && <span className="rt-inline-error">(กรุณาเลือกวันที่)</span>}
+                  </span>
+                )}
+              </label>
               <div className="rt-input-wrap">
                 <FaCalendarAlt className="rt-input-icon" />
                 <DatePicker
                   selected={dateFrom}
-                  onChange={(date) => setDateFrom(date)}
+                  onChange={(date) => {
+                    setDateFrom(date);
+                    if (!date) {
+                      setVehicleGroups([]);
+                      setHasSearched(false);
+                      setSelectedVehicle(null);
+                      if (queryInput.trim() || dateTo) {
+                        setFormErrors((prev) => ({ ...prev, dateFrom: true }));
+                      }
+                    } else {
+                      setFormErrors((prev) => ({ ...prev, dateFrom: false }));
+                    }
+                  }}
                   dateFormat="dd/MM/yyyy"
                   maxDate={dateTo || today}
                   placeholderText="เลือกวันที่"
-                  isClearable={false}
+                  isClearable={true}
                   className="datepicker-rt"
                 />
               </div>
             </div>
 
             <div className="rt-search-field">
-              <label>ถึงวันที่</label>
+              <label>
+                ถึงวันที่
+                {!dateTo && (
+                  <span className="rt-required-star">
+                    * {formErrors.dateTo && <span className="rt-inline-error">(กรุณาเลือกวันที่)</span>}
+                  </span>
+                )}
+              </label>
               <div className="rt-input-wrap">
                 <FaCalendarAlt className="rt-input-icon" />
                 <DatePicker
                   selected={dateTo}
-                  onChange={(date) => setDateTo(date)}
+                  onChange={(date) => {
+                    setDateTo(date);
+                    if (!date) {
+                      setVehicleGroups([]);
+                      setHasSearched(false);
+                      setSelectedVehicle(null);
+                      if (queryInput.trim() || dateFrom) {
+                        setFormErrors((prev) => ({ ...prev, dateTo: true }));
+                      }
+                    } else {
+                      setFormErrors((prev) => ({ ...prev, dateTo: false }));
+                    }
+                  }}
                   dateFormat="dd/MM/yyyy"
                   minDate={dateFrom}
                   maxDate={today}
                   placeholderText="เลือกวันที่"
-                  isClearable={false}
+                  isClearable={true}
                   className="datepicker-rt"
                 />
               </div>
