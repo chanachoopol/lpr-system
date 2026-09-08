@@ -12,7 +12,6 @@ import {
 import useVillageStore from './villageStore'
 import useNotificationStore from './notificationStore'
 
-const REFRESH_BUFFER_MS = 60 * 1000 // ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริง 60 วิ กัน network latency
 const USER_PROFILE_STORAGE_KEY = 'lpr_user_profile'
 
 function getCachedUserProfile() {
@@ -53,8 +52,6 @@ function normalizeUser(profile) {
   }
 }
 
-let refreshTimerId = null
-
 // เก็บ promise ของการ refresh ที่กำลังทำอยู่ไว้ระดับ module
 let inFlightRefresh = null
 let sessionInitPromise = null
@@ -64,13 +61,6 @@ const LOGOUT_CHANNEL_NAME = 'auth-logout-channel'
 const logoutChannel = typeof BroadcastChannel !== 'undefined'
   ? new BroadcastChannel(LOGOUT_CHANNEL_NAME)
   : null
-
-function clearRefreshTimer() {
-  if (refreshTimerId) {
-    clearTimeout(refreshTimerId)
-    refreshTimerId = null
-  }
-}
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -97,13 +87,12 @@ const useAuthStore = create((set, get) => ({
     set({ avatarUrl: newUrl })
   },
 
-  // เรียกตอน login สำเร็จจาก Login.jsx — บันทึก Token ลง Cookie แบบ Dynamic, แคช Profile และตั้ง Timer
+  // เรียกตอน login สำเร็จจาก Login.jsx — บันทึก Token ลง Cookie และแคช Profile
   login: (user, accessToken, expiresIn = null) => {
     const normalizedUser = normalizeUser(user)
     setAccessTokenCookie(accessToken, expiresIn)
     setCachedUserProfile(normalizedUser)
     set({ user: normalizedUser, accessToken, isLoggedIn: true, isLoading: false })
-    get().scheduleRefresh(accessToken)
     if (normalizedUser?.id) {
       getUserAvatarBlobURL(normalizedUser.id)
         .then((url) => get().setAvatarUrl(url))
@@ -113,25 +102,7 @@ const useAuthStore = create((set, get) => ({
 
   getAccessToken: () => get().accessToken,
 
-  // ตั้ง timer ขอ token ใหม่ล่วงหน้าก่อนหมดอายุจริงแบบ Dynamic โดยอ่านค่า exp จากตัว Token (ห้าม Hardcode)
-  scheduleRefresh: (explicitToken) => {
-    clearRefreshTimer()
-    const token = explicitToken || get().accessToken
-    const remainingMs = getTokenRemainingMs(token)
-
-    if (remainingMs === null || remainingMs <= 0) return
-
-    // ขอ token ใหม่ล่วงหน้าก่อนหมดอายุ 60 วินาที (แต่อย่างน้อย 5 วินาทีก่อนหมด)
-    const delayMs = Math.max(remainingMs - REFRESH_BUFFER_MS, 5000)
-
-    refreshTimerId = setTimeout(() => {
-      get().refreshAccessToken().catch(() => {
-        // เงียบไว้ตรงนี้ — refreshAccessToken เคลียร์ session ให้อัตโนมัติถ้า refresh ไม่ผ่าน
-      })
-    }, delayMs)
-  },
-
-  // ขอ access_token ใหม่ผ่าน refresh_token HttpOnly cookie
+  // ขอ access_token ใหม่ผ่าน refresh_token HttpOnly cookie (On-Demand เมื่อเกิด 401 หรือ session หมดอายุ)
   refreshAccessToken: async () => {
     if (inFlightRefresh) return inFlightRefresh
 
@@ -140,7 +111,6 @@ const useAuthStore = create((set, get) => ({
         const data = await refreshTokenAPI()
         setAccessTokenCookie(data.access_token, data.expires_in)
         set({ accessToken: data.access_token, isLoggedIn: true, isLoading: false })
-        get().scheduleRefresh(data.access_token)
         return data.access_token
       } catch (error) {
         get().clearSession()
@@ -164,7 +134,7 @@ const useAuthStore = create((set, get) => ({
         const remainingMs = getTokenRemainingMs(cookieToken)
 
         // 1. ถ้ามี access_token ใน Cookie และยังไม่หมดอายุ -> กู้คืน Session
-        if (cookieToken && remainingMs && remainingMs > 5000) {
+        if (cookieToken && remainingMs && remainingMs > 0) {
           const cachedUser = getCachedUserProfile()
 
           if (cachedUser) {
@@ -175,7 +145,6 @@ const useAuthStore = create((set, get) => ({
               isLoggedIn: true,
               isLoading: false
             })
-            get().scheduleRefresh(cookieToken)
             useVillageStore.getState().initSelectedVillage(cachedUser)
 
             if (cachedUser?.id) {
@@ -197,7 +166,6 @@ const useAuthStore = create((set, get) => ({
               isLoggedIn: true,
               isLoading: false
             })
-            get().scheduleRefresh(cookieToken)
             useVillageStore.getState().initSelectedVillage(normalizedUser)
 
             if (profile?.id) {
@@ -223,7 +191,6 @@ const useAuthStore = create((set, get) => ({
           isLoggedIn: true,
           isLoading: false
         })
-        get().scheduleRefresh(data.access_token)
         useVillageStore.getState().initSelectedVillage(normalizedUser)
 
         if (profile?.id) {
@@ -259,7 +226,6 @@ const useAuthStore = create((set, get) => ({
     if (currentAvatar) {
       URL.revokeObjectURL(currentAvatar)
     }
-    clearRefreshTimer()
     removeAccessTokenCookie()
     removeCachedUserProfile()
     inFlightRefresh = null
@@ -280,7 +246,6 @@ if (logoutChannel) {
     if (event.data?.type !== 'logout') return
     if (!useAuthStore.getState().isLoggedIn) return
 
-    clearRefreshTimer()
     removeAccessTokenCookie()
     removeCachedUserProfile()
     inFlightRefresh = null

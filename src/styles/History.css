@@ -472,16 +472,16 @@
 .modal-info {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   justify-content: center;
 }
 
 .modal-info-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(27, 42, 71, 0.06);
+  gap: 3px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(27, 42, 71, 0.08);
 }
 
 .modal-info-row:last-child {
@@ -490,11 +490,24 @@
 }
 
 .info-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgb(142, 154, 171);
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.modal-info-row > span:not(.info-label),
+.modal-info-row > div {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main, #1b2a47);
+}
+
+.modal-info-row .plate-text {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main, #1b2a47);
 }
 
 /* Responsive */

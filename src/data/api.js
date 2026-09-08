@@ -107,23 +107,11 @@ const processQueue = (error, token = null) => {
   failedQueue = []
 }
 
-// แนบ token ทุก request อัตโนมัติ — หากมีการ Refresh กำลังทำงานอยู่ ให้รอรับ Token ใหม่ก่อนส่งออก
-api.interceptors.request.use(async (config) => {
+// แนบ token ทุก request อัตโนมัติ
+api.interceptors.request.use((config) => {
   const isPublicAuthCall = config.url?.includes('/api/auth/login') || config.url?.includes('/api/auth/refresh')
   if (isPublicAuthCall) {
     return config
-  }
-
-  if (isRefreshing) {
-    try {
-      const newToken = await new Promise((resolve, reject) => {
-        failedQueue.push({ resolve, reject })
-      })
-      config.headers.Authorization = `Bearer ${newToken}`
-      return config
-    } catch (err) {
-      return Promise.reject(err)
-    }
   }
 
   const token = useAuthStore.getState().accessToken || getAccessTokenCookie()
@@ -178,6 +166,7 @@ api.interceptors.response.use(
         failedQueue.push({ resolve, reject })
       })
         .then((newToken) => {
+          originalRequest._retry = true
           originalRequest.headers.Authorization = `Bearer ${newToken}`
           return api(originalRequest)
         })
@@ -192,18 +181,18 @@ api.interceptors.response.use(
 
     try {
       const newToken = await useAuthStore.getState().refreshAccessToken()
+      isRefreshing = false
       processQueue(null, newToken)
       originalRequest.headers.Authorization = `Bearer ${newToken}`
       return api(originalRequest)
     } catch (refreshError) {
+      isRefreshing = false
       processQueue(refreshError, null)
       useAuthStore.getState().clearSession()
       if (!originalRequest.skipAuthRedirect) {
         window.location.href = '/'
       }
       return Promise.reject(refreshError)
-    } finally {
-      isRefreshing = false
     }
   }
 )

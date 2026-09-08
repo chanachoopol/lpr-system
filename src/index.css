@@ -50,8 +50,15 @@
   filter: invert(1) brightness(2);
 }
 
+html,
 body {
   margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE / Edge */
 }
@@ -61,7 +68,10 @@ body::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera, Edge */
 }
 
-* {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -72,9 +82,11 @@ body::-webkit-scrollbar {
 
 #root {
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  max-height: 100vh;
   margin: 0;
   padding: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

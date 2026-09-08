@@ -473,7 +473,36 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
-      // 4. Sub-events เฉพาะตัว (เพื่อความเข้ากันได้ 100%)
+      // 4. จัดการสัญญาณตัดการเชื่อมต่อแท็บ (Session Eviction เมื่อเปิดเกินขีดจำกัด)
+      es.addEventListener('force_close', (e) => {
+        console.warn('[SSE] Received force_close from server: tab session evicted due to connection limit.')
+        isManuallyClosed = true
+        clearTimeout(reconnectTimer)
+        if (eventSource) {
+          eventSource.close()
+          eventSource = null
+        }
+        set({ isConnected: false })
+        usePresenceStore.getState().setConnected(false)
+
+        Swal.fire({
+          icon: 'warning',
+          title: 'การเชื่อมต่อ Real-time ถูกระงับ',
+          text: 'เนื่องจากมีการเปิดใช้งานระบบในแท็บอื่นเกินโควตา (5 หน้าต่าง) หากต้องการใช้งานการแจ้งเตือน Real-time ในแท็บนี้ กรุณากดปุ่ม "เชื่อมต่อใหม่"',
+          showCancelButton: true,
+          confirmButtonText: 'เชื่อมต่อใหม่ในแท็บนี้',
+          cancelButtonText: 'รับทราบ',
+          confirmButtonColor: 'var(--sidebar-bg, #1b2a47)',
+          cancelButtonColor: '#64748b',
+          allowOutsideClick: false
+        }).then((result) => {
+          if (result.isConfirmed) {
+            get().connect()
+          }
+        })
+      })
+
+      // 5. Sub-events เฉพาะตัว (เพื่อความเข้ากันได้ 100%)
       es.addEventListener('detection_created', (e) => {
         try {
           const data = JSON.parse(e.data)

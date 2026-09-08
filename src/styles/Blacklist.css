@@ -85,6 +85,8 @@
 
 /* Table Header */
 .bl-table-header {
+  position: relative;
+  z-index: 10;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -398,6 +400,18 @@
 .bl-datepicker-input:focus {
   border-color: rgba(27, 42, 71, 0.3);
   box-shadow: 0 2px 8px rgba(27, 42, 71, 0.08);
+}
+
+.blacklist-wrapper .react-datepicker-popper {
+  z-index: 9999 !important;
+}
+
+.blacklist-wrapper .react-datepicker {
+  font-family: 'DM Sans', sans-serif;
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .bl-date-separator {

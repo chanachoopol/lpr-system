@@ -15,14 +15,8 @@ import '../styles/Dashboard.css'
 import '../styles/History.css' // 👈 ใช้ style ของ modal ดูรูป (modal-img-section, image-fullscreen-overlay ฯลฯ) ร่วมกับหน้า History
 import '../styles/Blacklist.css' // 👈 ใช้ style ของตารางและ modal แบบเดียวกับ Blacklist Detection Records
 
-function getDynamicRecentLimit() {
-  if (typeof window === 'undefined') return 5
-  // หักพื้นที่ส่วนบนและเผื่อระยะขอบล่าง รวม ~450px
-  // ความสูงจริงของแต่ละแถวรวม line-height และ border ประมาณ 49px
-  const availableTableHeight = window.innerHeight - 450
-  const rows = Math.floor(availableTableHeight / 49)
-  return Math.max(3, rows)
-}
+const DASHBOARD_RECENT_LIMIT = 8
+
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
 
@@ -98,6 +92,13 @@ function formatDate(isoString) {
   return new Date(isoString).toLocaleDateString('th-TH')
 }
 
+function formatDirection(dir, cameraDir) {
+  const d = String(dir || cameraDir || '').toLowerCase().trim()
+  if (d === 'in' || d === 'entry' || d === 'เข้า' || d === 'ขาเข้า') return 'ขาเข้า (Entry)'
+  if (d === 'out' || d === 'exit' || d === 'ออก' || d === 'ขาออก') return 'ขาออก (Exit)'
+  return dir || cameraDir || '-'
+}
+
 function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
@@ -167,22 +168,11 @@ function Dashboard() {
   }
 
   // ---------- Stat Cards + Recent History (endpoint เดียว) ----------
-  const [recentLimit, setRecentLimit] = useState(getDynamicRecentLimit)
   const [dailyData, setDailyData] = useState(null)
   const [isLoadingStats, setIsLoadingStats] = useState(true)
   const [history, setHistory] = useState([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const processedDetectionsRef = useRef(new Set())
-
-  // คำนวณความสูงหน้าจอแบบ Dynamic เพื่อปรับจำนวนแถวให้พอดีจอ 0 Scrollbar
-  useEffect(() => {
-    function handleResize() {
-      const newLimit = getDynamicRecentLimit()
-      setRecentLimit((prev) => (prev !== newLimit ? newLimit : prev))
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
 
   const fetchDashboard = useCallback(async (isSilent = false) => {
     if (!user) return
@@ -193,10 +183,10 @@ function Dashboard() {
     try {
       const data = await getTodayDashboardAPI({
         villageId: selectedVillageId || undefined,
-        latestLimit: recentLimit
+        latestLimit: DASHBOARD_RECENT_LIMIT
       })
       setDailyData(data)
-      setHistory((data.latest_detections || []).slice(0, recentLimit))
+      setHistory((data.latest_detections || []).slice(0, DASHBOARD_RECENT_LIMIT))
     } catch (error) {
       console.error(error)
     } finally {
@@ -205,7 +195,7 @@ function Dashboard() {
         setIsLoadingHistory(false)
       }
     }
-  }, [user, selectedVillageId, recentLimit])
+  }, [user, selectedVillageId])
 
   useEffect(() => {
     fetchDashboard()
@@ -270,6 +260,7 @@ function Dashboard() {
         license_plate: latestDetection.license_plate,
         province: latestDetection.province,
         color: latestDetection.color,
+        direction: latestDetection.direction || (isEntry ? 'in' : isExit ? 'out' : null),
         is_blacklist: isBlacklist,
         is_whitelist: isWhitelist,
         image_full: latestDetection.image_full,
@@ -277,7 +268,7 @@ function Dashboard() {
         camera_id: latestDetection.camera?.id,
         camera: latestDetection.camera
       }
-      return [newItem, ...prev].slice(0, recentLimit)
+      return [newItem, ...prev].slice(0, DASHBOARD_RECENT_LIMIT)
     })
 
     // 3. Silent Re-sync สถิติที่ถูกต้องสมบูรณ์จาก Backend ในพื้นหลังแบบเนียนตา (ไม่มี Spinner)
@@ -285,7 +276,7 @@ function Dashboard() {
       fetchDashboard(true)
     }, 600)
     return () => clearTimeout(timer)
-  }, [latestDetection, selectedVillageId, fetchDashboard, recentLimit])
+  }, [latestDetection, selectedVillageId, fetchDashboard])
 
   // ---------- ค้นหาและเรียงลำดับตารางประวัติการตรวจจับ (วันนี้) ----------
   const [searchQuery, setSearchQuery] = useState('')
@@ -448,7 +439,7 @@ function Dashboard() {
             onClick={() => openDirectionModal('entry', 'รายการรถเข้า (วันนี้)')}
             title="คลิกเพื่อดูรายละเอียดรถเข้าวันนี้"
           >
-            <p className="stat-label">ยอดรถเข้าวันนี้</p>
+            <p className="stat-label">จำนวนรถเข้าวันนี้</p>
             <h2 className="stat-val blue">
               {isLoadingStats ? '—' : (dailyData?.entry_detections_today ?? 0).toLocaleString()}
             </h2>
@@ -458,7 +449,7 @@ function Dashboard() {
             onClick={() => openDirectionModal('exit', 'รายการรถออก (วันนี้)')}
             title="คลิกเพื่อดูรายละเอียดรถออกวันนี้"
           >
-            <p className="stat-label">ยอดรถออกวันนี้</p>
+            <p className="stat-label">จำนวนรถออกวันนี้</p>
             <h2 className="stat-val blue">
               {isLoadingStats ? '—' : (dailyData?.exit_detections_today ?? 0).toLocaleString()}
             </h2>
@@ -765,7 +756,11 @@ function Dashboard() {
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Province</span>
-                  <span>{selectedItem.province}</span>
+                  <span>{selectedItem.province || '-'}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="info-label">Direction</span>
+                  <span>{formatDirection(selectedItem.direction, selectedItem.camera?.direction)}</span>
                 </div>
                 <div className="modal-info-row">
                   <span className="info-label">Color</span>
