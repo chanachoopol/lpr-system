@@ -55,6 +55,39 @@ function normalizeUser(profile) {
 // เก็บ promise ของการ refresh ที่กำลังทำอยู่ไว้ระดับ module
 let inFlightRefresh = null
 let sessionInitPromise = null
+let proactiveTimer = null
+
+// คำนวณเวลาและตั้งเวลาปลุก (Dynamic Proportional Refresh)
+// ให้ความสำคัญกับ expiresInSec จาก Server เป็นหลัก เพื่อไม่ให้ติดปัญหา Clock Skew
+function scheduleProactiveRefresh(expiresInSec = null, token = null) {
+  if (proactiveTimer) {
+    clearTimeout(proactiveTimer)
+    proactiveTimer = null
+  }
+
+  let durationMs = null
+  if (typeof expiresInSec === 'number' && expiresInSec > 0) {
+    durationMs = expiresInSec * 1000
+  } else if (token) {
+    durationMs = getTokenRemainingMs(token)
+  }
+
+  if (!durationMs || durationMs <= 0) return
+
+  // เผื่อเวลาล่วงหน้าไม่เกิน 20% ของอายุ Token และสูงสุดไม่เกิน 60 วินาที (1 นาที)
+  const bufferMs = Math.min(60 * 1000, durationMs * 0.2)
+  const delayMs = Math.max(1000, durationMs - bufferMs)
+
+  proactiveTimer = setTimeout(async () => {
+    try {
+      if (useAuthStore.getState().isLoggedIn) {
+        await useAuthStore.getState().refreshAccessToken()
+      }
+    } catch (err) {
+      console.warn('Proactive token refresh error:', err)
+    }
+  }, delayMs)
+}
 
 // ช่องสัญญาณสำหรับ sync สถานะ logout ข้ามแท็บของ origin เดียวกัน
 const LOGOUT_CHANNEL_NAME = 'auth-logout-channel'
@@ -92,6 +125,7 @@ const useAuthStore = create((set, get) => ({
     const normalizedUser = normalizeUser(user)
     setAccessTokenCookie(accessToken, expiresIn)
     setCachedUserProfile(normalizedUser)
+    scheduleProactiveRefresh(expiresIn, accessToken)
     set({ user: normalizedUser, accessToken, isLoggedIn: true, isLoading: false })
     if (normalizedUser?.id) {
       getUserAvatarBlobURL(normalizedUser.id)
@@ -110,6 +144,7 @@ const useAuthStore = create((set, get) => ({
       try {
         const data = await refreshTokenAPI()
         setAccessTokenCookie(data.access_token, data.expires_in)
+        scheduleProactiveRefresh(data.expires_in, data.access_token)
         set({ accessToken: data.access_token, isLoggedIn: true, isLoading: false })
         return data.access_token
       } catch (error) {
@@ -146,6 +181,7 @@ const useAuthStore = create((set, get) => ({
               isLoading: false
             })
             useVillageStore.getState().initSelectedVillage(cachedUser)
+            scheduleProactiveRefresh(null, cookieToken)
 
             if (cachedUser?.id) {
               getUserAvatarBlobURL(cachedUser.id)
@@ -167,6 +203,7 @@ const useAuthStore = create((set, get) => ({
               isLoading: false
             })
             useVillageStore.getState().initSelectedVillage(normalizedUser)
+            scheduleProactiveRefresh(null, cookieToken)
 
             if (profile?.id) {
               getUserAvatarBlobURL(profile.id)
@@ -183,6 +220,7 @@ const useAuthStore = create((set, get) => ({
         const data = await refreshTokenAPI({ silent: true })
         setAccessTokenCookie(data.access_token, data.expires_in)
         set({ accessToken: data.access_token })
+        scheduleProactiveRefresh(data.expires_in, data.access_token)
         const profile = await getMyProfileAPI()
         const normalizedUser = normalizeUser(profile)
         setCachedUserProfile(normalizedUser)
@@ -225,6 +263,10 @@ const useAuthStore = create((set, get) => ({
     const currentAvatar = get().avatarUrl
     if (currentAvatar) {
       URL.revokeObjectURL(currentAvatar)
+    }
+    if (proactiveTimer) {
+      clearTimeout(proactiveTimer)
+      proactiveTimer = null
     }
     removeAccessTokenCookie()
     removeCachedUserProfile()

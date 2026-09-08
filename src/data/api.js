@@ -144,6 +144,8 @@ api.interceptors.response.use(
     // 3. ถ้าเป็น 401 จากการยิง /api/auth/refresh เอง แปลว่า refresh token หมดอายุจริงแล้ว -> เคลียร์ Session + ดีดไปหน้า Login
     const isRefreshCallItself = originalRequest.url?.includes('/api/auth/refresh')
     if (isRefreshCallItself) {
+      isRefreshing = false
+      failedQueue = []
       useAuthStore.getState().clearSession()
       if (!originalRequest.skipAuthRedirect) {
         window.location.href = '/'
@@ -151,12 +153,8 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 4. ถ้า request นี้เคย retry แล้วรอบหนึ่งแต่ยังได้ 401 -> เคลียร์ Session + ดีดไปหน้า Login
+    // 4. ถ้า request นี้เคย retry แล้วรอบหนึ่งแต่ยังได้ 401 -> reject เฉพาะคำขอนี้ ไม่ดีดผู้ใช้ออก
     if (originalRequest._retry) {
-      useAuthStore.getState().clearSession()
-      if (!originalRequest.skipAuthRedirect) {
-        window.location.href = '/'
-      }
       return Promise.reject(error)
     }
 
@@ -431,8 +429,8 @@ export async function getCameraStatusAPI(cameraId) {
   return response.data // { id, is_active, verification_status, stream_online, is_starting, status, detail }
 }
 // ==================== Detections (History) API ====================
-export async function getDetectionsAPI(params) {
-  const response = await api.get('/api/detections', { params })
+export async function getDetectionsAPI(params, config = {}) {
+  const response = await api.get('/api/detections', { params, ...config })
   return response.data
 }
 

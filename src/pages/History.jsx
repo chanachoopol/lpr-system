@@ -100,8 +100,16 @@ function History() {
   const navigate = useNavigate()
 
   const [cameras, setCameras] = useState([])
-  const [searchInput, setSearchInput] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [searchInput, setSearchInput] = useState(() => {
+    try {
+      const urlSearch = new URLSearchParams(window.location.search).get('search') || new URLSearchParams(window.location.search).get('highlight')
+      if (urlSearch) return urlSearch
+      return sessionStorage.getItem('lpr_history_search_plate') || ''
+    } catch (e) {
+      return ''
+    }
+  })
+  const [debouncedSearch, setDebouncedSearch] = useState(searchInput)
   const [colorInput, setColorInput] = useState('') // 👈 ช่องค้นหาด้วยสีรถ — backend รองรับ query param "color" ตรงๆ (ยืนยันจาก Swagger แล้ว)
   const [debouncedColor, setDebouncedColor] = useState('')
   const [selectedDirection, setSelectedDirection] = useState('all')
@@ -109,12 +117,25 @@ function History() {
   const [startDate, setStartDate] = useState(null)
   const [endDate, setEndDate] = useState(null)
 
+  // บันทึกคำค้นหาลง sessionStorage เสมอ เพื่อไม่ให้ค่าหายเมื่อเปลี่ยนหน้าไปมา
+  useEffect(() => {
+    try {
+      if (searchInput) {
+        sessionStorage.setItem('lpr_history_search_plate', searchInput)
+      } else {
+        sessionStorage.removeItem('lpr_history_search_plate')
+      }
+    } catch (e) {}
+  }, [searchInput])
+
   const [historyData, setHistoryData] = useState([])
   const [totalItems, setTotalItems] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(getInitialHistoryLimit)
   const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(null)
   const tableContainerRef = useRef(null)
+  const abortControllerRef = useRef(null)
 
   // คำนวณจำนวนแถวให้พอดีกับความสูงของตารางแบบ Real-time โดยไม่ให้มี scrollbar
   useEffect(() => {
@@ -167,10 +188,12 @@ function History() {
     const highlightFromURL = searchParams.get('highlight')
     if (searchFromURL) {
       setSearchInput(searchFromURL)
+      setDebouncedSearch(searchFromURL.trim())
     }
     if (highlightFromURL) {
       setHighlightPlate(highlightFromURL)
       setSearchInput(highlightFromURL)
+      setDebouncedSearch(highlightFromURL.trim())
       const timer = setTimeout(() => {
         setHighlightPlate('')
       }, 4000)
@@ -209,13 +232,22 @@ function History() {
   }, [availableCameras, selectedCamera])
 
   // ดึงข้อมูลตารางประวัติ
-  const fetchHistory = useCallback(async (isSilent = false) => {
+  const fetchHistory = useCallback(async (targetPage = currentPage, isSilent = false) => {
     if (!user) return
 
+    // ยกเลิก Request เก่าที่ยังตอบกลับไม่เสร็จ เพื่อป้องกันผลลัพธ์วิ่งชนกัน (Race Condition)
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+
     if (!isSilent) setIsLoading(true)
+    setFetchError(null)
+
     try {
       const params = {
-        page: currentPage,
+        page: targetPage,
         page_size: pageSize
       }
 
@@ -246,7 +278,9 @@ function History() {
         }
       }
 
-      const data = await getDetectionsAPI(params)
+      const data = await getDetectionsAPI(params, { signal: abortController.signal })
+      if (abortController.signal.aborted) return
+
       const items = Array.isArray(data?.items)
         ? data.items
         : Array.isArray(data?.data)
@@ -261,13 +295,14 @@ function History() {
       } else if (typeof data?.count === 'number') {
         total = data.count
       } else if (items.length >= pageSize) {
-        total = currentPage * pageSize + 1
+        total = targetPage * pageSize + 1
       } else {
-        total = (currentPage - 1) * pageSize + items.length
+        total = (targetPage - 1) * pageSize + items.length
       }
 
       setHistoryData(items)
       setTotalItems(total)
+      setFetchError(null)
       if (Array.isArray(items)) {
         const customCams = items
           .map((it) => ({ id: it.camera_id, name: it.camera_name || it.camera?.name }))
@@ -275,28 +310,55 @@ function History() {
         saveHistoricalCameras(customCams)
       }
     } catch (error) {
-      console.error(error)
+      if (
+        error.name === 'CanceledError' ||
+        error.name === 'AbortError' ||
+        error.code === 'ERR_CANCELED' ||
+        abortController.signal.aborted
+      ) {
+        return // คำขอถูกยกเลิกตามปกติ ไม่ต้องแสดงข้อผิดพลาด
+      }
+      console.error('Fetch history error:', error)
+      setFetchError(error.response?.data?.message || error.message || 'ไม่สามารถโหลดข้อมูลประวัติได้')
     } finally {
-      if (!isSilent) setIsLoading(false)
+      if (!abortController.signal.aborted && !isSilent) {
+        setIsLoading(false)
+      }
     }
-  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, currentPage, pageSize, selectedVillageId])
+  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, pageSize, selectedVillageId, currentPage])
 
+  // ดึงข้อมูลเมื่อ currentPage เปลี่ยน
   useEffect(() => {
-    fetchHistory()
-  }, [fetchHistory])
+    fetchHistory(currentPage)
+  }, [currentPage])
 
-  // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter (ไม่ใช่ตอนเปลี่ยนหน้าเอง)
+  // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter
+  const isFirstMount = useRef(true)
   useEffect(() => {
-    setCurrentPage(1)
-  }, [debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate])
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return
+    }
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+    } else {
+      fetchHistory(1)
+    }
+  }, [debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, selectedVillageId, pageSize])
 
   function handleReset() {
     setSearchInput('')
+    setDebouncedSearch('')
     setColorInput('')
+    setDebouncedColor('')
     setSelectedDirection('all')
     setSelectedCamera('all')
     setStartDate(null)
     setEndDate(null)
+    setFetchError(null)
+    try {
+      sessionStorage.removeItem('lpr_history_search_plate')
+    } catch (e) {}
   }
 
   // หาชื่อกล้องจาก camera_id + แสดงหมายเหตุหากกล้องถูกลบออกจากระบบไปแล้ว
@@ -422,6 +484,11 @@ function History() {
                 placeholder="Type to search..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setDebouncedSearch(searchInput.trim())
+                  }
+                }}
               />
             </div>
           </div>
@@ -435,6 +502,11 @@ function History() {
                 placeholder="เช่น White, Black..."
                 value={colorInput}
                 onChange={(e) => setColorInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setDebouncedColor(colorInput.trim())
+                  }
+                }}
               />
             </div>
           </div>
@@ -558,6 +630,28 @@ function History() {
                   <tr>
                     <td colSpan={isSuperAdmin ? 10 : 9}>
                       <Spinner text="Loading history..." />
+                    </td>
+                  </tr>
+                ) : fetchError ? (
+                  <tr>
+                    <td colSpan={isSuperAdmin ? 10 : 9}>
+                      <div className="empty-state">
+                        <div className="empty-icon" style={{ color: '#ef4444' }}>
+                          <FaRedo />
+                        </div>
+                        <h3 className="empty-title">เกิดข้อผิดพลาดในการโหลดข้อมูล</h3>
+                        <p className="empty-desc">
+                          {fetchError || 'ระบบไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่อีกครั้ง'}
+                        </p>
+                        <button
+                          type="button"
+                          className="btn-reset"
+                          style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, marginInline: 'auto' }}
+                          onClick={() => fetchHistory(currentPage)}
+                        >
+                          <FaRedo /> ลองใหม่อีกครั้ง (Retry)
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ) : processedHistoryData.length > 0 ? (
