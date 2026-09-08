@@ -1203,28 +1203,32 @@ function saveHistoricalWhitelistPlates(map) {
                 />
               </div>
 
+              {/* ปุ่ม Reset ตัวกรองทั้งหมด */}
+              <button
+                type="button"
+                className="btn-reset bl-btn-reset"
+                onClick={handleResetDetectionFilter}
+                title="ล้างตัวกรองทั้งหมด"
+              >
+                <FaRedo /> Reset
+              </button>
+
               {/* ปุ่ม Sort เรียงลำดับวันที่ ล่าสุด / เก่าสุด */}
               <button
-                className={`btn-sort-bl ${sortOrder === 'asc' ? 'asc' : ''}`}
+                type="button"
+                className="btn-sort-icon-toggle"
                 onClick={() => {
                   setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
                   setCurrentPage(1)
                 }}
-                title={sortOrder === 'desc' ? 'เรียงตามวันที่: ล่าสุด ➔ เก่าสุด (คลิกเพื่อสลับ)' : 'เรียงตามวันที่: เก่าสุด ➔ ล่าสุด (คลิกเพื่อสลับ)'}
+                title={sortOrder === 'desc' ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)' : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'}
               >
-                {sortOrder === 'desc' ? <FaArrowDownWideShort /> : <FaArrowUpWideShort />}
-                <span>{sortOrder === 'desc' ? 'ล่าสุด' : 'เก่าสุด'}</span>
+                {sortOrder === 'desc' ? (
+                  <FaArrowDownWideShort className="sort-btn-icon" />
+                ) : (
+                  <FaArrowUpWideShort className="sort-btn-icon" />
+                )}
               </button>
-
-              {(detectionSearch || startDate || endDate || sortOrder !== 'desc') && (
-                <button
-                  className="btn-reset bl-btn-reset"
-                  onClick={handleResetDetectionFilter}
-                  title="ล้างตัวกรองทั้งหมด"
-                >
-                  <FaRedo /> Reset
-                </button>
-              )}
             </div>
           </div>
 

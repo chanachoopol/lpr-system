@@ -133,7 +133,7 @@
   padding: 7px 12px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: rgb(27, 42, 71);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-bottom: 1px solid rgba(27, 42, 71, 0.06);
@@ -338,24 +338,27 @@
 
 .bl-search-icon {
   position: absolute;
-  left: 14px;
+  left: 10px;
   color: rgb(148, 163, 184);
-  font-size: 14px;
+  font-size: 13px;
   pointer-events: none;
+  z-index: 1;
 }
 
 .bl-search-input {
-  padding: 10px 16px 10px 38px;
+  height: 32px;
+  padding: 6px 12px 6px 30px;
   border: 1px solid rgba(27, 42, 71, 0.1);
-  border-radius: 12px;
-  background: var(--bg-input);
+  border-radius: 9px;
+  background: var(--bg-input, #ffffff);
   font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--text-main);
   outline: none;
   width: 210px;
   transition: all 0.2s ease;
   caret-color: var(--text-main);
+  box-sizing: border-box;
 }
 
 .bl-search-input:focus {
@@ -386,22 +389,42 @@
 }
 
 .bl-datepicker-input {
-  width: 120px;
-  padding: 10px 10px 10px 30px;
+  height: 32px;
+  width: 145px;
+  padding: 6px 28px 6px 30px;
   border: 1px solid rgba(27, 42, 71, 0.1);
-  border-radius: 12px;
-  background: var(--bg-input);
+  border-radius: 9px;
+  background: var(--bg-input, #ffffff);
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
   color: var(--text-main);
   outline: none;
   transition: all 0.2s ease;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .bl-datepicker-input:focus {
   border-color: rgba(27, 42, 71, 0.3);
   box-shadow: 0 2px 8px rgba(27, 42, 71, 0.08);
+}
+
+.blacklist-wrapper .react-datepicker__close-icon {
+  padding: 0 6px 0 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.blacklist-wrapper .react-datepicker__close-icon::after {
+  background-color: transparent;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.blacklist-wrapper .react-datepicker__close-icon:hover::after {
+  color: #ef4444;
 }
 
 .blacklist-wrapper .react-datepicker-popper {
@@ -483,15 +506,17 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 14px;
-  border-radius: 12px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
   border: 1px solid rgba(27, 42, 71, 0.1);
-  background: var(--bg-input);
+  background: var(--bg-input, #ffffff);
   color: var(--text-secondary);
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
