@@ -369,6 +369,7 @@
 /* Date Range Filter Controls in Detection Table */
 .bl-date-filter-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }

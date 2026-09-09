@@ -1,0 +1,385 @@
+/* ===================================================
+   Custom DatePicker Container & Header Styling
+   =================================================== */
+
+/* ให้ Layer ของปฏิทินอยู่บนสุดเสมอ ไม่โดนหัวตารางทับ */
+.react-datepicker-popper {
+  z-index: 99999 !important;
+}
+
+/* ขยายความกว้างของปฏิทินให้มองเห็นข้อมูลชัดเจน ไม่อึดอัด */
+.react-datepicker {
+  font-family: 'DM Sans', sans-serif !important;
+  width: 290px !important;
+  border: 1px solid rgba(27, 42, 71, 0.15) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  background-color: var(--bg-card, #ffffff) !important;
+  color: var(--text-main, #1b2a47) !important;
+  overflow: visible !important;
+}
+
+.react-datepicker__month-container {
+  width: 100% !important;
+}
+
+.react-datepicker__header {
+  padding: 0 !important;
+  background-color: var(--bg-card, #ffffff) !important;
+  border-bottom: 1px solid rgba(27, 42, 71, 0.08) !important;
+  border-top-left-radius: 14px !important;
+  border-top-right-radius: 14px !important;
+}
+
+.react-datepicker__day-names {
+  display: flex !important;
+  justify-content: space-around !important;
+  margin-top: 6px !important;
+  padding: 0 8px !important;
+}
+
+.react-datepicker__day-name {
+  width: 34px !important;
+  line-height: 30px !important;
+  margin: 0 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary, #64748b) !important;
+}
+
+.react-datepicker__month {
+  margin: 6px 8px 10px !important;
+}
+
+.react-datepicker__week {
+  display: flex !important;
+  justify-content: space-around !important;
+}
+
+.react-datepicker__day {
+  width: 34px !important;
+  line-height: 34px !important;
+  margin: 1px 0 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-main, #1b2a47) !important;
+  border-radius: 8px !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+}
+
+/* Hover เฉพาะวันที่ชี้ช่องเดียว */
+.react-datepicker__day:hover:not(.react-datepicker__day--disabled) {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  color: #2563eb !important;
+}
+
+/* วันที่ถูกเลือก (Selected Date) เท่านั้นที่เป็นสีฟ้าทึบ */
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* ❌ ปิดแถบสีฟ้าลากยาวระหว่างวัน (Range hover / In-range) */
+.react-datepicker__day--in-range,
+.react-datepicker__day--in-selecting-range,
+.react-datepicker__day--selecting-range-start,
+.react-datepicker__day--selecting-range-end {
+  background-color: transparent !important;
+  color: var(--text-main, #1b2a47) !important;
+}
+
+/* 🔒 วันที่ก่อนหน้า startDate หรือเกินเงื่อนไข (Disabled) ให้เป็นสีเทาจาง และเลือกไม่ได้ */
+.react-datepicker__day--disabled {
+  color: #cbd5e1 !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  background-color: transparent !important;
+}
+
+/* ---------- Custom Header Box ---------- */
+.custom-dp-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-card, #ffffff);
+  border-bottom: 1px solid rgba(27, 42, 71, 0.08);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.custom-dp-arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 8px;
+  background: var(--bg-input, #ffffff);
+  color: var(--text-main, #1b2a47);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.custom-dp-arrow-btn:hover:not(:disabled) {
+  background: rgba(27, 42, 71, 0.08);
+  border-color: rgba(27, 42, 71, 0.3);
+  color: #1b2a47;
+}
+
+.custom-dp-arrow-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.custom-dp-select-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* Custom Dropdown Trigger Button */
+.custom-dp-dropdown-wrap {
+  position: relative;
+}
+
+.custom-dp-trigger-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #1b2a47);
+  background: var(--bg-input, #ffffff);
+  border: 1px solid rgba(27, 42, 71, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.custom-dp-trigger-btn.month-trigger {
+  min-width: 115px;
+}
+
+.custom-dp-trigger-btn.year-trigger {
+  min-width: 78px;
+}
+
+.custom-dp-trigger-btn:hover,
+.custom-dp-trigger-btn.active {
+  border-color: #3b82f6;
+  background: #f8fafc;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
+}
+
+.custom-dp-caret {
+  font-size: 9px;
+  color: var(--text-secondary, #64748b);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.custom-dp-caret.rotate {
+  transform: rotate(180deg);
+}
+
+/* ---------- Custom Dropdown Menu (จำกัดความสูง 5 แถว + Scrollbar) ---------- */
+.custom-dp-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10000;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  max-height: 165px; /* ประมาณ 5 แถวพอดี */
+  overflow-y: auto !important;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  box-sizing: border-box;
+  animation: dpMenuFadeIn 0.15s ease-out;
+}
+
+.custom-dp-menu.month-menu {
+  width: 125px;
+}
+
+.custom-dp-menu.year-menu {
+  width: 85px;
+}
+
+@keyframes dpMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar สวยงามสำหรับ Dropdown Menu */
+.custom-dp-menu::-webkit-scrollbar {
+  display: block !important;
+  width: 5px !important;
+}
+
+.custom-dp-menu::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.custom-dp-menu::-webkit-scrollbar-thumb {
+  background: rgba(27, 42, 71, 0.2) !important;
+  border-radius: 10px !important;
+}
+
+.custom-dp-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(27, 42, 71, 0.4) !important;
+}
+
+/* Menu Items */
+.custom-dp-menu-item {
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-main, #1b2a47);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.custom-dp-menu-item:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.custom-dp-menu-item.selected {
+  background: #3b82f6;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* ===================================================
+   🌙 Dark Mode Styles
+   =================================================== */
+.dark .react-datepicker {
+  background-color: #252836 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .react-datepicker__header {
+  background-color: #252836 !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .react-datepicker__day-name {
+  color: #94a3b8 !important;
+}
+
+.dark .react-datepicker__day {
+  color: #ffffff !important;
+}
+
+.dark .react-datepicker__day:hover:not(.react-datepicker__day--disabled) {
+  background-color: rgba(59, 130, 246, 0.25) !important;
+  color: #60a5fa !important;
+}
+
+.dark .react-datepicker__day--disabled {
+  color: #475569 !important;
+  opacity: 0.3 !important;
+}
+
+.dark .react-datepicker__day--in-range,
+.dark .react-datepicker__day--in-selecting-range,
+.dark .react-datepicker__day--selecting-range-start,
+.dark .react-datepicker__day--selecting-range-end {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+.dark .custom-dp-header {
+  background: #252836;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .custom-dp-arrow-btn {
+  background: #2d303e;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.dark .custom-dp-arrow-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.dark .custom-dp-trigger-btn {
+  background: #2d303e;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.dark .custom-dp-trigger-btn:hover,
+.dark .custom-dp-trigger-btn.active {
+  border-color: #60a5fa;
+  background: #323648;
+}
+
+.dark .custom-dp-caret {
+  color: #94a3b8;
+}
+
+.dark .custom-dp-menu {
+  background: #252836;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.dark .custom-dp-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.dark .custom-dp-menu-item {
+  color: #e2e8f0;
+}
+
+.dark .custom-dp-menu-item:hover {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+
+.dark .custom-dp-menu-item.selected {
+  background: #3b82f6;
+  color: #ffffff;
+}

@@ -10,6 +10,7 @@ import EmptyState from '../components/EmptyState'
 import { getAuditLogsAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
+import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader'
 import '../styles/AuditLog.css'
 
 const PAGE_SIZE = 20
@@ -261,7 +262,7 @@ function AuditLog() {
               </select>
             </div>
 
-            <div className="al-filter-group">
+            <div className="al-filter-group al-filter-group-date">
               <label>Date Range</label>
               <div className="al-date-wrap">
                 <FaCalendarAlt className="al-date-icon" />
@@ -274,6 +275,7 @@ function AuditLog() {
                   maxDate={new Date()}
                   isClearable
                   placeholderText="All dates"
+                  renderCustomHeader={renderCustomDatePickerHeader}
                   className="datepicker-al"
                 />
               </div>

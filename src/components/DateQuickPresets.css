@@ -1,0 +1,108 @@
+.date-quick-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.preset-chip {
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+  color: var(--text-secondary, #64748b);
+  background: rgba(27, 42, 71, 0.05);
+  border: 1px solid rgba(27, 42, 71, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.preset-chip:hover {
+  background: rgba(27, 42, 71, 0.1);
+  color: var(--text-main, #1b2a47);
+  border-color: rgba(27, 42, 71, 0.2);
+}
+
+.preset-chip.active {
+  background: var(--sidebar-bg, #1b2a47);
+  color: #ffffff;
+  border-color: var(--sidebar-bg, #1b2a47);
+  box-shadow: 0 2px 6px rgba(27, 42, 71, 0.2);
+}
+
+/* Dark Mode Support */
+.dark .preset-chip {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .preset-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark .preset-chip.active {
+  background: #3b82f6;
+  color: #ffffff;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+
+/* DatePicker Header Month/Year Select Styling */
+.react-datepicker__header__dropdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 6px 0 8px;
+}
+
+.react-datepicker__month-dropdown-container--select,
+.react-datepicker__year-dropdown-container--select {
+  margin: 0 !important;
+}
+
+.react-datepicker__month-select,
+.react-datepicker__year-select {
+  padding: 4px 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #1b2a47);
+  background: #ffffff;
+  border: 1px solid rgba(27, 42, 71, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.react-datepicker__month-select:hover,
+.react-datepicker__year-select:hover {
+  border-color: rgba(27, 42, 71, 0.4);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.react-datepicker__month-select:focus,
+.react-datepicker__year-select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.dark .react-datepicker__month-select,
+.dark .react-datepicker__year-select {
+  background: #2d303e;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.dark .react-datepicker__month-select:hover,
+.dark .react-datepicker__year-select:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}

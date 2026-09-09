@@ -19,6 +19,7 @@ import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { renderVillageDisplay } from '../components/VillageDisplay'
 import useNotificationStore from '../store/notificationStore'
+import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader'
 import {
   getBlacklistAPI,
   createBlacklistAPI,
@@ -1160,14 +1161,12 @@ function saveHistoricalWhitelistPlates(map) {
                       setStartDate(date)
                       setCurrentPage(1)
                     }}
-                    selectsStart
-                    startDate={startDate}
-                    endDate={endDate}
                     maxDate={endDate || new Date()}
                     dateFormat="dd/MM/yyyy"
                     placeholderText="จากวันที่"
                     className="bl-datepicker-input"
                     isClearable
+                    renderCustomHeader={renderCustomDatePickerHeader}
                   />
                 </div>
                 <span className="bl-date-separator">-</span>
@@ -1179,15 +1178,13 @@ function saveHistoricalWhitelistPlates(map) {
                       setEndDate(date)
                       setCurrentPage(1)
                     }}
-                    selectsEnd
-                    startDate={startDate}
-                    endDate={endDate}
                     minDate={startDate}
                     maxDate={new Date()}
                     dateFormat="dd/MM/yyyy"
                     placeholderText="ถึงวันที่"
                     className="bl-datepicker-input"
                     isClearable
+                    renderCustomHeader={renderCustomDatePickerHeader}
                   />
                 </div>
               </div>

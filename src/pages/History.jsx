@@ -13,6 +13,7 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import useVillageStore from '../store/villageStore'
 import { renderVillageDisplay } from '../components/VillageDisplay'
+import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader'
 
 const SEARCH_DEBOUNCE_MS = 400
 const MAX_VISIBLE_PAGES = 4
@@ -132,6 +133,7 @@ function History() {
   const [totalItems, setTotalItems] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(getInitialHistoryLimit)
+  const [sortOrder, setSortOrder] = useState('desc') // 'desc' = ล่าสุดก่อน, 'asc' = เก่าสุดก่อน
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
   const tableContainerRef = useRef(null)
@@ -248,7 +250,8 @@ function History() {
     try {
       const params = {
         page: targetPage,
-        page_size: pageSize
+        page_size: pageSize,
+        order: sortOrder
       }
 
       if (selectedVillageId) params.village_id = selectedVillageId
@@ -325,14 +328,14 @@ function History() {
         setIsLoading(false)
       }
     }
-  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, pageSize, selectedVillageId, currentPage])
+  }, [user, debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, pageSize, selectedVillageId, currentPage, sortOrder])
 
   // ดึงข้อมูลเมื่อ currentPage เปลี่ยน
   useEffect(() => {
     fetchHistory(currentPage)
   }, [currentPage])
 
-  // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter
+  // Reset กลับหน้า 1 ทุกครั้งที่เปลี่ยน filter หรือสลับการเรียงลำดับ
   const isFirstMount = useRef(true)
   useEffect(() => {
     if (isFirstMount.current) {
@@ -344,7 +347,7 @@ function History() {
     } else {
       fetchHistory(1)
     }
-  }, [debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, selectedVillageId, pageSize])
+  }, [debouncedSearch, debouncedColor, selectedDirection, selectedCamera, startDate, endDate, selectedVillageId, pageSize, sortOrder])
 
   function handleReset() {
     setSearchInput('')
@@ -355,6 +358,7 @@ function History() {
     setSelectedCamera('all')
     setStartDate(null)
     setEndDate(null)
+    setSortOrder('desc')
     setFetchError(null)
     try {
       sessionStorage.removeItem('lpr_history_search_plate')
@@ -420,21 +424,14 @@ function History() {
     }
   }, [selectedItem])
 
-  const [sortOrder, setSortOrder] = useState('desc') // 'desc' = ล่าสุดก่อน, 'asc' = เก่าสุดก่อน
-
   function toggleSortOrder() {
     setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+    }
   }
 
-  const processedHistoryData = useMemo(() => {
-    let list = [...historyData]
-    list.sort((a, b) => {
-      const tA = new Date(a.time_detect || 0).getTime()
-      const tB = new Date(b.time_detect || 0).getTime()
-      return sortOrder === 'asc' ? tA - tB : tB - tA
-    })
-    return list
-  }, [historyData, sortOrder])
+  const processedHistoryData = historyData
 
   const totalPages = Math.max(1, Math.ceil((totalItems || 0) / pageSize))
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
@@ -546,15 +543,16 @@ function History() {
                 <FaCalendarAlt className="filter-icon" />
                 <DatePicker
                   selected={startDate}
-                  onChange={(date) => setStartDate(date)}
-                  selectsStart
-                  startDate={startDate}
-                  endDate={endDate}
+                  onChange={(date) => {
+                    setStartDate(date)
+                    setCurrentPage(1)
+                  }}
                   maxDate={endDate || new Date()}
                   dateFormat="dd/MM/yyyy"
                   className="datepicker-history"
                   placeholderText="จากวันที่"
                   isClearable
+                  renderCustomHeader={renderCustomDatePickerHeader}
                 />
               </div>
               <span className="filter-date-separator">-</span>
@@ -562,16 +560,17 @@ function History() {
                 <FaCalendarAlt className="filter-icon" />
                 <DatePicker
                   selected={endDate}
-                  onChange={(date) => setEndDate(date)}
-                  selectsEnd
-                  startDate={startDate}
-                  endDate={endDate}
+                  onChange={(date) => {
+                    setEndDate(date)
+                    setCurrentPage(1)
+                  }}
                   minDate={startDate}
                   maxDate={new Date()}
                   dateFormat="dd/MM/yyyy"
                   className="datepicker-history"
                   placeholderText="ถึงวันที่"
                   isClearable
+                  renderCustomHeader={renderCustomDatePickerHeader}
                 />
               </div>
             </div>

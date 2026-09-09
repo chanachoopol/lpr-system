@@ -16,6 +16,7 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import useVillageStore from '../store/villageStore'
 import { generateReportPdf } from '../utils/generateReportPdf'
+import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader'
 
 // จำนวนวันย้อนหลังสำหรับตาราง Top Frequent Visitors
 // backend รองรับสูงสุด 60 วัน (ดู max ที่ /api/reports/summary)
@@ -189,6 +190,7 @@ function Report() {
                 maxDate={new Date()}
                 className="datepicker-input"
                 placeholderText="เลือกวันที่"
+                renderCustomHeader={renderCustomDatePickerHeader}
               />
               <span className="report-date-display">
                 {formatDateThai(selectedDate)}

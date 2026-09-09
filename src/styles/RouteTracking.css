@@ -202,6 +202,38 @@
   flex-shrink: 0;
 }
 
+.rt-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rt-header-right .btn-sort-icon-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(27, 42, 71, 0.15);
+  background: #ffffff;
+  color: #1b2a47;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.rt-header-right .btn-sort-icon-toggle:hover {
+  background: #f1f5f9;
+  border-color: rgba(27, 42, 71, 0.3);
+  transform: translateY(-1px);
+}
+
+.rt-header-right .btn-sort-icon-toggle .sort-btn-icon {
+  font-size: 14px;
+  color: #3b82f6;
+}
+
 .rt-table-card .table-responsive {
   flex: 1;
   min-height: 0;
@@ -337,30 +369,11 @@
 .rt-detail-container {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-right: 4px;
-  padding-bottom: 8px;
-}
-
-.rt-detail-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.rt-detail-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.rt-detail-container::-webkit-scrollbar-thumb {
-  background: rgba(27, 42, 71, 0.2);
-  border-radius: 4px;
-}
-
-.rt-detail-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(27, 42, 71, 0.35);
+  gap: 12px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* ---------- ปุ่มย้อนกลับ (ขั้นที่ 2) ---------- */
@@ -369,7 +382,7 @@
   align-items: center;
   gap: 8px;
   align-self: flex-start;
-  padding: 10px 18px;
+  padding: 8px 16px;
   background: rgb(255, 255, 255);
   color: rgb(27, 42, 71);
   border: 1px solid rgba(27, 42, 71, 0.15);
@@ -380,6 +393,7 @@
   cursor: pointer;
   width: fit-content;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .rt-back-btn:hover {
@@ -387,85 +401,228 @@
   transform: translateX(-2px);
 }
 
-/* ---------- แผนที่ + ข้อมูลสรุป ---------- */
-.rt-result-row {
+/* ---------- แผนที่ + ข้อมูลสรุป (2-Column Layout: ซ้าย-ขวา 50%:50%) ---------- */
+.rt-detail-columns {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 20px;
   align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.rt-map-card,
-.rt-info-card {
+.rt-detail-left {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rt-detail-right {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rt-map-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.rt-timeline-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .rt-map-wrap {
   flex: 1;
-  min-height: 380px;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
   margin-top: 12px;
   border-radius: 16px;
   overflow: hidden;
+  position: relative;
   background: rgba(27, 42, 71, 0.03);
 }
 
 .rt-truncate-note {
   font-size: 12px;
-  color: var(--text-secondary);
-  margin: 10px 0 0;
+  color: #1b2a47;
+  margin: 6px 0 0;
   text-align: center;
+  flex-shrink: 0;
 }
 
-.rt-info-rows {
+.rt-timeline-header-wrap {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-top: 12px;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(27, 42, 71, 0.08);
+  flex-shrink: 0;
 }
 
-.rt-info-row {
+.rt-timeline-header-top {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(27, 42, 71, 0.06);
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.rt-info-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.rt-timeline-header-top .btn-sort-icon-toggle {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(27, 42, 71, 0.04);
+  border: 1px solid rgba(27, 42, 71, 0.12);
+  border-radius: 10px;
+  color: #1b2a47;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
-.info-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.rt-timeline-header-top .btn-sort-icon-toggle:hover {
+  background: rgba(27, 42, 71, 0.08);
+  border-color: rgba(27, 42, 71, 0.25);
+  color: #1b2a47;
 }
 
-.rt-plate-text {
-  font-family: 'DM Sans', sans-serif;
+.rt-timeline-header-top .btn-sort-icon-toggle .sort-btn-icon {
+  font-size: 15px;
+}
+
+.rt-timeline-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rt-stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(27, 42, 71, 0.04);
+  border: 1px solid rgba(27, 42, 71, 0.12);
+  border-radius: 8px;
+  font-size: 13.5px;
+}
+
+.rt-stat-label {
+  color: #1b2a47;
   font-weight: 700;
-  font-size: 16px;
-  color: var(--text-main);
+  font-size: 13.5px;
 }
 
-/* ---------- Timeline พร้อมรูปแต่ละจุด ---------- */
+.rt-stat-value {
+  color: #1b2a47;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+@media (max-width: 992px) {
+  .rt-detail-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Timeline Body Wrapper & List ---------- */
+.rt-timeline-body-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
 .rt-timeline {
   display: flex;
   flex-direction: column;
-  margin-top: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden; /* ไม่มี scrollbar */
+}
+
+.rt-timeline-pagination {
+  margin-top: auto;
+  padding-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rt-timeline-pagination .page-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(27, 42, 71, 0.1);
+  border-radius: 8px;
+  background: rgb(255, 255, 255);
+  color: rgb(74, 85, 104);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rt-timeline-pagination .page-btn:hover:not(:disabled) {
+  background: rgb(27, 42, 71);
+  color: rgb(255, 255, 255);
+  border-color: rgb(27, 42, 71);
+}
+
+.rt-timeline-pagination .page-btn.active {
+  background: rgb(27, 42, 71);
+  color: rgb(255, 255, 255);
+  border-color: rgb(27, 42, 71);
+  font-weight: 600;
+}
+
+.rt-timeline-pagination .page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .rt-timeline-item {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 0;
+  padding: 10px 4px;
   border-bottom: 1px solid rgba(27, 42, 71, 0.06);
   position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.rt-timeline-item:hover {
+  background: rgba(27, 42, 71, 0.02);
+  border-radius: 10px;
 }
 
 .rt-timeline-item:last-child {
@@ -473,22 +630,22 @@
 }
 
 .rt-timeline-marker {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: rgb(27, 42, 71);
   color: rgb(255, 255, 255);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
   flex-shrink: 0;
 }
 
 .rt-timeline-thumb {
-  width: 96px;
-  height: 72px;
+  width: 90px;
+  height: 66px;
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
@@ -517,7 +674,7 @@
   font-size: 11px;
   color: rgb(148, 163, 184);
   text-align: center;
-  padding: 0 8px;
+  padding: 0 6px;
 }
 
 .rt-timeline-body {
@@ -529,21 +686,40 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--text-main);
-  margin: 0 0 4px;
+  margin: 0 0 3px;
 }
 
 .rt-timeline-time {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-secondary);
-  margin: 0 0 4px;
+  margin: 0 0 3px;
   font-variant-numeric: tabular-nums;
 }
 
 .rt-timeline-plate {
   font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-main);
-  margin: 0;
+  margin: 0 0 3px;
+}
+
+/* ---------- หมุดบนแผนที่ (Marker Pin Stacking & Elevation) ---------- */
+.rt-map-marker-pin {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.rt-map-marker-pin:hover {
+  transform: rotate(-45deg) scale(1.2) !important;
+  z-index: 99998 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+}
+
+.rt-map-marker-pin.rt-pin-active {
+  background: #2563eb !important; /* สีน้ำเงินสดใสเด่นชัด */
+  transform: rotate(-45deg) scale(1.35) !important;
+  border: 2.5px solid #ffffff !important;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.6) !important;
+  z-index: 99999 !important;
 }
 
 /* ---------- พรีวิวรูปเต็มลอย ตอน hover รูปใน timeline (ตำแหน่ง top/left คำนวณจาก JS ให้ลอยติดรูปที่ hover) ---------- */
@@ -661,12 +837,13 @@
 /* ---------- Hover Card บนแผนที่ (แทน popup ของ Longdo ที่ปิดไม่ได้) ---------- */
 .rt-map-hover-card {
   position: absolute;
-  z-index: 50;
+  z-index: 999999 !important;
   background: #ffffff;
-  border-radius: 16px;
-  padding: 14px 16px;
-  box-shadow: 0 10px 30px rgba(27, 42, 71, 0.18);
-  pointer-events: none; /* กันการ์ดบัง mouseout ของหมุด */
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 10px 30px rgba(27, 42, 71, 0.24);
+  border: 1px solid rgba(27, 42, 71, 0.1);
+  pointer-events: auto; /* ให้คลิกปุ่มปิดและการ์ดได้ */
   animation: rtMapCardFadeIn 0.15s ease;
 }
 
@@ -678,18 +855,47 @@
 .rt-map-hover-card-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rt-map-hover-card-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rt-map-hover-card-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: none;
+  background: rgba(27, 42, 71, 0.06);
+  color: #64748b;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.rt-map-hover-card-close:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
 }
 
 .rt-map-hover-card-order {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   background: rgba(37, 99, 235, 0.1);
   color: rgb(37, 99, 235);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 11.5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -697,23 +903,27 @@
 }
 
 .rt-map-hover-card-title {
-  font-size: 17px;
+  font-size: 13.5px;
+  font-weight: 700;
   color: #1b2a47;
-  line-height: 1.3;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rt-map-hover-card-row {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 11.5px;
   color: #64748b;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .rt-map-hover-card-row span:last-child {
   color: #1b2a47;
-  font-weight: 500;
+  font-weight: 600;
   text-align: right;
 }
 
@@ -725,13 +935,13 @@
 .rt-map-hover-card-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.3px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  margin-top: 4px;
+  letter-spacing: 0.2px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-top: 2px;
 }
 
 .rt-map-hover-card-badge.entry {

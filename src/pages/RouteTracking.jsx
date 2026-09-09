@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FaSearch, FaCalendarAlt, FaArrowLeft } from 'react-icons/fa';
-import { FaCar, FaRoute, FaMapLocationDot, FaXmark, FaArrowRotateLeft } from 'react-icons/fa6';
+import { FaCar, FaRoute, FaMapLocationDot, FaXmark, FaArrowRotateLeft, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Swal from 'sweetalert2';
@@ -13,6 +13,7 @@ import EmptyState from '../components/EmptyState';
 
 import { getRouteTrackingAPI, getAuthedImageURL } from '../data/api';
 import useVillageStore from '../store/villageStore';
+import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader';
 
 import '../styles/RouteTracking.css';
 
@@ -72,7 +73,7 @@ function getVisiblePageNumbers(current, total, maxVisible) {
 
 function RouteTracking() {
   const { selectedVillageId } = useVillageStore();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const today = useMemo(() => new Date(), []);
 
@@ -98,10 +99,27 @@ function RouteTracking() {
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const routeMapRef = useRef(null);
 
-  // Pagination & Dynamic Rows
+  // Sorting & Pagination & Dynamic Rows
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = ล่าสุดก่อน, 'asc' = เก่าสุดก่อน
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
   const tableContainerRef = useRef(null);
+
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+  };
+
+  const sortedVehicleGroups = useMemo(() => {
+    const list = [...vehicleGroups];
+    list.sort((a, b) => {
+      const lastA = a.items[a.items.length - 1]?.time_detect || a.date || 0;
+      const lastB = b.items[b.items.length - 1]?.time_detect || b.date || 0;
+      const tA = new Date(lastA).getTime();
+      const tB = new Date(lastB).getTime();
+      return sortOrder === 'asc' ? tA - tB : tB - tA;
+    });
+    return list;
+  }, [vehicleGroups, sortOrder]);
 
   // คำนวณจำนวนแถวให้พอดีกับความสูงของตารางแบบ Real-time โดยไม่ให้มี scrollbar
   const calculateRows = useCallback(() => {
@@ -127,9 +145,9 @@ function RouteTracking() {
     observer.observe(el);
 
     return () => observer.disconnect();
-  }, [calculateRows, hasSearched, selectedVehicle, vehicleGroups.length]);
+  }, [calculateRows, hasSearched, selectedVehicle, sortedVehicleGroups.length]);
 
-  const totalPages = Math.max(1, Math.ceil(vehicleGroups.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(sortedVehicleGroups.length / pageSize));
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -139,8 +157,8 @@ function RouteTracking() {
 
   const paginatedGroups = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return vehicleGroups.slice(start, start + pageSize);
-  }, [vehicleGroups, currentPage, pageSize]);
+    return sortedVehicleGroups.slice(start, start + pageSize);
+  }, [sortedVehicleGroups, currentPage, pageSize]);
 
   const visiblePages = useMemo(() => {
     return getVisiblePageNumbers(currentPage, totalPages, 5);
@@ -302,6 +320,7 @@ function RouteTracking() {
     setSelectedVehicle(null);
     setHasSearched(false);
     setCurrentPage(1);
+    setSortOrder('desc');
   }, []);
 
   // ค้นหาแบบ Real-time อัตโนมัติเมื่อพิมพ์ป้ายทะเบียน และเลือกช่วงวันที่ครบ
@@ -328,39 +347,46 @@ function RouteTracking() {
         return;
       }
 
+      // ถ้ากำลังดูเส้นทางของรถคันนี้อยู่แล้ว (Auto fill มาจากการคลิกดูเส้นทาง) ไม่ต้อง trigger search ซ้ำ
+      if (selectedVehicle && trimmed === selectedVehicle.plate) {
+        return;
+      }
+
       setFormErrors({ plate: false, dateFrom: false, dateTo: false });
       runSearch(trimmed, dateFrom, dateTo, { silent: true });
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [queryInput, dateFrom, dateTo, runSearch, searchParams]);
+  }, [queryInput, dateFrom, dateTo, runSearch, searchParams, selectedVehicle]);
 
-  // ใหม่
-useEffect(() => {
+  // โหลดข้อมูลจาก URL Search Params (รองรับทั้งการกด "ดูเส้นทาง" จากหน้าอื่น และการกด F5 Refresh)
+  useEffect(() => {
     const queryFromURL = searchParams.get('plate');
     const provinceFromURL = searchParams.get('province');
     const dateFromURL = searchParams.get('date'); // รูปแบบ YYYY-MM-DD
+    const fromParam = searchParams.get('from');
+    const toParam = searchParams.get('to');
 
     if (!queryFromURL) return;
 
     setQueryInput(queryFromURL);
 
-    // มาจากปุ่ม "ดูเส้นทาง" ใน History พร้อม date — ปรับช่วงวันที่ให้ครอบคลุมวันนั้นแน่ๆ
-    // แทนที่จะพึ่ง default 14 วัน ซึ่งอาจไม่ครอบคลุมถ้า detection เก่ากว่านั้น
     let searchFrom = defaultDateFrom;
     let searchTo = today;
 
-    if (dateFromURL) {
+    if (fromParam && toParam) {
+      searchFrom = new Date(fromParam);
+      searchTo = new Date(toParam);
+      setDateFrom(searchFrom);
+      setDateTo(searchTo);
+    } else if (dateFromURL) {
       const [year, month, day] = dateFromURL.split('-').map(Number);
       const targetDate = (!isNaN(year) && !isNaN(month) && !isNaN(day))
         ? new Date(year, month - 1, day, 0, 0, 0)
         : new Date(dateFromURL);
 
       searchFrom = new Date(targetDate);
-      searchFrom.setDate(searchFrom.getDate() - 3);
       searchTo = new Date(targetDate);
-      searchTo.setDate(searchTo.getDate() + 3);
-      if (searchTo > today) searchTo = today;
 
       setDateFrom(searchFrom);
       setDateTo(searchTo);
@@ -382,7 +408,13 @@ useEffect(() => {
       // 2. ถ้าไม่ตรงเป๊ะ หรือไม่ได้ระบุ province/date มา ให้เลือก group แรก (ล่าสุด) อัตโนมัติทันที
       const targetToSelect = matchedGroup || groups[0];
       if (targetToSelect) {
-        handleSelectVehicle(targetToSelect);
+        setSelectedVehicle({
+          plate: targetToSelect.plate,
+          province: targetToSelect.province,
+          date: targetToSelect.date
+        });
+        setTimelinePage(1);
+        setTimeout(scrollToMap, 100);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -427,15 +459,78 @@ useEffect(() => {
   );
 
   /*
-   * Detection ทั้งหมด ไม่ dedupe
+   * Detection ทั้งหมด ไม่ dedupe (memoized เพื่อไม่ให้ mapItems instance เปลี่ยนเวลาเปลี่ยนหน้า pagination)
    */
-  const allItems = selectedGroup?.items || [];
+  const allItems = useMemo(() => selectedGroup?.items || [], [selectedGroup]);
 
   /*
    * ใช้ Detection ทุกตัวสำหรับ Map จำกัดเฉพาะ 50 จุดล่าสุด
    */
-  const mapItems = allItems.slice(-MAX_ROUTE_POINTS);
+  const mapItems = useMemo(() => allItems.slice(-MAX_ROUTE_POINTS), [allItems]);
   const isTruncated = allItems.length > MAX_ROUTE_POINTS;
+
+  // Timeline Pagination & Sorting & Dynamic Rows (ฝั่งขวา)
+  const [timelineSortOrder, setTimelineSortOrder] = useState('asc'); // 'asc' = เก่าไปใหม่ (1->N), 'desc' = ใหม่ไปเก่า
+  const [timelinePage, setTimelinePage] = useState(1);
+  const [timelinePageSize, setTimelinePageSize] = useState(3);
+  const timelineContainerRef = useRef(null);
+
+  const toggleTimelineSortOrder = () => {
+    setTimelineSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    setTimelinePage(1);
+  };
+
+  const sortedTimelineItems = useMemo(() => {
+    const list = [...mapItems];
+    if (timelineSortOrder === 'desc') {
+      list.sort((a, b) => new Date(b.time_detect) - new Date(a.time_detect));
+    } else {
+      list.sort((a, b) => new Date(a.time_detect) - new Date(b.time_detect));
+    }
+    return list;
+  }, [mapItems, timelineSortOrder]);
+
+  const calculateTimelineRows = useCallback(() => {
+    const el = timelineContainerRef.current;
+    if (!el) return;
+    const height = el.clientHeight;
+    if (!height) return;
+    const paginationReserved = 52; // ความสูงสำหรับแถบ pagination + margin
+    const available = height - paginationReserved;
+    const itemHeight = 98; // ความสูงจริงของแต่ละการ์ด timeline item
+    if (available > 0) {
+      const calculated = Math.max(2, Math.floor(available / itemHeight));
+      setTimelinePageSize((prev) => (prev !== calculated ? calculated : prev));
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = timelineContainerRef.current;
+    if (!el) return;
+
+    calculateTimelineRows();
+    const observer = new ResizeObserver(calculateTimelineRows);
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [calculateTimelineRows, selectedVehicle, sortedTimelineItems.length]);
+
+  const totalTimelinePages = Math.max(1, Math.ceil(sortedTimelineItems.length / timelinePageSize));
+
+  useEffect(() => {
+    if (timelinePage > totalTimelinePages) {
+      setTimelinePage(totalTimelinePages);
+    }
+  }, [timelinePage, totalTimelinePages]);
+
+  const paginatedTimelineItems = useMemo(() => {
+    const start = (timelinePage - 1) * timelinePageSize;
+    return sortedTimelineItems.slice(start, start + timelinePageSize);
+  }, [sortedTimelineItems, timelinePage, timelinePageSize]);
+
+  const timelineVisiblePages = useMemo(() => {
+    return getVisiblePageNumbers(timelinePage, totalTimelinePages, 5);
+  }, [timelinePage, totalTimelinePages]);
 
   /*
    * แปลง Detection -> RouteMap Point
@@ -567,16 +662,32 @@ useEffect(() => {
   }
 
   function handleSelectVehicle(group) {
+    if (group?.plate) {
+      setQueryInput(group.plate);
+    }
     setSelectedVehicle({
       plate: group.plate,
       province: group.province,
       date: group.date
     });
+    setTimelinePage(1);
+
+    // Sync to URL Search Params so F5 refresh stays on this vehicle view
+    const params = {
+      plate: group.plate,
+      province: group.province || '',
+      date: group.date || ''
+    };
+    if (dateFrom) params.from = formatAPIDate(dateFrom);
+    if (dateTo) params.to = formatAPIDate(dateTo);
+    setSearchParams(params, { replace: true });
+
     setTimeout(scrollToMap, 100);
   }
 
   function handleBackToList() {
     setSelectedVehicle(null);
+    setSearchParams({}, { replace: true });
   }
 
   return (
@@ -584,136 +695,140 @@ useEffect(() => {
       <div className="rt-wrapper">
 
         {/* Search */}
-        <div className="content-card rt-search-card">
-          <div className="rt-search-header">
-            <h3 className="card-title" style={{ margin: 0 }}>
-              ค้นหาเส้นทางการเคลื่อนที่
-            </h3>
-            <p className="rt-description">
-              พิมพ์ป้ายทะเบียนเพื่อค้นหาเส้นทางการเคลื่อนที่ของรถ
-            </p>
+        {!selectedVehicle && (
+          <div className="content-card rt-search-card">
+            <div className="rt-search-header">
+              <h3 className="card-title" style={{ margin: 0 }}>
+                ค้นหาเส้นทางการเคลื่อนที่
+              </h3>
+              <p className="rt-description">
+                พิมพ์ป้ายทะเบียนเพื่อค้นหาเส้นทางการเคลื่อนที่ของรถ
+              </p>
+            </div>
+
+            <div className="rt-search-row">
+              <div className="rt-search-field rt-search-field-plate">
+                <label>
+                  ป้ายทะเบียน
+                  {!queryInput.trim() && (
+                    <span className="rt-required-star">
+                      * {formErrors.plate && <span className="rt-inline-error">(กรุณากรอกป้ายทะเบียน)</span>}
+                    </span>
+                  )}
+                </label>
+                <div className="rt-input-wrap">
+                  <FaSearch className="rt-input-icon" />
+                  <input
+                    type="text"
+                    placeholder="เช่น กข1234"
+                    value={queryInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setQueryInput(val);
+                      if (!val.trim()) {
+                        setVehicleGroups([]);
+                        setHasSearched(false);
+                        setSelectedVehicle(null);
+                        if (dateFrom || dateTo) {
+                          setFormErrors((prev) => ({ ...prev, plate: true }));
+                        }
+                      } else {
+                        setFormErrors((prev) => ({ ...prev, plate: false }));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') runSearch();
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="rt-search-field">
+                <label>
+                  จากวันที่
+                  {!dateFrom && (
+                    <span className="rt-required-star">
+                      * {formErrors.dateFrom && <span className="rt-inline-error">(กรุณาเลือกวันที่)</span>}
+                    </span>
+                  )}
+                </label>
+                <div className="rt-input-wrap">
+                  <FaCalendarAlt className="rt-input-icon" />
+                  <DatePicker
+                    selected={dateFrom}
+                    onChange={(date) => {
+                      setDateFrom(date);
+                      if (!date) {
+                        setVehicleGroups([]);
+                        setHasSearched(false);
+                        setSelectedVehicle(null);
+                        if (queryInput.trim() || dateTo) {
+                          setFormErrors((prev) => ({ ...prev, dateFrom: true }));
+                        }
+                      } else {
+                        setFormErrors((prev) => ({ ...prev, dateFrom: false }));
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    maxDate={dateTo || today}
+                    placeholderText="เลือกวันที่"
+                    isClearable={true}
+                    renderCustomHeader={renderCustomDatePickerHeader}
+                    className="datepicker-rt"
+                  />
+                </div>
+              </div>
+
+              <div className="rt-search-field">
+                <label>
+                  ถึงวันที่
+                  {!dateTo && (
+                    <span className="rt-required-star">
+                      * {formErrors.dateTo && <span className="rt-inline-error">(กรุณาเลือกวันที่)</span>}
+                    </span>
+                  )}
+                </label>
+                <div className="rt-input-wrap">
+                  <FaCalendarAlt className="rt-input-icon" />
+                  <DatePicker
+                    selected={dateTo}
+                    onChange={(date) => {
+                      setDateTo(date);
+                      if (!date) {
+                        setVehicleGroups([]);
+                        setHasSearched(false);
+                        setSelectedVehicle(null);
+                        if (queryInput.trim() || dateFrom) {
+                          setFormErrors((prev) => ({ ...prev, dateTo: true }));
+                        }
+                      } else {
+                        setFormErrors((prev) => ({ ...prev, dateTo: false }));
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    minDate={dateFrom}
+                    maxDate={today}
+                    placeholderText="เลือกวันที่"
+                    isClearable={true}
+                    renderCustomHeader={renderCustomDatePickerHeader}
+                    className="datepicker-rt"
+                  />
+                </div>
+              </div>
+
+              <div className="rt-search-buttons">
+                <button
+                  className="btn-rt-reset"
+                  onClick={handleReset}
+                  title="รีเซ็ตค่าการค้นหา"
+                >
+                  <FaArrowRotateLeft />
+                  รีเซ็ต
+                </button>
+              </div>
+            </div>
           </div>
-
-          <div className="rt-search-row">
-            <div className="rt-search-field rt-search-field-plate">
-              <label>
-                ป้ายทะเบียน
-                {!queryInput.trim() && (
-                  <span className="rt-required-star">
-                    * {formErrors.plate && <span className="rt-inline-error">(กรุณากรอกป้ายทะเบียน)</span>}
-                  </span>
-                )}
-              </label>
-              <div className="rt-input-wrap">
-                <FaSearch className="rt-input-icon" />
-                <input
-                  type="text"
-                  placeholder="เช่น กข1234"
-                  value={queryInput}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setQueryInput(val);
-                    if (!val.trim()) {
-                      setVehicleGroups([]);
-                      setHasSearched(false);
-                      setSelectedVehicle(null);
-                      if (dateFrom || dateTo) {
-                        setFormErrors((prev) => ({ ...prev, plate: true }));
-                      }
-                    } else {
-                      setFormErrors((prev) => ({ ...prev, plate: false }));
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') runSearch();
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="rt-search-field">
-              <label>
-                จากวันที่
-                {!dateFrom && (
-                  <span className="rt-required-star">
-                    * {formErrors.dateFrom && <span className="rt-inline-error">(กรุณาเลือกวันที่)</span>}
-                  </span>
-                )}
-              </label>
-              <div className="rt-input-wrap">
-                <FaCalendarAlt className="rt-input-icon" />
-                <DatePicker
-                  selected={dateFrom}
-                  onChange={(date) => {
-                    setDateFrom(date);
-                    if (!date) {
-                      setVehicleGroups([]);
-                      setHasSearched(false);
-                      setSelectedVehicle(null);
-                      if (queryInput.trim() || dateTo) {
-                        setFormErrors((prev) => ({ ...prev, dateFrom: true }));
-                      }
-                    } else {
-                      setFormErrors((prev) => ({ ...prev, dateFrom: false }));
-                    }
-                  }}
-                  dateFormat="dd/MM/yyyy"
-                  maxDate={dateTo || today}
-                  placeholderText="เลือกวันที่"
-                  isClearable={true}
-                  className="datepicker-rt"
-                />
-              </div>
-            </div>
-
-            <div className="rt-search-field">
-              <label>
-                ถึงวันที่
-                {!dateTo && (
-                  <span className="rt-required-star">
-                    * {formErrors.dateTo && <span className="rt-inline-error">(กรุณาเลือกวันที่)</span>}
-                  </span>
-                )}
-              </label>
-              <div className="rt-input-wrap">
-                <FaCalendarAlt className="rt-input-icon" />
-                <DatePicker
-                  selected={dateTo}
-                  onChange={(date) => {
-                    setDateTo(date);
-                    if (!date) {
-                      setVehicleGroups([]);
-                      setHasSearched(false);
-                      setSelectedVehicle(null);
-                      if (queryInput.trim() || dateFrom) {
-                        setFormErrors((prev) => ({ ...prev, dateTo: true }));
-                      }
-                    } else {
-                      setFormErrors((prev) => ({ ...prev, dateTo: false }));
-                    }
-                  }}
-                  dateFormat="dd/MM/yyyy"
-                  minDate={dateFrom}
-                  maxDate={today}
-                  placeholderText="เลือกวันที่"
-                  isClearable={true}
-                  className="datepicker-rt"
-                />
-              </div>
-            </div>
-
-            <div className="rt-search-buttons">
-              <button
-                className="btn-rt-reset"
-                onClick={handleReset}
-                title="รีเซ็ตค่าการค้นหา"
-              >
-                <FaArrowRotateLeft />
-                รีเซ็ต
-              </button>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Loading / Results / Empty States */}
         {isSearching ? (
@@ -735,9 +850,27 @@ useEffect(() => {
               <h3 className="card-title" style={{ margin: 0 }}>
                 ผลการค้นหา
               </h3>
-              <p className="rt-description" style={{ margin: 0 }}>
-                พบ <strong>{vehicleGroups.length}</strong> รายการ — คลิกแถวเพื่อดูเส้นทาง
-              </p>
+              <div className="rt-header-right">
+                <p className="rt-description" style={{ margin: 0 }}>
+                  พบ <strong>{vehicleGroups.length}</strong> รายการ — คลิกแถวเพื่อดูเส้นทาง
+                </p>
+                <button
+                  type="button"
+                  className="btn-sort-icon-toggle"
+                  onClick={toggleSortOrder}
+                  title={
+                    sortOrder === 'desc'
+                      ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)'
+                      : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'
+                  }
+                >
+                  {sortOrder === 'desc' ? (
+                    <FaArrowDownWideShort className="sort-btn-icon" />
+                  ) : (
+                    <FaArrowUpWideShort className="sort-btn-icon" />
+                  )}
+                </button>
+              </div>
             </div>
 
             {vehicleGroups.length === 0 ? (
@@ -836,148 +969,183 @@ useEffect(() => {
               กลับไปยังรายการที่พบ
             </button>
 
-            <div className="rt-result-row">
-              {/* Map */}
-              <div className="content-card rt-map-card">
-                <h3 className="card-title" style={{ margin: 0 }}>
-                  เส้นทางการเดินรถ
-                </h3>
-                <p className="rt-description">
-                  หมุดเรียงลำดับตามเวลาที่ผ่านแต่ละกล้องตรวจจับ
-                </p>
+            <div className="rt-detail-columns">
+              {/* ฝั่งซ้าย: แผนที่เต็มความสูง */}
+              <div className="rt-detail-left">
+                {/* Map */}
+                <div className="content-card rt-map-card">
+                  <h3 className="card-title" style={{ margin: 0 }}>
+                    เส้นทางการเดินรถ
+                  </h3>
+                  <p className="rt-description">
+                    หมุดเรียงลำดับตามเวลาที่ผ่านแต่ละกล้องตรวจจับ
+                  </p>
 
-                <div className="rt-map-wrap">
-                  {routePoints.length > 0 ? (
-                  <RouteMap ref={routeMapRef} routePoints={routePoints} />
-                ) : (
-                    <EmptyState
-                      icon={<FaRoute />}
-                      title="ไม่มีข้อมูลตำแหน่งกล้อง"
-                      description="ข้อมูลการตรวจจับยังไม่มีพิกัดตำแหน่ง"
-                    />
+                  <div className="rt-map-wrap">
+                    {routePoints.length > 0 ? (
+                      <RouteMap ref={routeMapRef} routePoints={routePoints} />
+                    ) : (
+                      <EmptyState
+                        icon={<FaRoute />}
+                        title="ไม่มีข้อมูลตำแหน่งกล้อง"
+                        description="ข้อมูลการตรวจจับยังไม่มีพิกัดตำแหน่ง"
+                      />
+                    )}
+                  </div>
+
+                  {isTruncated && (
+                    <p className="rt-truncate-note">
+                      แสดงเฉพาะ {MAX_ROUTE_POINTS} จุดล่าสุด จากทั้งหมด {allItems.length} จุด
+                    </p>
                   )}
                 </div>
-
-                {isTruncated && (
-                  <p className="rt-truncate-note">
-                    แสดงเฉพาะ {MAX_ROUTE_POINTS} จุดล่าสุด จากทั้งหมด {allItems.length} จุด
-                  </p>
-                )}
               </div>
 
-              {/* Vehicle Info */}
-              <div className="content-card rt-info-card">
-                <h3 className="card-title" style={{ margin: 0 }}>
-                  ข้อมูลรถ
-                </h3>
-                <div className="rt-info-rows">
-                  <div className="rt-info-row">
-                    <span className="info-label">ทะเบียน</span>
-                    <span className="rt-plate-text">
-                      {selectedVehicle.plate} ({selectedVehicle.province || '-'})
-                    </span>
-                  </div>
-                  <div className="rt-info-row">
-                    <span className="info-label">สี</span>
-                    <span>{allItems[allItems.length - 1]?.color || '-'}</span>
-                  </div>
-                  <div className="rt-info-row">
-                    <span className="info-label">จำนวนครั้ง</span>
-                    <span>{allItems.length} ครั้ง</span>
-                  </div>
-                  <div className="rt-info-row">
-                    <span className="info-label">ช่วงเวลาที่พบ</span>
-                    <span>
-                      {formatDateTime(allItems[0]?.time_detect)}
-                      {' — '}
-                      {formatDateTime(allItems[allItems.length - 1]?.time_detect)}
-                    </span>
-                  </div>
-                  <div className="rt-info-row">
-                    <span className="info-label">กล้องที่ผ่าน</span>
-                    <span>{gateSummary || '-'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Timeline */}
-            <div className="content-card">
-              <h3 className="card-title" style={{ margin: 0 }}>
-                รายละเอียดแต่ละจุด
-              </h3>
-              <p className="rt-description">
-                ภาพที่กล้องจับได้ ณ จุดตรวจแต่ละจุด เรียงตามลำดับเวลา
-                โดยแสดงทุก Detection ที่ตรวจจับได้ รวมถึงรายการที่กล้องเดิมตรวจจับซ้ำ
-              </p>
-
-              {isLoadingRouteImages ? (
-                <Spinner text="กำลังโหลดรูปภาพ..." />
-              ) : (
-                <div className="rt-timeline">
-                  {mapItems.map((item, index) => {
-                    const direction = item.direction;
-
-                    return (
-                      <div
-                        key={item.detection_id}
-                        className="rt-timeline-item"
-                        onClick={() => {
-                          routeMapRef.current?.focusPoint(item.detection_id, true);
-                          scrollToMap();
-                        }}
+              {/* ฝั่งขวา: รายละเอียดแต่ละจุด */}
+              <div className="rt-detail-right">
+                <div className="content-card rt-timeline-card">
+                  <div className="rt-timeline-header-wrap">
+                    <div className="rt-timeline-header-top">
+                      <h3 className="card-title" style={{ margin: 0 }}>
+                        รายละเอียดแต่ละจุด
+                      </h3>
+                      <button
+                        type="button"
+                        className="btn-sort-icon-toggle"
+                        onClick={toggleTimelineSortOrder}
+                        title={
+                          timelineSortOrder === 'desc'
+                            ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)'
+                            : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'
+                        }
                       >
-                        <div className="rt-timeline-marker">{index + 1}</div>
-
-                        <div
-                          className={`rt-timeline-thumb${
-                            routeImages[item.detection_id]
-                              ? ' rt-timeline-thumb-hoverable'
-                              : ''
-                          }`}
-                          onMouseEnter={(e) => handleThumbHover(e, item.detection_id)}
-                          onMouseLeave={() => {
-                            setHoveredImageId(null);
-                            setHoverPos(null);
-                          }}
-                        >
-                          {routeImages[item.detection_id] ? (
-                            <img
-                              src={routeImages[item.detection_id]}
-                              alt={`จุดที่ ${index + 1}`}
-                            />
-                          ) : (
-                            <div className="rt-timeline-noimg">ไม่มีรูปภาพ</div>
-                          )}
-                        </div>
-
-                        <div className="rt-timeline-body">
-                          <p className="rt-timeline-camera">
-                            {item.camera_name || 'ไม่ทราบชื่อกล้อง'}
-                          </p>
-                          <p className="rt-timeline-time">
-                            {formatDateTime(item.time_detect)}
-                          </p>
-                          <p className="rt-timeline-plate">
-                            {item.license_plate || '-'} {' • '} {item.color || '-'}
-                          </p>
-                          <span
-                            className={`rt-direction-badge ${
-                              direction === 'entry'
-                                ? 'rt-direction-entry'
-                                : direction === 'exit'
-                                ? 'rt-direction-exit'
-                                : 'rt-direction-unknown'
-                            }`}
-                          >
-                            {getDirectionLabel(direction)}
-                          </span>
-                        </div>
+                        {timelineSortOrder === 'desc' ? (
+                          <FaArrowDownWideShort className="sort-btn-icon" />
+                        ) : (
+                          <FaArrowUpWideShort className="sort-btn-icon" />
+                        )}
+                      </button>
+                    </div>
+                    <div className="rt-timeline-stats-bar">
+                      <div className="rt-stat-badge">
+                        <span className="rt-stat-label">จำนวนครั้งที่พบ:</span>
+                        <span className="rt-stat-value">{allItems.length} ครั้ง</span>
                       </div>
-                    );
-                  })}
+                      <div className="rt-stat-badge">
+                        <span className="rt-stat-label">ช่วงเวลา:</span>
+                        <span className="rt-stat-value">
+                          {formatDateTime(allItems[0]?.time_detect)} — {formatDateTime(allItems[allItems.length - 1]?.time_detect)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {isLoadingRouteImages ? (
+                    <Spinner text="กำลังโหลดรูปภาพ..." />
+                  ) : (
+                    <div className="rt-timeline-body-wrap" ref={timelineContainerRef}>
+                      <div className="rt-timeline">
+                        {paginatedTimelineItems.map((item) => {
+                          const direction = item.direction;
+                          const pointIndex = mapItems.findIndex(
+                            (m) => String(m.detection_id) === String(item.detection_id)
+                          );
+                          const pointNumber = pointIndex !== -1 ? pointIndex + 1 : 1;
+
+                          return (
+                            <div
+                              key={item.detection_id}
+                              className="rt-timeline-item"
+                              onClick={() => {
+                                routeMapRef.current?.focusPoint(item.detection_id, true);
+                                scrollToMap();
+                              }}
+                            >
+                              <div className="rt-timeline-marker">{pointNumber}</div>
+
+                              <div
+                                className={`rt-timeline-thumb${
+                                  routeImages[item.detection_id]
+                                    ? ' rt-timeline-thumb-hoverable'
+                                    : ''
+                                }`}
+                                onMouseEnter={(e) => handleThumbHover(e, item.detection_id)}
+                                onMouseLeave={() => {
+                                  setHoveredImageId(null);
+                                  setHoverPos(null);
+                                }}
+                              >
+                                {routeImages[item.detection_id] ? (
+                                  <img
+                                    src={routeImages[item.detection_id]}
+                                    alt={`จุดที่ ${pointNumber}`}
+                                  />
+                                ) : (
+                                  <div className="rt-timeline-noimg">ไม่มีรูปภาพ</div>
+                                )}
+                              </div>
+
+                              <div className="rt-timeline-body">
+                                <p className="rt-timeline-camera">
+                                  {item.camera_name || 'ไม่ทราบชื่อกล้อง'}
+                                </p>
+                                <p className="rt-timeline-time">
+                                  {formatDateTime(item.time_detect)}
+                                </p>
+                                <p className="rt-timeline-plate">
+                                  {item.license_plate || '-'} {item.province ? `(${item.province})` : ''} {' • '} {item.color || '-'}
+                                </p>
+                                <span
+                                  className={`rt-direction-badge ${
+                                    direction === 'entry'
+                                      ? 'rt-direction-entry'
+                                      : direction === 'exit'
+                                      ? 'rt-direction-exit'
+                                      : 'rt-direction-unknown'
+                                  }`}
+                                >
+                                  {getDirectionLabel(direction)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Pagination for Timeline */}
+                      {totalTimelinePages > 1 && (
+                        <div className="pagination rt-timeline-pagination">
+                          <button
+                            className="page-btn"
+                            disabled={timelinePage <= 1}
+                            onClick={() => setTimelinePage((p) => Math.max(1, p - 1))}
+                          >
+                            ‹
+                          </button>
+
+                          {timelineVisiblePages.map((page) => (
+                            <button
+                              key={page}
+                              className={`page-btn ${timelinePage === page ? 'active' : ''}`}
+                              onClick={() => setTimelinePage(page)}
+                            >
+                              {page}
+                            </button>
+                          ))}
+
+                          <button
+                            className="page-btn"
+                            disabled={timelinePage >= totalTimelinePages}
+                            onClick={() => setTimelinePage((p) => Math.min(totalTimelinePages, p + 1))}
+                          >
+                            ›
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         )}

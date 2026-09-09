@@ -1,8 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback, useMemo } from 'react';
+import { FaXmark } from 'react-icons/fa6';
 import Spinner from './Spinner';
 
 const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af611860ee1d100bc5d530';
-const CARD_WIDTH = 260;
+const CARD_WIDTH = 210;
+const CARD_HEIGHT = 145;
 const CARD_GAP = 12;
 const FOCUS_ANIMATION_DELAY_MS = 350; // เผื่อเวลา map.location/zoom animate เสร็จก่อนคำนวณตำแหน่งการ์ด
 
@@ -203,6 +205,16 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
       });
 
       try {
+        map.Event.bind('click', () => {
+          setHoveredPoint(null);
+          const container = mapRef.current;
+          if (container) {
+            container.querySelectorAll('.rt-map-marker-pin').forEach((p) => {
+              p.classList.remove('rt-pin-active');
+              p.style.zIndex = '';
+            });
+          }
+        });
         map.Event.bind('location', () => setHoveredPoint(null));
         map.Event.bind('zoom', () => setHoveredPoint(null));
       } catch (error) {
@@ -239,6 +251,24 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
     };
   }, []);
 
+  // รองรับการกดปุ่ม ESC เพื่อปิดการ์ด
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        setHoveredPoint(null);
+        const container = mapRef.current;
+        if (container) {
+          container.querySelectorAll('.rt-map-marker-pin').forEach((p) => {
+            p.classList.remove('rt-pin-active');
+            p.style.zIndex = '';
+          });
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const computeCardPosition = useCallback((pinEl) => {
     const container = mapRef.current;
     if (!container || !pinEl) return null;
@@ -246,28 +276,61 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
     const containerRect = container.getBoundingClientRect();
     const pinRect = pinEl.getBoundingClientRect();
 
-    let left = pinRect.right - containerRect.left + CARD_GAP;
-    let top = pinRect.top - containerRect.top - 8;
+    const pinRelativeLeft = pinRect.left - containerRect.left;
+    const pinRelativeRight = pinRect.right - containerRect.left;
+    const pinRelativeTop = pinRect.top - containerRect.top;
+    const pinRelativeBottom = pinRect.bottom - containerRect.top;
 
-    if (left + CARD_WIDTH > containerRect.width) {
-      left = pinRect.left - containerRect.left - CARD_WIDTH - CARD_GAP;
+    let left = pinRelativeRight + CARD_GAP;
+    let top = pinRelativeTop - 6;
+
+    const fitsRight = pinRelativeRight + CARD_GAP + CARD_WIDTH <= containerRect.width - 8;
+    const fitsLeft = pinRelativeLeft - CARD_GAP - CARD_WIDTH >= 8;
+
+    if (fitsRight) {
+      left = pinRelativeRight + CARD_GAP;
+      top = Math.max(8, Math.min(top, containerRect.height - CARD_HEIGHT - 8));
+    } else if (fitsLeft) {
+      left = pinRelativeLeft - CARD_GAP - CARD_WIDTH;
+      top = Math.max(8, Math.min(top, containerRect.height - CARD_HEIGHT - 8));
+    } else {
+      // หากพื้นที่ซ้าย-ขวาแคบ ให้วางด้านบน หรือ ด้านล่างของหมุด
+      const fitsAbove = pinRelativeTop - CARD_GAP - CARD_HEIGHT >= 8;
+      if (fitsAbove) {
+        top = pinRelativeTop - CARD_GAP - CARD_HEIGHT;
+      } else {
+        top = pinRelativeBottom + CARD_GAP;
+      }
+      left = pinRelativeLeft + (pinRect.width - CARD_WIDTH) / 2;
+      left = Math.max(8, Math.min(left, containerRect.width - CARD_WIDTH - 8));
     }
-    if (top < 8) top = 8;
-    if (top + 180 > containerRect.height) {
-      top = containerRect.height - 180 - 8;
-    }
-    if (left < 8) left = 8;
 
     return { top, left };
   }, []);
 
   const offsetPointsMap = useMemo(() => calculateOffsetPoints(routePoints), [routePoints]);
 
-  // เปิดเมธอด focusPoint ให้ RouteTracking.jsx สั่งจาก timeline ได้
+  // เปิดเมธอด focusPoint ให้ RouteTracking.jsx สั่งจาก timeline ได้ (พร้อม Toggle เปิด/ปิด เมื่อคลิกซ้ำ)
   useImperativeHandle(ref, () => ({
     focusPoint(pointId, shouldPan = true) {
       const map = mapInstanceRef.current;
       if (!map) return;
+
+      // ถ้าเปิดการ์ดจุดนี้อยู่แล้ว ให้คลิกซ้ำเพื่อปิด (Toggle)
+      if (
+        hoveredPoint?.pinned &&
+        String(hoveredPoint.point?.id ?? hoveredPoint.point?.detectionId) === String(pointId)
+      ) {
+        setHoveredPoint(null);
+        const container = mapRef.current;
+        if (container) {
+          container.querySelectorAll('.rt-map-marker-pin').forEach((p) => {
+            p.classList.remove('rt-pin-active');
+            p.style.zIndex = '';
+          });
+        }
+        return;
+      }
 
       const point = routePoints.find(
         (p) => String(p.id ?? p.detectionId) === String(pointId)
@@ -281,19 +344,33 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
         map.location({ lon: offsetPos.long, lat: offsetPos.lat }, true);
       }
 
-      // อัปเดตไฮไลท์บนหมุดที่ตำแหน่งนั้น พร้อมเปิดการ์ดข้อมูล
+      // อัปเดตไฮไลท์บนหมุดที่ตำแหน่งนั้น พร้อมเปิดการ์ดข้อมูลและยก z-index ให้อยู่บนสุด
       const delay = shouldPan ? FOCUS_ANIMATION_DELAY_MS : 50;
       setTimeout(() => {
         const container = mapRef.current;
         if (!container) return;
 
         const allPins = container.querySelectorAll('.rt-map-marker-pin');
-        allPins.forEach((p) => p.classList.remove('rt-pin-active'));
+        allPins.forEach((p) => {
+          p.classList.remove('rt-pin-active');
+          p.style.zIndex = '';
+          let cur = p.parentElement;
+          while (cur && cur !== container) {
+            if (cur.style) cur.style.zIndex = '';
+            cur = cur.parentElement;
+          }
+        });
 
         const targetPin = container.querySelector(`[data-route-point-id="${pointId}"]`);
         if (!targetPin) return;
 
         targetPin.classList.add('rt-pin-active');
+        targetPin.style.zIndex = '99999';
+        let parent = targetPin.parentElement;
+        while (parent && parent !== container) {
+          if (parent.style) parent.style.zIndex = '99999';
+          parent = parent.parentElement;
+        }
 
         const style = computeCardPosition(targetPin);
         if (style) setHoveredPoint({ point, style, pinned: true });
@@ -314,6 +391,14 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
       const point = routePoints.find((p) => String(p.id ?? p.detectionId) === pointId);
       if (!point) return;
 
+      // ยก z-index ชั่วคราวตอน hover
+      pinEl.style.zIndex = '99998';
+      let parent = pinEl.parentElement;
+      while (parent && parent !== container) {
+        if (parent.style) parent.style.zIndex = '99998';
+        parent = parent.parentElement;
+      }
+
       const style = computeCardPosition(pinEl);
       if (style) setHoveredPoint({ point, style });
     }
@@ -322,6 +407,18 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
       const pinEl = e.target.closest('.rt-map-marker-pin');
       if (!pinEl) return;
       if (pinEl.contains(e.relatedTarget)) return;
+
+      if (!pinEl.classList.contains('rt-pin-active')) {
+        pinEl.style.zIndex = '';
+        let parent = pinEl.parentElement;
+        while (parent && parent !== container) {
+          if (!parent.querySelector('.rt-pin-active') && parent.style) {
+            parent.style.zIndex = '';
+          }
+          parent = parent.parentElement;
+        }
+      }
+
       // การ์ดที่ pinned ไว้จาก focusPoint ไม่ถูกปิดจาก mouseout ธรรมดา (ผู้ใช้ไม่ได้ hover มันอยู่)
       setHoveredPoint((prev) => (prev?.pinned ? prev : null));
     }
@@ -503,10 +600,30 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
           style={{ top: hoveredPoint.style.top, left: hoveredPoint.style.left, width: CARD_WIDTH }}
         >
           <div className="rt-map-hover-card-header">
-            <span className="rt-map-hover-card-order">{hoveredPoint.point.order}</span>
-            <strong className="rt-map-hover-card-title">
-              {hoveredPoint.point.name || 'ไม่ทราบชื่อกล้อง'}
-            </strong>
+            <div className="rt-map-hover-card-title-wrap">
+              <span className="rt-map-hover-card-order">{hoveredPoint.point.order}</span>
+              <strong className="rt-map-hover-card-title">
+                {hoveredPoint.point.name || 'ไม่ทราบชื่อกล้อง'}
+              </strong>
+            </div>
+            <button
+              type="button"
+              className="rt-map-hover-card-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                setHoveredPoint(null);
+                const container = mapRef.current;
+                if (container) {
+                  container.querySelectorAll('.rt-map-marker-pin').forEach((p) => {
+                    p.classList.remove('rt-pin-active');
+                    p.style.zIndex = '';
+                  });
+                }
+              }}
+              title="ปิดการ์ด (ESC)"
+            >
+              <FaXmark />
+            </button>
           </div>
 
           <div className="rt-map-hover-card-row">
