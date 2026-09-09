@@ -275,6 +275,7 @@ function AuditLog() {
                   maxDate={new Date()}
                   isClearable
                   placeholderText="All dates"
+                  showPopperArrow={false}
                   renderCustomHeader={renderCustomDatePickerHeader}
                   className="datepicker-al"
                 />

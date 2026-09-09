@@ -190,6 +190,7 @@ function Report() {
                 maxDate={new Date()}
                 className="datepicker-input"
                 placeholderText="เลือกวันที่"
+                showPopperArrow={false}
                 renderCustomHeader={renderCustomDatePickerHeader}
               />
               <span className="report-date-display">

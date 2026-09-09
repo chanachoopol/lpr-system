@@ -552,6 +552,7 @@ function History() {
                   className="datepicker-history"
                   placeholderText="จากวันที่"
                   isClearable
+                  showPopperArrow={false}
                   renderCustomHeader={renderCustomDatePickerHeader}
                 />
               </div>
@@ -570,6 +571,7 @@ function History() {
                   className="datepicker-history"
                   placeholderText="ถึงวันที่"
                   isClearable
+                  showPopperArrow={false}
                   renderCustomHeader={renderCustomDatePickerHeader}
                 />
               </div>

@@ -18,7 +18,7 @@
   padding: 10px 16px;
   flex-shrink: 0;
   position: relative;
-  z-index: 2;
+  z-index: 50;
 }
 
 .filter-group {

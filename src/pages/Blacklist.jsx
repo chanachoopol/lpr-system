@@ -1166,6 +1166,7 @@ function saveHistoricalWhitelistPlates(map) {
                     placeholderText="จากวันที่"
                     className="bl-datepicker-input"
                     isClearable
+                    showPopperArrow={false}
                     renderCustomHeader={renderCustomDatePickerHeader}
                   />
                 </div>
@@ -1184,6 +1185,7 @@ function saveHistoricalWhitelistPlates(map) {
                     placeholderText="ถึงวันที่"
                     className="bl-datepicker-input"
                     isClearable
+                    showPopperArrow={false}
                     renderCustomHeader={renderCustomDatePickerHeader}
                   />
                 </div>

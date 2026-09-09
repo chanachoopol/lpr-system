@@ -773,6 +773,7 @@ function RouteTracking() {
                     maxDate={dateTo || today}
                     placeholderText="เลือกวันที่"
                     isClearable={true}
+                    showPopperArrow={false}
                     renderCustomHeader={renderCustomDatePickerHeader}
                     className="datepicker-rt"
                   />
@@ -810,6 +811,7 @@ function RouteTracking() {
                     maxDate={today}
                     placeholderText="เลือกวันที่"
                     isClearable={true}
+                    showPopperArrow={false}
                     renderCustomHeader={renderCustomDatePickerHeader}
                     className="datepicker-rt"
                   />

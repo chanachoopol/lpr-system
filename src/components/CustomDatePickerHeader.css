@@ -5,6 +5,12 @@
 /* ให้ Layer ของปฏิทินอยู่บนสุดเสมอ ไม่โดนหัวตารางทับ */
 .react-datepicker-popper {
   z-index: 99999 !important;
+  padding-top: 6px !important;
+}
+
+/* ซ่อนติ่งลูกศรสามเหลี่ยมเริ่มต้นของ react-datepicker เพื่อให้เห็นขอบมนชัดเจน */
+.react-datepicker__triangle {
+  display: none !important;
 }
 
 /* ขยายความกว้างของปฏิทินให้มองเห็นข้อมูลชัดเจน ไม่อึดอัด */
@@ -13,22 +19,24 @@
   width: 290px !important;
   border: 1px solid rgba(27, 42, 71, 0.15) !important;
   border-radius: 14px !important;
-  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 14px 35px -5px rgba(0, 0, 0, 0.2), 0 8px 12px -6px rgba(0, 0, 0, 0.12) !important;
   background-color: var(--bg-card, #ffffff) !important;
   color: var(--text-main, #1b2a47) !important;
-  overflow: visible !important;
+  overflow: visible !important; /* 👈 ต้องเป็น visible เพื่อไม่ให้ Dropdown เดือน/ปี โดนตัด */
 }
 
 .react-datepicker__month-container {
   width: 100% !important;
+  overflow: visible !important;
 }
 
 .react-datepicker__header {
   padding: 0 !important;
   background-color: var(--bg-card, #ffffff) !important;
   border-bottom: 1px solid rgba(27, 42, 71, 0.08) !important;
-  border-top-left-radius: 14px !important;
-  border-top-right-radius: 14px !important;
+  border-top-left-radius: 13px !important;
+  border-top-right-radius: 13px !important;
+  overflow: visible !important; /* 👈 ต้องเป็น visible เพื่อให้เมนูลอยลงมาได้ */
 }
 
 .react-datepicker__day-names {
@@ -109,6 +117,8 @@
   padding: 8px 10px;
   background: var(--bg-card, #ffffff);
   border-bottom: 1px solid rgba(27, 42, 71, 0.08);
+  border-top-left-radius: 13px !important;
+  border-top-right-radius: 13px !important;
   width: 100%;
   box-sizing: border-box;
 }
@@ -206,11 +216,11 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 10000;
+  z-index: 100001 !important; /* 👈 อยู่เหนือทุกเลเยอร์ของปฏิทิน */
   background: var(--bg-card, #ffffff);
   border: 1px solid rgba(27, 42, 71, 0.15);
   border-radius: 10px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
   max-height: 165px; /* ประมาณ 5 แถวพอดี */
   overflow-y: auto !important;
   display: flex;
@@ -294,7 +304,7 @@
 .dark .react-datepicker {
   background-color: #252836 !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.5) !important;
 }
 
 .dark .react-datepicker__header {
