@@ -11,7 +11,7 @@ import { getAuditLogsAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader'
-import '../styles/AuditLog.css'
+import '../styles/Auditlog.css'
 
 const PAGE_SIZE = 20
 

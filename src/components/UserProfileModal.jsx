@@ -8,7 +8,7 @@ import { SiLine } from 'react-icons/si'
 import { getUserContactsDetailAPI, getUserAvatarBlobURL, getUserDetailAPI } from '../data/api'
 import useVillageStore from '../store/villageStore'
 import Spinner from './Spinner'
-import '../styles/UserProfileModal.css'
+import '../styles/Userprofilemodal.css'
 
 const CONTACT_META = {
   phone: { label: 'เบอร์โทร', icon: <FaPhone /> },
