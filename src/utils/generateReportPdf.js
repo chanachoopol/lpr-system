@@ -103,20 +103,27 @@ export function generateReportPdf({
   dateLabel,
   villageName = 'ทุกหมู่บ้าน',
   totalVehicles = 0,
-  peakHour = '-',
+  uniquePlates = 0,
+  entryDetections = 0,
+  exitDetections = 0,
+  whitelistDetections = 0,
   blacklistAlerts = 0,
+  peakHour = '-',
   chartData = [],
   topVisitors = [],
-  topVisitorsDays = 7
+  topVisitorsDays = 7,
+  topVisitorsHeading = ''
 }) {
   const generatedAt = new Date().toLocaleString('th-TH', {
     dateStyle: 'medium',
     timeStyle: 'short'
   })
 
+  const visitorsTitle = topVisitorsHeading || `Top Frequent Visitors (Last ${topVisitorsDays} Days)`
+
   const docDefinition = {
     pageSize: 'A4',
-    pageMargins: [40, 50, 40, 50],
+    pageMargins: [40, 40, 40, 40],
     defaultStyle: {
       font: 'Sarabun',
       fontSize: 10,
@@ -125,9 +132,9 @@ export function generateReportPdf({
     content: [
       { text: 'Daily Summary Report', style: 'title' },
       { text: `หมู่บ้าน: ${villageName}`, style: 'subtitle' },
-      { text: `วันที่: ${dateLabel}`, style: 'subtitle', margin: [0, 0, 0, 16] },
+      { text: `วันที่: ${dateLabel}`, style: 'subtitle', margin: [0, 0, 0, 14] },
 
-      // KPI cards แบบตาราง 3 ช่อง
+      // KPI cards แถวที่ 1 (4 คอลัมน์)
       {
         columns: [
           {
@@ -137,15 +144,15 @@ export function generateReportPdf({
               body: [[
                 {
                   stack: [
-                    { text: 'TOTAL VEHICLES TODAY', style: 'kpiLabel' },
-                    { text: String(totalVehicles), style: 'kpiValue' }
+                    { text: 'การตรวจจับทั้งหมด', style: 'kpiLabel' },
+                    { text: Number(totalVehicles).toLocaleString(), style: 'kpiValue' }
                   ],
                   border: [false, false, false, false]
                 }
               ]]
             },
             layout: 'noBorders',
-            margin: [0, 0, 8, 0]
+            margin: [0, 0, 6, 0]
           },
           {
             width: '*',
@@ -154,15 +161,15 @@ export function generateReportPdf({
               body: [[
                 {
                   stack: [
-                    { text: 'PEAK HOUR', style: 'kpiLabel' },
-                    { text: peakHour, style: 'kpiValue' }
+                    { text: 'จำนวนรถจริง (ไม่ซ้ำคัน)', style: 'kpiLabel' },
+                    { text: Number(uniquePlates).toLocaleString(), style: 'kpiValue' }
                   ],
                   border: [false, false, false, false]
                 }
               ]]
             },
             layout: 'noBorders',
-            margin: [8, 0, 8, 0]
+            margin: [6, 0, 6, 0]
           },
           {
             width: '*',
@@ -171,24 +178,99 @@ export function generateReportPdf({
               body: [[
                 {
                   stack: [
-                    { text: 'BLACKLIST ALERTS', style: 'kpiLabel' },
-                    { text: String(blacklistAlerts), style: 'kpiValueRed' }
+                    { text: 'รถขาเข้า', style: 'kpiLabel' },
+                    { text: Number(entryDetections).toLocaleString(), style: 'kpiValue' }
                   ],
                   border: [false, false, false, false]
                 }
               ]]
             },
             layout: 'noBorders',
-            margin: [8, 0, 0, 0]
+            margin: [6, 0, 6, 0]
+          },
+          {
+            width: '*',
+            table: {
+              widths: ['*'],
+              body: [[
+                {
+                  stack: [
+                    { text: 'รถขาออก', style: 'kpiLabel' },
+                    { text: Number(exitDetections).toLocaleString(), style: 'kpiValue' }
+                  ],
+                  border: [false, false, false, false]
+                }
+              ]]
+            },
+            layout: 'noBorders',
+            margin: [6, 0, 0, 0]
           }
         ],
-        margin: [0, 0, 0, 20]
+        margin: [0, 0, 0, 10]
+      },
+
+      // KPI cards แถวที่ 2 (3 คอลัมน์)
+      {
+        columns: [
+          {
+            width: '*',
+            table: {
+              widths: ['*'],
+              body: [[
+                {
+                  stack: [
+                    { text: 'รถลูกบ้าน / สมาชิก', style: 'kpiLabel' },
+                    { text: Number(whitelistDetections).toLocaleString(), style: 'kpiValue' }
+                  ],
+                  border: [false, false, false, false]
+                }
+              ]]
+            },
+            layout: 'noBorders',
+            margin: [0, 0, 6, 0]
+          },
+          {
+            width: '*',
+            table: {
+              widths: ['*'],
+              body: [[
+                {
+                  stack: [
+                    { text: 'แจ้งเตือน Blacklist', style: 'kpiLabel' },
+                    { text: Number(blacklistAlerts).toLocaleString(), style: 'kpiValueRed' }
+                  ],
+                  border: [false, false, false, false]
+                }
+              ]]
+            },
+            layout: 'noBorders',
+            margin: [6, 0, 6, 0]
+          },
+          {
+            width: '*',
+            table: {
+              widths: ['*'],
+              body: [[
+                {
+                  stack: [
+                    { text: 'ช่วงเวลาหนาแน่นที่สุด', style: 'kpiLabel' },
+                    { text: String(peakHour), style: 'kpiValue' }
+                  ],
+                  border: [false, false, false, false]
+                }
+              ]]
+            },
+            layout: 'noBorders',
+            margin: [6, 0, 0, 0]
+          }
+        ],
+        margin: [0, 0, 0, 16]
       },
 
       { text: 'Hourly Vehicle Detections', style: 'sectionTitle' },
       buildHourlyTable(chartData),
 
-      { text: `Top 5 Frequent Visitors (Last ${topVisitorsDays} Days)`, style: 'sectionTitle', margin: [0, 20, 0, 8] },
+      { text: visitorsTitle, style: 'sectionTitle', margin: [0, 16, 0, 8] },
       buildTopVisitorsTable(topVisitors)
     ],
     footer: (currentPage, pageCount) => ({
