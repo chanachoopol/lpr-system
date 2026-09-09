@@ -10,7 +10,7 @@ const RETRY_DELAY_MS = 10_000 // เจอ error ที่ไม่ใช่ 409
 // 👇 MOCK MODE — เปิด/ปิดตรงนี้บรรทัดเดียว ใช้ตอนกล้องจริงมีปัญหา
 // true  = เล่นไฟล์ mp4 ในเครื่อง แทนสตรีมจริง (ข้าม HLS/token ทั้งหมด)
 // false = กลับไปใช้ flow ปกติ (ยิง getCameraStreamTokenAPI จริง)
-const IS_MOCK_CAMERA = true
+const IS_MOCK_CAMERA = false
 
 // ไฟล์ mp4 ต้องอยู่ใน public/ แล้วอ้างด้วย path ที่ขึ้นต้นด้วย "/" (ไม่ต้อง import)
 const MOCK_VIDEO_SRC = '/26555-358041198_medium.mp4'

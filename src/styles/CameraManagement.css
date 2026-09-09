@@ -26,11 +26,18 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  transition: transform 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.cm-kpi-card:hover {
-  transform: translateY(-2px);
+.cm-kpi-card.interactive {
+  cursor: pointer;
+  user-select: none;
+}
+
+.cm-kpi-card.interactive:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: rgba(27, 42, 71, 0.2);
 }
 
 .cm-kpi-icon {
@@ -60,19 +67,19 @@
 }
 
 .cm-kpi-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 0 0 2px;
+  font-family: 'DM Sans', 'Sarabun', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
+  letter-spacing: 0.3px;
+  margin: 0 0 6px;
 }
 
 .cm-kpi-val {
   font-family: 'DM Sans', sans-serif;
-  font-size: 26px;
+  font-size: 36px;
   font-weight: 700;
-  color: var(--text-main);
+  color: var(--text-main, rgb(27, 42, 71));
   margin: 0;
 }
 
@@ -250,7 +257,9 @@
 .cm-location {
   font-family: 'DM Sans', sans-serif;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 13.5px;
+  white-space: nowrap;
+  min-width: 210px;
 }
 
 /* Unified Status Badge */
@@ -825,4 +834,135 @@
 .cm-table-footer .page-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* KPI Modal Styling */
+.modal-content.cm-kpi-modal-content,
+.cm-kpi-modal-content {
+  max-width: 850px !important;
+  width: 95vw !important;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.25);
+}
+
+.cm-kpi-modal-content .modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  margin-bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cm-kpi-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cm-kpi-modal-title {
+  margin: 0;
+  font-family: 'DM Sans', 'Sarabun', sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cm-kpi-title-count {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+}
+
+.cm-kpi-modal-title-wrap .cm-kpi-icon {
+  width: 42px;
+  height: 42px;
+  font-size: 18px;
+}
+
+.cm-kpi-modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  max-height: calc(88vh - 145px);
+  box-sizing: border-box;
+}
+
+.cm-kpi-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  background: var(--card-bg, #ffffff);
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cm-kpi-popup-table {
+  margin: 0;
+  width: 100%;
+  min-width: 700px;
+  border-collapse: collapse;
+}
+
+.cm-kpi-popup-table th {
+  background: rgba(27, 42, 71, 0.04);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
+  padding: 12px 16px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cm-kpi-popup-table th:nth-child(1),
+.cm-kpi-popup-table td:nth-child(1) {
+  min-width: 170px;
+}
+
+.cm-kpi-popup-table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+  vertical-align: middle;
+}
+
+.cm-kpi-popup-table .cm-location {
+  white-space: nowrap;
+  font-family: 'DM Sans', sans-serif;
+  font-variant-numeric: tabular-nums;
+  min-width: 220px;
+}
+
+.cm-kpi-popup-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cm-kpi-empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cm-kpi-modal-footer {
+  padding: 14px 24px;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--card-bg, #ffffff);
+  flex-wrap: wrap;
+  gap: 12px;
 }

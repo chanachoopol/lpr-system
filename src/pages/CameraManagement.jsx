@@ -125,6 +125,8 @@ function CameraManagement() {
   const [checkingCameraIds, setCheckingCameraIds] = useState(new Set())
   const [formTouched, setFormTouched] = useState({})
   const [hasSubmittedForm, setHasSubmittedForm] = useState(false)
+  const [kpiModalType, setKpiModalType] = useState(null) // 'total' | 'ready' | 'issues' | null
+  const [kpiModalPage, setKpiModalPage] = useState(1)
 
   // ---------- ONVIF Probe (ตัวช่วยหา RTSP) — ใช้ได้เฉพาะตอนเพิ่มกล้องใหม่ ----------
   const [showOnvifPanel, setShowOnvifPanel] = useState(false)
@@ -230,8 +232,40 @@ function CameraManagement() {
     setCurrentPage(1)
   }, [searchInput, selectedVillageId])
 
-  const activeCount = cameras.filter((c) => c.is_active).length
-  const inactiveCount = cameras.filter((c) => !c.is_active).length
+  const readyCount = useMemo(() => {
+    return cameras.filter((c) => getUnifiedCameraStatusBadge(c).tone === 'ready').length
+  }, [cameras])
+
+  const issueCount = useMemo(() => {
+    return cameras.filter((c) => getUnifiedCameraStatusBadge(c).tone === 'error').length
+  }, [cameras])
+
+  const KPI_PAGE_SIZE = 5
+
+  const kpiModalCameras = useMemo(() => {
+    if (!kpiModalType) return []
+    if (kpiModalType === 'total') return cameras
+    if (kpiModalType === 'ready') return cameras.filter((c) => getUnifiedCameraStatusBadge(c).tone === 'ready')
+    if (kpiModalType === 'issues') return cameras.filter((c) => getUnifiedCameraStatusBadge(c).tone === 'error')
+    return []
+  }, [kpiModalType, cameras])
+
+  const kpiModalTotalPages = Math.max(1, Math.ceil(kpiModalCameras.length / KPI_PAGE_SIZE))
+  const kpiModalVisiblePages = getVisiblePageNumbers(kpiModalPage, kpiModalTotalPages, MAX_VISIBLE_PAGES)
+
+  const paginatedKpiCameras = useMemo(() => {
+    const start = (kpiModalPage - 1) * KPI_PAGE_SIZE
+    return kpiModalCameras.slice(start, start + KPI_PAGE_SIZE)
+  }, [kpiModalCameras, kpiModalPage])
+
+  function openKpiModal(type) {
+    setKpiModalType(type)
+    setKpiModalPage(1)
+  }
+
+  function closeKpiModal() {
+    setKpiModalType(null)
+  }
 
   const filteredCameras = useMemo(() => {
     const keyword = searchInput.toLowerCase().trim()
@@ -412,15 +446,21 @@ function CameraManagement() {
   const latestCameraModalStateRef = useRef({})
   latestCameraModalStateRef.current = {
     showFormModal,
-    handleAttemptCloseCameraModal
+    handleAttemptCloseCameraModal,
+    kpiModalType,
+    closeKpiModal
   }
 
-  // ปิด form modal เมื่อกดปุ่ม Escape (มี Dirty check สดใหม่เสมอผ่าน Ref)
+  // ปิด modal เมื่อกดปุ่ม Escape (มี Dirty check สดใหม่เสมอผ่าน Ref)
   useEffect(() => {
     function handleKeyDown(e) {
       if (e.key === 'Escape') {
         if (Swal.isVisible()) return
         const state = latestCameraModalStateRef.current
+        if (state.kpiModalType) {
+          state.closeKpiModal()
+          return
+        }
         if (state.showFormModal) {
           state.handleAttemptCloseCameraModal()
         }
@@ -781,33 +821,51 @@ function CameraManagement() {
 
         {/* KPI Cards */}
         <div className="cm-kpi-row">
-          <div className="cm-kpi-card">
+          <div
+            className="cm-kpi-card interactive"
+            onClick={() => openKpiModal('total')}
+            role="button"
+            tabIndex={0}
+            title="คลิกเพื่อดูรายการกล้องทั้งหมด"
+          >
             <div className="cm-kpi-icon blue">
               <FaVideo />
             </div>
             <div className="cm-kpi-info">
-              <p className="cm-kpi-label">Total Cameras</p>
+              <p className="cm-kpi-label">กล้องทั้งหมด</p>
               <h2 className="cm-kpi-val">{total}</h2>
             </div>
           </div>
 
-          <div className="cm-kpi-card">
+          <div
+            className="cm-kpi-card interactive"
+            onClick={() => openKpiModal('ready')}
+            role="button"
+            tabIndex={0}
+            title="คลิกเพื่อดูรายการกล้องที่พร้อมใช้งาน"
+          >
             <div className="cm-kpi-icon green">
               <FaVideo />
             </div>
             <div className="cm-kpi-info">
-              <p className="cm-kpi-label">Active</p>
-              <h2 className="cm-kpi-val green">{activeCount}</h2>
+              <p className="cm-kpi-label">พร้อมใช้งาน</p>
+              <h2 className="cm-kpi-val">{readyCount}</h2>
             </div>
           </div>
 
-          <div className="cm-kpi-card">
+          <div
+            className="cm-kpi-card interactive"
+            onClick={() => openKpiModal('issues')}
+            role="button"
+            tabIndex={0}
+            title="คลิกเพื่อดูรายการกล้องที่ขัดข้อง"
+          >
             <div className="cm-kpi-icon red">
               <FaVideo />
             </div>
             <div className="cm-kpi-info">
-              <p className="cm-kpi-label">Inactive</p>
-              <h2 className="cm-kpi-val red">{inactiveCount}</h2>
+              <p className="cm-kpi-label">ขัดข้อง</p>
+              <h2 className={`cm-kpi-val ${issueCount > 0 ? 'red' : ''}`}>{issueCount}</h2>
             </div>
           </div>
         </div>
@@ -1299,6 +1357,124 @@ function CameraManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Modal KPI Popup */}
+      {kpiModalType && (
+        <div className="modal-overlay" onClick={closeKpiModal}>
+          <div className="modal-content cm-kpi-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="cm-kpi-modal-title-wrap">
+                <div className={`cm-kpi-icon ${kpiModalType === 'total' ? 'blue' : kpiModalType === 'ready' ? 'green' : 'red'}`}>
+                  <FaVideo />
+                </div>
+                <h3 className="cm-kpi-modal-title">
+                  {kpiModalType === 'total' && 'รายการกล้องทั้งหมด'}
+                  {kpiModalType === 'ready' && 'รายการกล้องที่พร้อมใช้งาน'}
+                  {kpiModalType === 'issues' && 'รายการกล้องที่ขัดข้อง'}
+                  <span className="cm-kpi-title-count">({kpiModalCameras.length} ตัว)</span>
+                </h3>
+              </div>
+              <button className="modal-close" onClick={closeKpiModal} title="ปิดหน้าต่าง (Esc)">
+                <FaXmark />
+              </button>
+            </div>
+
+            <div className="cm-kpi-modal-body">
+              {paginatedKpiCameras.length > 0 ? (
+                <div className="cm-kpi-table-wrap">
+                  <table className="cm-table cm-kpi-popup-table">
+                    <thead>
+                      <tr>
+                        <th>ชื่อกล้อง</th>
+                        {showVillageColumn && <th>หมู่บ้าน</th>}
+                        <th>ทิศทาง</th>
+                        <th>พิกัด (Lat, Long)</th>
+                        <th>สถานะการทำงาน</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedKpiCameras.map((c) => {
+                        const isChecking = checkingCameraIds.has(c.id)
+                        const badge = getUnifiedCameraStatusBadge(c, isChecking)
+                        const latVal = c.lat != null && !isNaN(Number(c.lat)) ? Number(c.lat).toFixed(6) : '-'
+                        const longVal = c.long != null && !isNaN(Number(c.long)) ? Number(c.long).toFixed(6) : '-'
+
+                        return (
+                          <tr key={c.id}>
+                            <td className="cm-camera-name" style={{ fontWeight: 600 }}>{c.name}</td>
+                            {showVillageColumn && <td>{getVillageName(c.village_id) || '-'}</td>}
+                            <td>
+                              <span className={`cm-direction-badge ${c.direction || 'entry'}`}>
+                                {c.direction === 'entry' ? 'ขาเข้า (Entry)' : c.direction === 'exit' ? 'ขาออก (Exit)' : 'ภายใน (Internal)'}
+                              </span>
+                            </td>
+                            <td className="cm-location">
+                              {latVal !== '-' && longVal !== '-' ? `${latVal}, ${longVal}` : '-'}
+                            </td>
+                            <td className="cm-status-cell">
+                              <div className="cm-status-unified-wrapper">
+                                <span className={`cm-status-badge ${badge.tone}`}>
+                                  <span className={`cm-status-dot ${badge.tone}`}></span>
+                                  {badge.label}
+                                </span>
+                                {badge.description && (
+                                  <p className="cm-status-hint">{badge.description}</p>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="cm-kpi-empty-state">
+                  <EmptyState
+                    icon={<FaVideo />}
+                    title={kpiModalType === 'issues' ? 'ไม่พบกล้องที่ขัดข้อง' : 'ไม่มีข้อมูลกล้อง'}
+                    description={kpiModalType === 'issues' ? 'กล้องทุกตัวในระบบเชื่อมต่อและทำงานได้เป็นปกติ' : 'ยังไม่มีกล้องในหมวดหมู่นี้'}
+                  />
+                </div>
+              )}
+            </div>
+
+            {kpiModalTotalPages > 1 && (
+              <div className="cm-kpi-modal-footer">
+                <p className="cm-total-count" style={{ margin: 0 }}>
+                  แสดง {paginatedKpiCameras.length} จากทั้งหมด {kpiModalCameras.length.toLocaleString()} รายการ
+                </p>
+                <div className="pagination">
+                  <button
+                    className="page-btn"
+                    disabled={kpiModalPage === 1}
+                    onClick={() => setKpiModalPage((p) => Math.max(1, p - 1))}
+                    title="หน้าก่อนหน้า"
+                  >
+                    &lt;
+                  </button>
+                  {kpiModalVisiblePages.map((page) => (
+                    <button
+                      key={page}
+                      className={`page-btn ${page === kpiModalPage ? 'active' : ''}`}
+                      onClick={() => setKpiModalPage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    className="page-btn"
+                    disabled={kpiModalPage === kpiModalTotalPages}
+                    onClick={() => setKpiModalPage((p) => Math.min(kpiModalTotalPages, p + 1))}
+                    title="หน้าถัดไป"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
