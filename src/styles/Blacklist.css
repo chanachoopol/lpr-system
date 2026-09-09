@@ -699,9 +699,9 @@
 }
 
 .bl-add-field label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -713,9 +713,14 @@
   background: var(--bg-input);
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
-  color: var(--text-main);
+  color: var(--text-main, rgb(27, 42, 71));
   outline: none;
   transition: all 0.2s ease;
+}
+
+.bl-add-field input::placeholder {
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 400;
 }
 
 .bl-add-field input:focus {

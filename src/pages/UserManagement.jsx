@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { FaUsers, FaUserPlus, FaUserShield, FaSearch, FaIdCard, FaEye } from 'react-icons/fa'
-import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaToggleOn, FaToggleOff, FaPaperPlane, FaCircleCheck, FaCircleXmark, FaPen, FaLockOpen, FaLock } from 'react-icons/fa6'
+import { FaUserCheck, FaTrashCan, FaKey, FaXmark, FaCity, FaPaperPlane, FaCircleCheck, FaCircleXmark, FaPen, FaLockOpen, FaLock, FaPowerOff } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import useAuthStore from '../store/authStore'
@@ -54,7 +54,7 @@ function getVisiblePageNumbers(currentPage, totalPages, maxVisible = 4) {
 const CAN_ADD_ADMIN_ROLES = ['superadmin']
 const CAN_ADD_VILLAGE_ROLES = ['superadmin']
 
-const EMPTY_FORM = { username: '', fullname: '', email: '', phone: '', villageId: '' }
+const EMPTY_FORM = { username: '', fullname: '', email: '', phone: '', villageId: '', role: 'user' }
 const EMPTY_VILLAGE_FORM = { name: '', address: '' }
 const EMPTY_RESET_FORM = { newPassword: '', confirmPassword: '' }
 
@@ -127,6 +127,8 @@ function validateVillageForm(data) {
     errors.address = 'กรุณากรอกที่อยู่ของหมู่บ้าน'
   } else if (addr.length < 5) {
     errors.address = 'ที่อยู่ของหมู่บ้านต้องมีอย่างน้อย 5 ตัวอักษร'
+  } else if (rawAddr.length > 255) {
+    errors.address = 'ที่อยู่ของหมู่บ้านต้องไม่เกิน 255 ตัวอักษร'
   }
 
   return errors
@@ -171,6 +173,7 @@ function UserManagement() {
   const [users, setUsers] = useState([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const hasInitialLoadedRef = useRef(false)
 
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -181,7 +184,6 @@ function UserManagement() {
 
   // Add User modal
   const [showFormModal, setShowFormModal] = useState(false)
-  const [addRole, setAddRole] = useState('user')
   const [formData, setFormData] = useState(EMPTY_FORM)
   const [touchedFields, setTouchedFields] = useState({})
   const [hasSubmittedUserForm, setHasSubmittedUserForm] = useState(false)
@@ -225,7 +227,7 @@ function UserManagement() {
   // KPI
   const [kpiLoading, setKpiLoading] = useState(true)
   const [totalUsers, setTotalUsers] = useState(0)
-  const [activeUsers, setActiveUsers] = useState(0)
+  const [inactiveUsers, setInactiveUsers] = useState(0)
 
   // บัญชีที่กำลังโดน rate-limit ล็อคอยู่ตอนนี้ — ดึงแยก endpoint แล้ว cross-reference กับตาราง user หลักด้วย user_id
   // backend กรองตาม village ให้แล้ว (admin เห็นเฉพาะหมู่บ้านตัวเอง, superadmin เห็นทุกหมู่บ้าน)
@@ -255,7 +257,9 @@ function UserManagement() {
 
   const fetchUsers = useCallback(async () => {
     if (!currentUser) return
-    setIsLoading(true)
+    if (!hasInitialLoadedRef.current) {
+      setIsLoading(true)
+    }
     try {
       const targetVillageId = isSuperadmin
         ? (villageFilter !== 'all' ? villageFilter : selectedVillageId || undefined)
@@ -281,6 +285,7 @@ function UserManagement() {
       })
     } finally {
       setIsLoading(false)
+      hasInitialLoadedRef.current = true
     }
   }, [currentUser, isSuperadmin, villageFilter, selectedVillageId, roleFilter, statusFilter, debouncedSearch, currentPage])
 
@@ -293,12 +298,12 @@ function UserManagement() {
       if (!currentUser) return
       setKpiLoading(true)
       try {
-        const [all, active] = await Promise.all([
+        const [all, inactive] = await Promise.all([
           getUsersAPI({ villageId: selectedVillageId || undefined, page: 1, pageSize: 1 }),
-          getUsersAPI({ villageId: selectedVillageId || undefined, isActive: true, page: 1, pageSize: 1 })
+          getUsersAPI({ villageId: selectedVillageId || undefined, isActive: false, page: 1, pageSize: 1 })
         ])
         setTotalUsers(all.total)
-        setActiveUsers(active.total)
+        setInactiveUsers(inactive.total)
       } catch (error) {
         console.error(error)
       } finally {
@@ -431,12 +436,54 @@ function UserManagement() {
     fetchVillagesList()
   }, [fetchVillagesList])
 
-  function openAddModal(role) {
-    setAddRole(role)
+  function closeAllModals() {
+    setShowFormModal(false)
+    setShowVillageModal(false)
+    setResetTargetUser(null)
+    setProfileUser(null)
+    setSelectedVillageForDetail(null)
+  }
+
+  function checkIsUserFormDirty() {
+    const initialVillageId = currentUser?.role === 'admin' ? currentUser.village_id : ''
+    return Boolean(
+      formData.username.trim() ||
+      formData.fullname.trim() ||
+      formData.email.trim() ||
+      formData.phone.trim() ||
+      (formData.villageId && formData.villageId !== initialVillageId) ||
+      (formData.role && formData.role !== 'user')
+    )
+  }
+
+  async function handleCloseUserFormModal() {
+    if (isSubmitting) return
+    if (checkIsUserFormDirty()) {
+      const res = await Swal.fire({
+        title: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก',
+        text: 'ต้องการละทิ้งการเปลี่ยนแปลงหรือไม่?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ละทิ้งข้อมูล',
+        cancelButtonText: 'แก้ไขต่อ',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: 'var(--sidebar-bg)'
+      })
+      if (!res.isConfirmed) return
+    }
+    setShowFormModal(false)
+    setFormData(EMPTY_FORM)
+    setTouchedFields({})
+    setHasSubmittedUserForm(false)
+  }
+
+  function openAddModal() {
+    closeAllModals()
     setFormData({
       ...EMPTY_FORM,
       // admin สร้าง user ได้แค่ในหมู่บ้านตัวเองเท่านั้น
-      villageId: currentUser?.role === 'admin' ? currentUser.village_id : ''
+      villageId: currentUser?.role === 'admin' ? currentUser.village_id : '',
+      role: 'user'
     })
     setTouchedFields({})
     setHasSubmittedUserForm(false)
@@ -476,6 +523,7 @@ function UserManagement() {
     const trimmedName = formData.fullname.trim()
     const trimmedEmail = formData.email.trim()
     const trimmedPhone = formData.phone.trim()
+    const targetRole = isSuperadmin ? (formData.role || 'user') : 'user'
 
     setIsSubmitting(true)
     try {
@@ -483,7 +531,7 @@ function UserManagement() {
         username: trimmedUser,
         fullname: trimmedName,
         email: trimmedEmail,
-        role: addRole,
+        role: targetRole,
         villageId: formData.villageId
       })
 
@@ -511,7 +559,7 @@ function UserManagement() {
 
       Swal.fire({
         icon: 'success',
-        title: addRole === 'admin' ? 'เพิ่มบัญชี Admin แล้ว' : 'เพิ่มผู้ใช้ใหม่แล้ว',
+        title: targetRole === 'admin' ? 'เพิ่มบัญชี Admin แล้ว' : 'เพิ่มผู้ใช้ใหม่แล้ว',
         text: 'ระบบได้ส่งคำเชิญไปที่อีเมลของผู้ใช้แล้ว',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
@@ -656,6 +704,7 @@ function UserManagement() {
       })
       return
     }
+    closeAllModals()
     setResetTargetUser(targetUser)
     setResetForm(EMPTY_RESET_FORM)
   }
@@ -809,7 +858,59 @@ function UserManagement() {
     }
   }
 
+  function checkIsVillageFormDirty() {
+    if (editingVillage) {
+      return (
+        villageFormData.name.trim() !== (editingVillage.name || '').trim() ||
+        villageFormData.address.trim() !== (editingVillage.address || '').trim()
+      )
+    }
+    return Boolean(villageFormData.name.trim() || villageFormData.address.trim())
+  }
+
+  async function handleCloseVillageModal() {
+    if (isSubmittingVillage) return
+    if (checkIsVillageFormDirty()) {
+      const res = await Swal.fire({
+        title: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก',
+        text: 'ต้องการละทิ้งการเปลี่ยนแปลงหรือไม่?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ละทิ้งข้อมูล',
+        cancelButtonText: 'แก้ไขต่อ',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: 'var(--sidebar-bg)'
+      })
+      if (!res.isConfirmed) return
+    }
+    setShowVillageModal(false)
+    setEditingVillage(null)
+    setVillageFormData(EMPTY_VILLAGE_FORM)
+    setVillageTouchedFields({})
+    setHasSubmittedVillageForm(false)
+  }
+
+  async function handleCloseResetPasswordModal() {
+    if (isResetting) return
+    if (resetForm.newPassword || resetForm.confirmPassword) {
+      const res = await Swal.fire({
+        title: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก',
+        text: 'ต้องการละทิ้งการเปลี่ยนแปลงหรือไม่?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ละทิ้งข้อมูล',
+        cancelButtonText: 'แก้ไขต่อ',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: 'var(--sidebar-bg)'
+      })
+      if (!res.isConfirmed) return
+    }
+    setResetTargetUser(null)
+    setResetForm(EMPTY_RESET_FORM)
+  }
+
   function openAddVillageModal() {
+    closeAllModals()
     setEditingVillage(null)
     setVillageFormData(EMPTY_VILLAGE_FORM)
     setVillageTouchedFields({})
@@ -818,6 +919,7 @@ function UserManagement() {
   }
 
   function openEditVillageModal(village) {
+    closeAllModals()
     setEditingVillage(village)
     setVillageFormData({ name: village.name || '', address: village.address || '' })
     setVillageTouchedFields({})
@@ -878,24 +980,40 @@ function UserManagement() {
     }
   }
 
-  // ปิด modal ต่าง ๆ เมื่อกดปุ่ม Escape
+  const latestModalsStateRef = useRef({})
+  latestModalsStateRef.current = {
+    profileUser,
+    selectedVillageForDetail,
+    showFormModal,
+    showVillageModal,
+    resetTargetUser,
+    handleCloseUserFormModal,
+    handleCloseVillageModal,
+    handleCloseResetPasswordModal
+  }
+
+  // ปิด modal ต่าง ๆ เมื่อกดปุ่ม Escape (มี Dirty check สดใหม่เสมอผ่าน Ref)
   useEffect(() => {
     function handleKeyDown(e) {
       if (e.key === 'Escape') {
-        if (profileUser) {
+        if (Swal.isVisible()) return
+        const state = latestModalsStateRef.current
+        if (state.profileUser) {
           setProfileUser(null)
-        } else if (showFormModal && !isSubmitting) {
-          setShowFormModal(false)
-        } else if (resetTargetUser && !isResetting) {
-          setResetTargetUser(null)
-        } else if (showVillageModal && !isSubmittingVillage) {
-          setShowVillageModal(false)
+        } else if (state.selectedVillageForDetail) {
+          setSelectedVillageForDetail(null)
+        } else if (state.showFormModal) {
+          state.handleCloseUserFormModal()
+        } else if (state.showVillageModal) {
+          state.handleCloseVillageModal()
+        } else if (state.resetTargetUser) {
+          state.handleCloseResetPasswordModal()
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [profileUser, showFormModal, isSubmitting, resetTargetUser, isResetting, showVillageModal, isSubmittingVillage])
+  }, [])
 
   // Suspend / Activate พร้อมข้อความเตือนชัดเจน
   async function handleToggleVillageActive(village) {
@@ -1043,30 +1161,31 @@ function UserManagement() {
           <div className="um-kpi-card">
             <div className="um-kpi-icon blue"><FaUsers /></div>
             <div className="um-kpi-info">
-              <p className="um-kpi-label">Total Users</p>
+              <p className="um-kpi-label">ผู้ใช้งานทั้งหมด</p>
               <h2 className="um-kpi-val">{kpiLoading ? '—' : totalUsers.toLocaleString()}</h2>
             </div>
           </div>
           <div className="um-kpi-card">
-            <div className="um-kpi-icon green"><FaUserCheck /></div>
-            <div className="um-kpi-info">
-              <p className="um-kpi-label">Active</p>
-              <h2 className="um-kpi-val">{kpiLoading ? '—' : activeUsers.toLocaleString()}</h2>
-            </div>
-          </div>
-          {/* KPI ใหม่ — จำนวนคนออนไลน์อยู่ตอนนี้ ดึงจาก presence stream (SSE) ไม่ได้ยิง API เพิ่ม */}
-          <div className="um-kpi-card">
             <div className="um-kpi-icon green"><FaCircleCheck /></div>
             <div className="um-kpi-info">
-              <p className="um-kpi-label">Online Now</p>
+              <p className="um-kpi-label">กำลังออนไลน์ขณะนี้</p>
               <h2 className="um-kpi-val">{onlineCount.toLocaleString()}</h2>
+            </div>
+          </div>
+          <div className="um-kpi-card">
+            <div className="um-kpi-icon red"><FaCircleXmark /></div>
+            <div className="um-kpi-info">
+              <p className="um-kpi-label">บัญชีที่ถูกระงับ</p>
+              <h2 className={`um-kpi-val ${inactiveUsers > 0 ? 'red' : ''}`}>
+                {kpiLoading ? '—' : inactiveUsers.toLocaleString()}
+              </h2>
             </div>
           </div>
           <div className="um-kpi-card">
             <div className="um-kpi-icon orange"><FaCity /></div>
             <div className="um-kpi-info">
-              <p className="um-kpi-label">Village Scope</p>
-              <h2 className="um-kpi-val" style={{ fontSize: 18 }}>
+              <p className="um-kpi-label">ขอบเขตหมู่บ้าน</p>
+              <h2 className="um-kpi-val" style={{ fontSize: 20 }}>
                 {isSuperadmin
                   ? (selectedVillageId ? getVillageName(selectedVillageId) : 'ทุกหมู่บ้าน')
                   : getVillageName(currentUser?.village_id)}
@@ -1110,7 +1229,7 @@ function UserManagement() {
                         <td className="um-username">
                           <span style={{ fontWeight: 600 }}>{v.name}</span>
                         </td>
-                        <td style={{ color: v.address && v.address !== '-' ? 'var(--text-primary)' : 'var(--text-secondary, #94a3b8)', fontSize: '13px', maxWidth: '260px' }}>
+                        <td style={{ color: v.address && v.address !== '-' ? 'var(--text-primary)' : 'var(--text-secondary, #94a3b8)', fontSize: '14.5px', maxWidth: '320px', lineHeight: 1.4 }}>
                           {v.address && v.address !== '-' ? v.address : '-'}
                         </td>
                         <td>
@@ -1119,28 +1238,40 @@ function UserManagement() {
                         </td>
                         <td>{formatDate(v.created_at)}</td>
                         <td>
-                          <div className="um-actions">
-                            <button className="um-icon-btn edit" onClick={() => setSelectedVillageForDetail(v)} title="ดูรายละเอียดหมู่บ้าน">
-                              <FaEye />
-                            </button>
-                            <button className="um-icon-btn edit" onClick={() => openEditVillageModal(v)} title="แก้ไขชื่อหมู่บ้าน">
-                              <FaPen />
-                            </button>
-                            <button
-                              className={v.is_active ? 'um-icon-btn delete' : 'um-icon-btn reset'}
-                              onClick={() => handleToggleVillageActive(v)}
-                              title={v.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}
-                            >
-                              {v.is_active ? <FaToggleOn /> : <FaToggleOff />}
-                            </button>
-                            <button
-                              className="um-icon-btn delete"
-                              onClick={() => handleDeleteVillage(v)}
-                              title="ลบหมู่บ้าน"
-                            >
-                              <FaTrashCan />
-                            </button>
-                          </div>
+                          <ActionMenu
+                            items={[
+                              {
+                                key: 'view-village-detail',
+                                label: 'ดูรายละเอียด',
+                                icon: <FaEye />,
+                                onClick: () => {
+                                  closeAllModals()
+                                  setSelectedVillageForDetail(v)
+                                }
+                              },
+                              {
+                                key: 'edit-village',
+                                label: 'แก้ไขข้อมูล',
+                                icon: <FaPen />,
+                                onClick: () => openEditVillageModal(v)
+                              },
+                              {
+                                key: 'toggle-village-active',
+                                label: v.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน',
+                                icon: <FaPowerOff />,
+                                danger: v.is_active,
+                                success: !v.is_active,
+                                onClick: () => handleToggleVillageActive(v)
+                              },
+                              {
+                                key: 'delete-village',
+                                label: 'ลบหมู่บ้าน',
+                                icon: <FaTrashCan />,
+                                danger: true,
+                                onClick: () => handleDeleteVillage(v)
+                              }
+                            ]}
+                          />
                         </td>
                       </tr>
                     ))
@@ -1199,19 +1330,9 @@ function UserManagement() {
               </p>
             </div>
             <div className="um-header-actions">
-              {CAN_ADD_VILLAGE_ROLES.includes(currentUser?.role) && (
-                <button className="btn-add-village" onClick={openAddVillageModal}>
-                  <FaCity /> Add Village
-                </button>
-              )}
-              <button className="btn-add-user" onClick={() => openAddModal('user')}>
+              <button className="btn-add-user" onClick={openAddModal}>
                 <FaUserPlus /> Add User
               </button>
-              {CAN_ADD_ADMIN_ROLES.includes(currentUser?.role) && (
-                <button className="btn-add-admin" onClick={() => openAddModal('admin')}>
-                  <FaUserShield /> Add Admin
-                </button>
-              )}
             </div>
           </div>
 
@@ -1328,12 +1449,17 @@ function UserManagement() {
                                 key: 'view-profile',
                                 label: 'ดูโปรไฟล์',
                                 icon: <FaIdCard />,
-                                onClick: () => setProfileUser(u)
+                                onClick: () => {
+                                  closeAllModals()
+                                  setProfileUser(u)
+                                }
                               },
                               {
                                 key: 'toggle-active',
                                 label: u.is_active ? 'ปิดใช้งานบัญชี' : 'เปิดใช้งานบัญชี',
-                                icon: u.is_active ? <FaToggleOff /> : <FaToggleOn />,
+                                icon: <FaPowerOff />,
+                                danger: u.is_active,
+                                success: !u.is_active,
                                 hidden: isSelf || isAdminTargetingSuperadmin,
                                 onClick: () => handleToggleActive(u)
                               },
@@ -1431,11 +1557,11 @@ function UserManagement() {
 
       {/* Modal Add User */}
       {showFormModal && (
-        <div className="modal-overlay" onClick={() => !isSubmitting && setShowFormModal(false)}>
+        <div className="modal-overlay" onClick={handleCloseUserFormModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{addRole === 'admin' ? 'Add New Admin' : 'Add New User'}</h3>
-              <button className="modal-close" onClick={() => setShowFormModal(false)}><FaXmark /></button>
+              <h3>Add New User</h3>
+              <button className="modal-close" onClick={handleCloseUserFormModal}><FaXmark /></button>
             </div>
             <form className="um-form" onSubmit={handleFormSubmit} noValidate>
               <div className="um-form-field">
@@ -1508,7 +1634,10 @@ function UserManagement() {
               <div className="um-form-field">
                 <label>หมู่บ้าน</label>
                 {isAdmin ? (
-                  <input type="text" value={getVillageName(currentUser?.village_id)} disabled />
+                  <div className="um-badge-readonly">
+                    <FaCity style={{ color: 'rgb(27, 42, 71)' }} />
+                    <span>{getVillageName(currentUser?.village_id) || 'หมู่บ้านของคุณ'}</span>
+                  </div>
                 ) : (
                   <select
                     name="villageId"
@@ -1527,19 +1656,37 @@ function UserManagement() {
                 ) : (
                   <p className="um-role-hint">
                     {isAdmin
-                      ? 'ล็อกไว้ที่หมู่บ้านของคุณ เนื่องจาก Admin สร้างผู้ใช้ได้เฉพาะหมู่บ้านตัวเอง'
+                      ? 'ล็อกไว้ที่หมู่บ้านของคุณ เนื่องจาก Admin สร้างผู้ใช้ได้เฉพาะในหมู่บ้านตนเอง'
                       : 'Superadmin ต้องเลือกหมู่บ้านให้ผู้ใช้ใหม่ก่อนบันทึก'}
                   </p>
                 )}
               </div>
 
               <div className="um-form-field">
-                <label>Role</label>
-                <input type="text" value={capitalize(addRole)} disabled />
+                <label>บทบาท (Role)</label>
+                {isSuperadmin ? (
+                  <select
+                    name="role"
+                    value={formData.role || 'user'}
+                    onChange={handleFormChange}
+                  >
+                    <option value="user">User (ผู้ใช้งานทั่วไป)</option>
+                    <option value="admin">Admin (ผู้ดูแลระดับหมู่บ้าน)</option>
+                  </select>
+                ) : (
+                  <div className="um-badge-readonly">
+                    <span className="um-badge um-badge-user">User</span>
+                  </div>
+                )}
+                <p className="um-role-hint">
+                  {isSuperadmin
+                    ? 'Superadmin สามารถกำหนดบทบาทผู้ใช้ใหม่เป็น User หรือ Admin ได้'
+                    : 'Admin สามารถเพิ่มผู้ใช้ได้เฉพาะระดับ User เท่านั้น'}
+                </p>
               </div>
 
               <div className="um-form-actions">
-                <button type="button" className="btn-cancel-um" onClick={() => setShowFormModal(false)} disabled={isSubmitting}>ยกเลิก</button>
+                <button type="button" className="btn-cancel-um" onClick={handleCloseUserFormModal} disabled={isSubmitting}>ยกเลิก</button>
                 <button type="submit" className="btn-confirm-um" disabled={isSubmitting || (hasSubmittedUserForm && !isUserFormValid)}>
                   {isSubmitting ? 'กำลังบันทึก...' : 'บันทึก'}
                 </button>
@@ -1551,11 +1698,11 @@ function UserManagement() {
 
       {/* Modal Reset Password */}
       {resetTargetUser && (
-        <div className="modal-overlay" onClick={() => !isResetting && setResetTargetUser(null)}>
+        <div className="modal-overlay" onClick={handleCloseResetPasswordModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Reset Password — {resetTargetUser.username}</h3>
-              <button className="modal-close" onClick={() => setResetTargetUser(null)}><FaXmark /></button>
+              <button className="modal-close" onClick={handleCloseResetPasswordModal}><FaXmark /></button>
             </div>
             <form className="um-form" onSubmit={handleResetSubmit} noValidate>
               <div className="um-form-field">
@@ -1597,7 +1744,7 @@ function UserManagement() {
               </div>
 
               <div className="um-form-actions">
-                <button type="button" className="btn-cancel-um" onClick={() => setResetTargetUser(null)} disabled={isResetting}>ยกเลิก</button>
+                <button type="button" className="btn-cancel-um" onClick={handleCloseResetPasswordModal} disabled={isResetting}>ยกเลิก</button>
                 <button type="submit" className="btn-confirm-um" disabled={isResetting || !isResetPasswordValid}>
                   {isResetting ? 'กำลังบันทึก...' : 'ยืนยันรีเซ็ต'}
                 </button>
@@ -1609,11 +1756,11 @@ function UserManagement() {
 
       {/* Modal Add/Edit Village */}
       {showVillageModal && (
-        <div className="modal-overlay" onClick={() => !isSubmittingVillage && setShowVillageModal(false)}>
+        <div className="modal-overlay" onClick={handleCloseVillageModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editingVillage ? 'Edit Village' : 'Add Village'}</h3>
-              <button className="modal-close" onClick={() => setShowVillageModal(false)}><FaXmark /></button>
+              <button className="modal-close" onClick={handleCloseVillageModal}><FaXmark /></button>
             </div>
             <form className="um-form" onSubmit={handleVillageFormSubmit} noValidate>
               <div className="um-form-field">
@@ -1633,11 +1780,17 @@ function UserManagement() {
               </div>
 
               <div className="um-form-field">
-                <label>ที่อยู่หมู่บ้าน</label>
-                <input
-                  type="text"
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ margin: 0 }}>ที่อยู่หมู่บ้าน</label>
+                  <span className={`um-char-count ${(villageFormData.address || '').length > 255 ? 'error' : ''}`}>
+                    {(villageFormData.address || '').length} / 255 ตัวอักษร
+                  </span>
+                </div>
+                <textarea
                   name="address"
-                  placeholder="กรอกที่อยู่ของหมู่บ้าน เช่น ต.บางแค อ.บางแค กทม. (อย่างน้อย 5 ตัวอักษร)"
+                  rows={3}
+                  maxLength={255}
+                  placeholder="กรอกที่อยู่ของหมู่บ้าน เช่น ต.บางแค อ.บางแค กทม. (5-255 ตัวอักษร)"
                   value={villageFormData.address}
                   onChange={handleVillageFormChange}
                   className={(villageTouchedFields.address || hasSubmittedVillageForm) && villageFormErrors.address ? 'um-input-error' : ''}
@@ -1648,8 +1801,12 @@ function UserManagement() {
               </div>
 
               <div className="um-form-actions">
-                <button type="button" className="btn-cancel-um" onClick={() => setShowVillageModal(false)} disabled={isSubmittingVillage}>ยกเลิก</button>
-                <button type="submit" className="btn-confirm-um" disabled={isSubmittingVillage || (hasSubmittedVillageForm && !isVillageFormValid)}>
+                <button type="button" className="btn-cancel-um" onClick={handleCloseVillageModal} disabled={isSubmittingVillage}>ยกเลิก</button>
+                <button
+                  type="submit"
+                  className="btn-confirm-um"
+                  disabled={isSubmittingVillage || (hasSubmittedVillageForm && !isVillageFormValid) || ((villageFormData.address || '').length > 255)}
+                >
                   {isSubmittingVillage ? 'กำลังบันทึก...' : 'บันทึก'}
                 </button>
               </div>

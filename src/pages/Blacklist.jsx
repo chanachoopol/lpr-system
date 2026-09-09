@@ -1043,26 +1043,38 @@ function saveHistoricalWhitelistPlates(map) {
     setSelectedItem(null)
   }
 
-  // ปิด modal / fullscreen / form เมื่อกดปุ่ม Escape
+  const latestBlacklistModalsStateRef = useRef({})
+  latestBlacklistModalsStateRef.current = {
+    fullscreenImage,
+    showFormModal,
+    handleAttemptCloseFormModal,
+    selectedItem,
+    showTodayModal,
+    showRegisteredModal
+  }
+
+  // ปิด modal / fullscreen / form เมื่อกดปุ่ม Escape (มี Dirty check สดใหม่เสมอผ่าน Ref)
   useEffect(() => {
     function handleKeyDown(e) {
       if (e.key === 'Escape') {
-        if (fullscreenImage) {
+        if (Swal.isVisible()) return
+        const state = latestBlacklistModalsStateRef.current
+        if (state.fullscreenImage) {
           setFullscreenImage(null)
-        } else if (showFormModal) {
-          handleAttemptCloseFormModal()
-        } else if (selectedItem) {
+        } else if (state.showFormModal) {
+          state.handleAttemptCloseFormModal()
+        } else if (state.selectedItem) {
           closeModal()
-        } else if (showTodayModal) {
+        } else if (state.showTodayModal) {
           setShowTodayModal(false)
-        } else if (showRegisteredModal) {
+        } else if (state.showRegisteredModal) {
           setShowRegisteredModal(false)
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [fullscreenImage, showFormModal, handleAttemptCloseFormModal, selectedItem, showTodayModal, showRegisteredModal])
+  }, [])
 
   function handleGoToRouteTracking(item) {
     if (!item) return

@@ -91,18 +91,27 @@ function ActionMenu({ items }) {
           className="action-menu-dropdown"
           style={{ top: position.top, left: position.left }}
         >
-          {visibleItems.map((item) => (
-            <button
-              key={item.key}
-              className={`action-menu-item ${item.danger ? 'danger' : ''}`}
-              onClick={() => handleItemClick(item)}
-              disabled={item.disabled}
-              title={item.title || undefined}
-            >
-              <span className="action-menu-icon">{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {visibleItems.map((item) => {
+            const itemClasses = [
+              'action-menu-item',
+              item.danger && 'danger',
+              item.success && 'success'
+            ].filter(Boolean).join(' ')
+
+            return (
+              <button
+                key={item.key}
+                className={itemClasses}
+                style={item.color ? { color: item.color, ...item.style } : item.style}
+                onClick={() => handleItemClick(item)}
+                disabled={item.disabled}
+                title={item.title || undefined}
+              >
+                <span className="action-menu-icon" style={item.color ? { color: item.color } : undefined}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
         </div>,
         document.body
       )}

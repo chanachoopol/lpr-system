@@ -42,6 +42,16 @@ function VillageDetailModal({ village, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [villageId])
 
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape' && onClose) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const cameras = detail?.cameras || []
   const members = detail?.members || []
 

@@ -70,6 +70,14 @@
   background: rgba(220, 38, 38, 0.08);
 }
 
+.action-menu-item.success {
+  color: rgb(22, 163, 74);
+}
+
+.action-menu-item.success:hover:not(:disabled) {
+  background: rgba(22, 163, 74, 0.08);
+}
+
 .action-menu-icon {
   display: inline-flex;
   width: 16px;

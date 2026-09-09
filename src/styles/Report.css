@@ -5,41 +5,21 @@
   height: 100%;
   max-height: 100%;
   overflow-y: auto !important;
-  padding-right: 6px;
   padding-bottom: 32px;
   box-sizing: border-box;
-  scrollbar-width: thin !important;
-  -ms-overflow-style: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
 .report-wrapper::-webkit-scrollbar {
-  display: block !important;
-  width: 6px !important;
-}
-
-.report-wrapper::-webkit-scrollbar-track {
-  background: transparent !important;
-}
-
-.report-wrapper::-webkit-scrollbar-thumb {
-  background: rgba(27, 42, 71, 0.2) !important;
-  border-radius: 10px !important;
-}
-
-.report-wrapper::-webkit-scrollbar-thumb:hover {
-  background: rgba(27, 42, 71, 0.4) !important;
-}
-
-.dark .report-wrapper::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2) !important;
-}
-
-.dark .report-wrapper::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4) !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .report-wrapper > .content-card,
-.report-wrapper > .report-kpi-row {
+.report-wrapper > .report-kpi-row,
+.report-wrapper > .report-kpi-grid {
   flex-shrink: 0;
 }
 
@@ -220,7 +200,7 @@
 
 .report-kpi-label {
   font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--text-main, rgb(27, 42, 71));
   letter-spacing: 0.3px;

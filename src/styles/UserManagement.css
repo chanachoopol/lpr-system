@@ -2,7 +2,24 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding-bottom: 24px;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto !important;
+  padding-bottom: 32px;
+  box-sizing: border-box;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.um-wrapper::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.um-wrapper > .content-card,
+.um-wrapper > .um-kpi-row {
+  flex-shrink: 0;
 }
 
 /* KPI Cards */
@@ -55,21 +72,30 @@
   color: rgb(234, 88, 12);
 }
 
+.um-kpi-icon.red {
+  background: rgba(220, 38, 38, 0.1);
+  color: rgb(220, 38, 38);
+}
+
 .um-kpi-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
+  letter-spacing: 0.3px;
   margin: 0 0 6px;
 }
 
 .um-kpi-val {
   font-family: 'DM Sans', sans-serif;
-  font-size: 36px;
+  font-size: 32px;
   font-weight: 700;
-  color: var(--text-main);
+  color: var(--text-main, rgb(27, 42, 71));
   margin: 0;
+}
+
+.um-kpi-val.red {
+  color: rgb(220, 38, 38);
 }
 
 /* Table Header */
@@ -82,9 +108,16 @@
   gap: 16px;
 }
 
+.um-table-header .card-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
+}
+
 .um-description {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--text-main, rgb(27, 42, 71));
   margin: 4px 0 0;
 }
 
@@ -156,14 +189,31 @@
   gap: 12px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .um-search-wrap {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1;
-  min-width: 220px;
+  width: 240px;
+  min-width: 180px;
+}
+
+.um-badge-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: rgba(27, 42, 71, 0.05);
+  border: 1px solid rgba(27, 42, 71, 0.1);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main, rgb(27, 42, 71));
+  width: fit-content;
 }
 
 .um-search-icon {
@@ -212,14 +262,14 @@
 
 .um-table th {
   text-align: left;
-  padding: 12px 16px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  padding: 14px 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid rgba(27, 42, 71, 0.06);
-  background: rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(27, 42, 71, 0.08);
+  background: rgba(27, 42, 71, 0.04);
 }
 
 .um-table td {
@@ -444,42 +494,68 @@
 }
 
 .um-form-field label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .um-form-field input,
-.um-form-field select {
+.um-form-field select,
+.um-form-field textarea {
   padding: 11px 14px;
   border: 1px solid rgba(27, 42, 71, 0.1);
   border-radius: 12px;
   background: var(--bg-input);
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
-  color: var(--text-main);
+  color: var(--text-main, rgb(27, 42, 71));
   outline: none;
   transition: all 0.2s ease;
+  line-height: 1.5;
 }
 
-.um-form-field input:disabled {
+.um-form-field textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.um-form-field input::placeholder,
+.um-form-field textarea::placeholder {
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 400;
+}
+
+.um-form-field input:disabled,
+.um-form-field textarea:disabled {
   background: rgba(148, 163, 184, 0.08);
   color: var(--text-secondary);
   cursor: not-allowed;
 }
 
 .um-form-field input:focus,
-.um-form-field select:focus {
+.um-form-field select:focus,
+.um-form-field textarea:focus {
   border-color: rgba(27, 42, 71, 0.3);
   box-shadow: 0 2px 8px rgba(27, 42, 71, 0.08);
 }
 
 .um-form-field input.um-input-error,
-.um-form-field select.um-input-error {
+.um-form-field select.um-input-error,
+.um-form-field textarea.um-input-error {
   border-color: rgb(220, 38, 38) !important;
   background: rgba(254, 242, 242, 0.4);
+}
+
+.um-char-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.um-char-count.error {
+  color: rgb(220, 38, 38);
 }
 
 .um-field-error {

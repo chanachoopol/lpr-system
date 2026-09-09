@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { FaVideo, FaSearch } from 'react-icons/fa'
 import { FaCirclePlus, FaPlus, FaMagnifyingGlass, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
@@ -358,23 +358,77 @@ function CameraManagement() {
 
   function closeFormModal() {
     setShowFormModal(false)
+    setEditingCamera(null)
+    setFormData(EMPTY_FORM)
     setFormTouched({})
     setHasSubmittedForm(false)
     resetOnvifPanel()
   }
 
-  // ปิด form modal เมื่อกดปุ่ม Escape
+  function checkIsCameraFormDirty() {
+    if (editingCamera) {
+      return (
+        (formData.name || '').trim() !== (editingCamera.name || '').trim() ||
+        String(formData.lat || '').trim() !== String(editingCamera.lat ?? '').trim() ||
+        String(formData.long || '').trim() !== String(editingCamera.long ?? '').trim() ||
+        (formData.streamAi || '').trim() !== (editingCamera.stream_ai || '').trim() ||
+        (formData.direction || 'entry') !== (editingCamera.direction || 'entry') ||
+        Boolean(formData.isActive) !== Boolean(editingCamera.is_active) ||
+        String(formData.villageId || '') !== String(editingCamera.village_id || '')
+      )
+    }
+    const initialVillageId = user?.role === 'admin' ? user.village_id : (selectedVillageId || '')
+    return Boolean(
+      (formData.name || '').trim() ||
+      String(formData.lat || '').trim() ||
+      String(formData.long || '').trim() ||
+      (formData.streamAi || '').trim() ||
+      (formData.direction && formData.direction !== 'entry') ||
+      (formData.villageId && formData.villageId !== initialVillageId) ||
+      (onvifForm.host && onvifForm.host.trim()) ||
+      (onvifForm.username && onvifForm.username.trim()) ||
+      (onvifForm.password && onvifForm.password.trim())
+    )
+  }
+
+  async function handleAttemptCloseCameraModal() {
+    if (isSubmitting) return
+    if (checkIsCameraFormDirty()) {
+      const res = await Swal.fire({
+        title: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก',
+        text: 'ต้องการละทิ้งการเปลี่ยนแปลงหรือไม่?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ละทิ้งข้อมูล',
+        cancelButtonText: 'แก้ไขต่อ',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: 'var(--sidebar-bg)'
+      })
+      if (!res.isConfirmed) return
+    }
+    closeFormModal()
+  }
+
+  const latestCameraModalStateRef = useRef({})
+  latestCameraModalStateRef.current = {
+    showFormModal,
+    handleAttemptCloseCameraModal
+  }
+
+  // ปิด form modal เมื่อกดปุ่ม Escape (มี Dirty check สดใหม่เสมอผ่าน Ref)
   useEffect(() => {
     function handleKeyDown(e) {
       if (e.key === 'Escape') {
-        if (showFormModal && !isSubmitting) {
-          closeFormModal()
+        if (Swal.isVisible()) return
+        const state = latestCameraModalStateRef.current
+        if (state.showFormModal) {
+          state.handleAttemptCloseCameraModal()
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showFormModal, isSubmitting])
+  }, [])
 
   function sanitizeCoord(val) {
     if (!val) return ''
@@ -921,11 +975,11 @@ function CameraManagement() {
 
       {/* Modal Add/Edit Camera */}
       {showFormModal && (
-        <div className="modal-overlay" onClick={() => !isSubmitting && closeFormModal()}>
+        <div className="modal-overlay" onClick={handleAttemptCloseCameraModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editingCamera ? 'Edit Camera' : 'Add New Camera'}</h3>
-              <button className="modal-close" onClick={closeFormModal} disabled={isSubmitting}>
+              <button className="modal-close" onClick={handleAttemptCloseCameraModal} disabled={isSubmitting}>
                 <FaXmark />
               </button>
             </div>
@@ -1235,7 +1289,7 @@ function CameraManagement() {
                 <button
                   type="button"
                   className="btn-cancel-cm"
-                  onClick={closeFormModal}
+                  onClick={handleAttemptCloseCameraModal}
                   disabled={isSubmitting}
                 >
                   ยกเลิก
