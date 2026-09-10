@@ -646,9 +646,12 @@
 }
 
 .btn-confirm-pf:disabled {
-  opacity: 0.6;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+  background: rgba(27, 42, 71, 0.45);
+  box-shadow: none;
+  pointer-events: none;
 }
 
 /* ==================== Avatar (upload + preview) ==================== */

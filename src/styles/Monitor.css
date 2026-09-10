@@ -401,8 +401,9 @@
 
 .camera-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
+  align-content: start;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -450,7 +451,13 @@
   border-width: 3px; /* กรอบบางลงเล็กน้อยเทียบกับ single view เพื่อไม่ให้ดูหนักตากรณีกล้องเยอะ */
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
+  .camera-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
   .camera-grid {
     grid-template-columns: 1fr;
   }

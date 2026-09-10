@@ -5,7 +5,7 @@ import useAuthStore from '../store/authStore'
 import useNotificationStore from '../store/notificationStore'
 import VillageSelector from './VillageSelector'
 import Swal from 'sweetalert2'
-import { FaTriangleExclamation, FaVideo, FaArrowRight, FaKey, FaIdCard, FaLock } from 'react-icons/fa6'
+import { FaTriangleExclamation, FaVideo, FaKey, FaIdCard, FaLock } from 'react-icons/fa6'
 
 function Navbar({ title, onToggle }) {
   const { user, avatarUrl, logout } = useAuthStore()
@@ -150,11 +150,6 @@ function Navbar({ title, onToggle }) {
                 ) : (
                   <p className="notif-empty">No notifications</p>
                 )}
-              </div>
-
-              <div className="notif-footer" onClick={() => { navigate('/blacklist'); setShowNotifications(false) }}>
-                <span>View all in Blacklist</span>
-                <FaArrowRight />
               </div>
             </div>
           )}

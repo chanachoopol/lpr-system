@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaShieldAlt, FaCalendarAlt,
   FaFacebook, FaInstagram, FaGlobe, FaCamera, FaEye
@@ -161,7 +161,65 @@ function Profile() {
   const ALLOWED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg']
   const ALLOWED_IMAGE_MIME_TYPES = ['image/png', 'image/jpeg']
 
-  function handleAvatarFileChange(e) {
+  /**
+   * ย่อขนาดและบีบอัดรูป Avatar อัตโนมัติด้วย HTML5 Canvas
+   * ปรับขนาดรูปไม่เกิน 512x512px และบีบอัดขนาดเหลือ ~50-150KB เพื่อป้องกันปัญหา HTTP 413
+   */
+  function compressAndResizeAvatar(file, maxSize = 512, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          let width = img.width
+          let height = img.height
+
+          if (width > height) {
+            if (width > maxSize) {
+              height = Math.round((height * maxSize) / width)
+              width = maxSize
+            }
+          } else {
+            if (height > maxSize) {
+              width = Math.round((width * maxSize) / height)
+              height = maxSize
+            }
+          }
+
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, width, height)
+
+          const outputMime = 'image/jpeg'
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve({ file, previewUrl: e.target.result })
+                return
+              }
+              const cleanName = (file.name.replace(/\.[^/.]+$/, '') || 'avatar') + '.jpg'
+              const compressedFile = new File([blob], cleanName, {
+                type: outputMime,
+                lastModified: Date.now()
+              })
+              const previewUrl = canvas.toDataURL(outputMime, quality)
+              resolve({ file: compressedFile, previewUrl })
+            },
+            outputMime,
+            quality
+          )
+        }
+        img.onerror = () => reject(new Error('ไม่สามารถประมวลผลรูปภาพได้'))
+        img.src = e.target.result
+      }
+      reader.onerror = () => reject(new Error('อ่านไฟล์ไม่สำเร็จ'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleAvatarFileChange(e) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -180,31 +238,29 @@ function Profile() {
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 10 * 1024 * 1024) {
       Swal.fire({
         icon: 'warning',
         title: 'ไฟล์มีขนาดใหญ่เกินไป',
-        text: 'กรุณาเลือกไฟล์รูปภาพขนาดไม่เกิน 5MB',
+        text: 'กรุณาเลือกไฟล์รูปภาพขนาดไม่เกิน 10MB',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      setAvatarDraft(reader.result)
-      setAvatarDraftFile(file)
+    try {
+      const { file: compressedFile, previewUrl } = await compressAndResizeAvatar(file)
+      setAvatarDraft(previewUrl)
+      setAvatarDraftFile(compressedFile)
       setShowAvatarPreviewModal(true)
-    }
-    reader.onerror = () => {
+    } catch (err) {
       Swal.fire({
         icon: 'error',
         title: 'อ่านไฟล์ไม่สำเร็จ',
-        text: 'กรุณาลองเลือกไฟล์ใหม่อีกครั้ง',
+        text: 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ กรุณาลองใหม่อีกครั้ง',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     }
-    reader.readAsDataURL(file)
   }
   async function confirmAvatarChange() {
     if (!avatarDraftFile || !currentUser?.id) return
@@ -261,6 +317,69 @@ function Profile() {
 
   function openEmailModal() { setEmailDraft(''); setEmailError(''); setShowEmailModal(true) }
 
+  const isContactValid = useMemo(() => {
+    const cleanValue = stripEmoji(formData.value || '').trim()
+    const cleanCustomLabel = stripEmoji(formData.customLabel || '').trim()
+
+    if (!cleanValue) return false
+    if (formData.contentType === 'other' && !cleanCustomLabel) return false
+
+    const verr = getContactValueError(formData.contentType, cleanValue)
+    return !verr
+  }, [formData])
+
+  const isContactDirty = useMemo(() => {
+    if (!editingContact) {
+      const hasValue = Boolean((formData.value || '').trim())
+      const hasCustomLabel = Boolean((formData.customLabel || '').trim())
+      return hasValue || hasCustomLabel
+    }
+    const origType = editingContact.content_type || ''
+    const origValue = (editingContact.value || '').trim()
+    const origLabel = (editingContact.custom_label || '').trim()
+
+    const currentType = formData.contentType || ''
+    const currentValue = (formData.value || '').trim()
+    const currentLabel = (formData.customLabel || '').trim()
+
+    const isTypeChanged = currentType !== origType
+    const isValueChanged = currentValue !== origValue
+    const isLabelChanged = currentLabel !== origLabel
+
+    return isTypeChanged || isValueChanged || (currentType === 'other' && isLabelChanged)
+  }, [formData, editingContact])
+
+  // ปิด Modal ฟอร์มช่องทางติดต่อ พร้อม SweetAlert เตือนหากมีการแก้ไขค้างไว้
+  const handleAttemptCloseContactModal = useCallback(() => {
+    if (isSubmitting) return
+
+    if (isContactDirty) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'คุณมีการแก้ไขที่ยังไม่ได้บันทึก',
+        text: 'คุณต้องการยกเลิกการแก้ไขใช่หรือไม่? ข้อมูลที่คุณแก้ไขจะไม่ถูกบันทึก',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ใช่, ไม่บันทึก',
+        cancelButtonText: 'แก้ไขต่อ',
+        reverseButtons: true
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setShowContactModal(false)
+          setEditingContact(null)
+          setFormData(EMPTY_FORM)
+          setContactFormError('')
+        }
+      })
+    } else {
+      setShowContactModal(false)
+      setEditingContact(null)
+      setFormData(EMPTY_FORM)
+      setContactFormError('')
+    }
+  }, [isSubmitting, isContactDirty])
+
   // ปิด modal / popup ต่าง ๆ เมื่อกดปุ่ม Escape
   useEffect(() => {
     function handleKeyDown(e) {
@@ -270,7 +389,7 @@ function Profile() {
         } else if (showAvatarPreviewModal && !isSavingAvatar) {
           cancelAvatarPreview()
         } else if (showContactModal && !isSubmitting) {
-          setShowContactModal(false)
+          handleAttemptCloseContactModal()
         } else if (showEmailModal && !isSendingEmailLink) {
           setShowEmailModal(false)
         }
@@ -278,7 +397,8 @@ function Profile() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showFullAvatarModal, showAvatarPreviewModal, isSavingAvatar, showContactModal, isSubmitting, showEmailModal, isSendingEmailLink])
+  }, [showFullAvatarModal, showAvatarPreviewModal, isSavingAvatar, showContactModal, isSubmitting, showEmailModal, isSendingEmailLink, handleAttemptCloseContactModal])
+
   async function handleEmailSubmit(e) {
     e.preventDefault()
     const trimmed = stripEmoji(emailDraft).trim()
@@ -308,12 +428,28 @@ function Profile() {
   function openAddModal() {
     if ((profile.contacts?.length || 0) >= MAX_CONTACTS) return
     const av = getAvailableContactTypes(profile.contacts, null)
-    setEditingContact(null); setFormData({ ...EMPTY_FORM, contentType: av[0]?.value || 'other' }); setContactFormError(''); setShowContactModal(true)
+    setEditingContact(null)
+    setFormData({ ...EMPTY_FORM, contentType: av[0]?.value || 'other' })
+    setContactFormError('')
+    setShowContactModal(true)
   }
+
   function openEditModal(contact) {
-    setEditingContact(contact); setFormData({ contentType: contact.content_type, value: contact.value, customLabel: contact.custom_label || '' }); setContactFormError(''); setShowContactModal(true)
+    setEditingContact(contact)
+    setFormData({
+      contentType: contact.content_type || contact.contentType || 'other',
+      value: contact.value || '',
+      customLabel: contact.custom_label || contact.customLabel || ''
+    })
+    setContactFormError('')
+    setShowContactModal(true)
   }
-  function handleContactTypeChange(e) { setFormData((prev) => ({ ...prev, contentType: e.target.value, value: '', customLabel: '' })); setContactFormError('') }
+
+  function handleContactTypeChange(e) {
+    setFormData((prev) => ({ ...prev, contentType: e.target.value, value: '', customLabel: '' }))
+    setContactFormError('')
+  }
+
   function handleFormChange(e) {
     const { name, value } = e.target
     if (name === 'value' && formData.contentType === 'phone') {
@@ -329,8 +465,14 @@ function Profile() {
     }
     setFormData((prev) => ({ ...prev, [name]: cleanValue }))
   }
+
   async function handleContactSubmit(e) {
     e.preventDefault()
+    if (editingContact && !isContactDirty) {
+      setShowContactModal(false)
+      return
+    }
+
     const cleanCustomLabel = stripEmoji(formData.customLabel || '').trim()
     const cleanValue = stripEmoji(formData.value || '').trim()
 
@@ -596,11 +738,11 @@ function Profile() {
       )}
 
       {showContactModal && (
-        <div className="modal-overlay" onClick={() => !isSubmitting && setShowContactModal(false)}>
+        <div className="modal-overlay" onClick={() => !isSubmitting && handleAttemptCloseContactModal()}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editingContact ? 'แก้ไขช่องทางติดต่อ' : 'เพิ่มช่องทางติดต่อ'}</h3>
-              <button className="modal-close" onClick={() => setShowContactModal(false)} disabled={isSubmitting}><FaXmark /></button>
+              <button className="modal-close" onClick={handleAttemptCloseContactModal} disabled={isSubmitting}><FaXmark /></button>
             </div>
             <form className="pf-form" onSubmit={handleContactSubmit}>
               <div className="pf-form-field">
@@ -621,8 +763,8 @@ function Profile() {
                 {contactFormError && <p className="pf-error-text">{contactFormError}</p>}
               </div>
               <div className="pf-form-actions">
-                <button type="button" className="btn-cancel-pf" onClick={() => setShowContactModal(false)} disabled={isSubmitting}>ยกเลิก</button>
-                <button type="submit" className="btn-confirm-pf" disabled={isSubmitting}>{isSubmitting ? 'กำลังบันทึก...' : 'บันทึก'}</button>
+                <button type="button" className="btn-cancel-pf" onClick={handleAttemptCloseContactModal} disabled={isSubmitting}>ยกเลิก</button>
+                <button type="submit" className="btn-confirm-pf" disabled={isSubmitting || !isContactDirty || !isContactValid}>{isSubmitting ? 'กำลังบันทึก...' : 'บันทึก'}</button>
               </div>
             </form>
           </div>

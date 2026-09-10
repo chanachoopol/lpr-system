@@ -1047,7 +1047,9 @@ function CameraManagement() {
                               {badge.label}
                             </span>
                             {badge.description && (
-                              <p className="cm-status-hint">{badge.description}</p>
+                              <p className={`cm-status-hint ${badge.tone}`} title={badge.description}>
+                                {badge.description}
+                              </p>
                             )}
                           </div>
                         </td>

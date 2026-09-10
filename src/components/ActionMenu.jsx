@@ -28,18 +28,37 @@ function ActionMenu({ items }) {
 
     const rect = triggerRef.current.getBoundingClientRect()
     const menuWidth = 200
+    // คำนวณความสูงเมนูจริงจาก DOM (หรือประเมินล่วงหน้าจากจำนวน items)
+    const menuHeight = menuRef.current?.offsetHeight || (visibleItems.length * 38 + 16)
 
-    // จัดให้ขอบขวาของเมนูตรงกับขอบขวาของปุ่ม trigger พอดี และเว้นระยะห่างด้านล่าง 6px
+    // จัดให้ขอบขวาของเมนูตรงกับขอบขวาของปุ่ม trigger พอดี
     let left = rect.right - menuWidth
     if (left < 10) left = 10 // กันล้นขอบซ้ายจอ
     if (left + menuWidth > window.innerWidth - 10) {
       left = window.innerWidth - menuWidth - 10 // กันล้นขอบขวาจอ
     }
 
-    const top = rect.bottom + 6
+    // คำนวณพื้นที่ว่างด้านล่างและด้านบน
+    const spaceBelow = window.innerHeight - rect.bottom - 10
+    const spaceAbove = rect.top - 10
+
+    let top = rect.bottom + 6
+
+    // ถ้าพื้นที่ด้านล่างไม่พอสำหรับเมนู และพื้นที่ด้านบนมีมากกว่า ให้เด้งขึ้นด้านบน
+    if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+      top = rect.top - menuHeight - 6
+    }
+
+    // ป้องกันไม่ให้เมนูล้นขอบจอด้านบนหรือด้านล่าง (Safe Clamp)
+    if (top + menuHeight > window.innerHeight - 10) {
+      top = Math.max(10, window.innerHeight - menuHeight - 10)
+    }
+    if (top < 10) {
+      top = 10
+    }
 
     setPosition({ top, left })
-  }, [isOpen])
+  }, [isOpen, visibleItems.length])
 
   // ปิดเมนูเมื่อคลิกข้างนอก หรือ scroll/resize (กันเมนูค้างผิดตำแหน่งตอน scroll ตาราง)
   useEffect(() => {
