@@ -249,17 +249,31 @@ function Blacklist() {
         ? data.items
         : Array.isArray(data?.data)
         ? data.data
+        : Array.isArray(data?.whitelist)
+        ? data.whitelist
+        : Array.isArray(data?.blacklist)
+        ? data.blacklist
+        : Array.isArray(data?.results)
+        ? data.results
+        : Array.isArray(data?.records)
+        ? data.records
         : Array.isArray(data)
         ? data
         : []
 
-      const totalCount = typeof data?.total_items === 'number'
-        ? data.total_items
+      // ซิงค์จำนวนทั้งหมดให้ตรงกับ items ที่มีจริง
+      // หาก items ว่าง ให้ totalCount เป็น 0 เสมอ เพื่อไม่ให้แสดงเลข 1 หลอกตอนไม่มีรายการจริง
+      const totalCount = items.length === 0
+        ? 0
+        : typeof data?.total === 'number'
+        ? Math.max(items.length, data.total)
+        : typeof data?.total_items === 'number'
+        ? Math.max(items.length, data.total_items)
         : typeof data?.total_count === 'number'
-        ? data.total_count
+        ? Math.max(items.length, data.total_count)
         : typeof data?.count === 'number'
-        ? data.count
-        : Math.max(items.length, typeof data?.total === 'number' ? data.total : 0)
+        ? Math.max(items.length, data.count)
+        : items.length
 
       setRegisteredList(items)
       setRegisteredTotal(totalCount)
@@ -348,7 +362,21 @@ function saveHistoricalWhitelistPlates(map) {
         const data = isBlacklistTab
           ? await getBlacklistAPI({ villageId: selectedVillageId || undefined, page, pageSize: JOIN_PAGE_SIZE })
           : await getWhitelistAPI({ villageId: selectedVillageId || undefined, page, pageSize: JOIN_PAGE_SIZE })
-        const pageItems = Array.isArray(data?.items) ? data.items : []
+        const pageItems = Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.whitelist)
+          ? data.whitelist
+          : Array.isArray(data?.blacklist)
+          ? data.blacklist
+          : Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data?.records)
+          ? data.records
+          : Array.isArray(data)
+          ? data
+          : []
         regItems = regItems.concat(pageItems)
         const total = data?.total ?? 0
         if (regItems.length >= total || pageItems.length === 0) break
