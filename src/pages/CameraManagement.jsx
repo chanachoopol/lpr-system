@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { FaVideo, FaSearch } from 'react-icons/fa'
-import { FaCirclePlus, FaPlus, FaMagnifyingGlass, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation } from 'react-icons/fa6'
+import { FaCirclePlus, FaPlus, FaMagnifyingGlass, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation, FaPowerOff } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
+import ActionMenu from '../components/ActionMenu'
 import '../styles/CameraManagement.css'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
@@ -44,9 +45,17 @@ function getVisiblePageNumbers(currentPage, totalPages, maxVisible = 4) {
 // direction = ทิศทางกล้อง (enum "entry" | "exit" | "internal")
 const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', direction: 'entry', isActive: true, villageId: '' }
 const DIRECTION_LABELS = {
-  entry: 'entry',
-  exit: 'exit',
-  internal: 'internal'
+  entry: 'ขาเข้า (Entry)',
+  exit: 'ขาออก (Exit)',
+  internal: 'ภายใน (Internal)'
+}
+
+function formatCoordinate(lat, long) {
+  if (lat == null || long == null || lat === '' || long === '') return null
+  const numLat = Number(lat)
+  const numLong = Number(long)
+  if (isNaN(numLat) || isNaN(numLong)) return null
+  return `${numLat.toFixed(6)}, ${numLong.toFixed(6)}`
 }
 
 // ฟอร์ม ONVIF — เป็นแค่ตัวช่วยหา RTSP URI ไม่ใช่ field ที่ backend เก็บถาวร (session state เท่านั้น)
@@ -381,7 +390,6 @@ function CameraManagement() {
       long: String(camera.long ?? ''),
       streamAi: camera.stream_ai || '',
       direction: camera.direction || 'entry', // fallback 'entry' เผื่อกล้องเก่าไม่มี field นี้
-      isActive: camera.is_active,
       villageId: camera.village_id || ''
     })
     setFormTouched({})
@@ -407,7 +415,6 @@ function CameraManagement() {
         String(formData.long || '').trim() !== String(editingCamera.long ?? '').trim() ||
         (formData.streamAi || '').trim() !== (editingCamera.stream_ai || '').trim() ||
         (formData.direction || 'entry') !== (editingCamera.direction || 'entry') ||
-        Boolean(formData.isActive) !== Boolean(editingCamera.is_active) ||
         String(formData.villageId || '') !== String(editingCamera.village_id || '')
       )
     }
@@ -632,8 +639,7 @@ function CameraManagement() {
           lat: latNum,
           long: longNum,
           stream_ai: trimmedStreamAi,
-          direction: formData.direction,
-          is_active: formData.isActive
+          direction: formData.direction
         })
         Swal.fire({
           icon: 'success',
@@ -680,6 +686,67 @@ function CameraManagement() {
       })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleToggleCameraActive(camera) {
+    const isCurrentlyActive = Boolean(camera.is_active)
+    const actionLabel = isCurrentlyActive ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: `ยืนยันการ${actionLabel}กล้อง`,
+      text: `ต้องการ${actionLabel} "${camera.name}" ใช่หรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: actionLabel,
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: isCurrentlyActive ? 'rgb(220, 38, 38)' : 'var(--sidebar-bg)',
+      cancelButtonColor: 'var(--text-secondary)'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      await updateCameraAPI(camera.id, {
+        is_active: !isCurrentlyActive
+      })
+      setCameras((prev) =>
+        prev.map((c) => (c.id === camera.id ? { ...c, is_active: !isCurrentlyActive } : c))
+      )
+      Swal.fire({
+        icon: 'success',
+        title: `${actionLabel}กล้องแล้ว`,
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      // Refresh status in background
+      try {
+        const statusRes = await getCameraStatusAPI(camera.id)
+        setCameras((prev) =>
+          prev.map((c) =>
+            c.id === camera.id
+              ? {
+                  ...c,
+                  is_active: !isCurrentlyActive,
+                  stream_online: statusRes.stream_online,
+                  verification_status: statusRes.verification_status ?? c.verification_status,
+                  is_starting: statusRes.is_starting,
+                  status: statusRes.status,
+                  detail: statusRes.detail
+                }
+              : c
+          )
+        )
+      } catch (err) {
+        console.error('Failed to fetch updated camera status:', err)
+      }
+    } catch (error) {
+      console.error(error)
+      const backendMessage = error.response?.data?.detail
+      Swal.fire({
+        icon: 'error',
+        title: `${actionLabel}ไม่สำเร็จ`,
+        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
     }
   }
 
@@ -769,8 +836,9 @@ function CameraManagement() {
     try {
       const res = await checkCameraVerificationAPI(camId)
       // ดึงสถานะล่าสุดเฉพาะกล้องตัวนี้มาอัปเดต state แบบเฉพาะแถว
+      let statusRes = null
       try {
-        const statusRes = await getCameraStatusAPI(camId)
+        statusRes = await getCameraStatusAPI(camId)
         setCameras((prev) =>
           prev.map((c) =>
             c.id === camId
@@ -789,19 +857,42 @@ function CameraManagement() {
         console.error('Failed to fetch updated camera status:', err)
       }
 
-      Swal.fire({
-        icon: 'success',
-        title: `ส่งคำขอตรวจสอบ ${camera.name} แล้ว`,
-        text: res.note || 'ระบบกำลังตรวจสอบสัญญาณกล้องใหม่อีกครั้ง',
-        confirmButtonText: 'ตกลง',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
+      // ประเมินผลลัพธ์จริงเพื่อแสดงข้อความแจ้งเตือนที่ไม่ขัดแย้งกับสถานะในตาราง
+      const isFailed = statusRes?.status === false || statusRes?.verification_status === 'failed' || (statusRes?.status === undefined && statusRes?.stream_online === false)
+      const isReady = statusRes?.status === true || (statusRes?.verification_status === 'verified' && statusRes?.stream_online === true)
+
+      if (isFailed) {
+        const errorDetail = statusRes?.detail || res?.note || 'ไม่สามารถติดต่อ AI Vision Service หรือเชื่อมต่อสัญญาณกล้องได้'
+        Swal.fire({
+          icon: 'error',
+          title: `การเชื่อมต่อ ${camera.name} ขัดข้อง`,
+          text: errorDetail,
+          confirmButtonText: 'รับทราบ',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      } else if (isReady) {
+        Swal.fire({
+          icon: 'success',
+          title: `ตรวจสอบสัญญาณ ${camera.name} สำเร็จ`,
+          text: 'สัญญาณกล้องเชื่อมต่อและพร้อมใช้งานแล้ว',
+          confirmButtonText: 'ตกลง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      } else {
+        Swal.fire({
+          icon: 'info',
+          title: `กำลังเริ่มระบบ ${camera.name}`,
+          text: res?.note || 'ระบบกำลังเชื่อมต่อสัญญาณกล้องใหม่อีกครั้ง กรุณารอสักครู่',
+          confirmButtonText: 'ตกลง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      }
     } catch (error) {
       console.error(error)
       Swal.fire({
         icon: 'error',
         title: 'ตรวจสอบไม่สำเร็จ',
-        text: error.response?.data?.detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        text: error.response?.data?.detail || 'เกิดข้อผิดพลาดในการส่งคำขอ กรุณาลองใหม่',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     } finally {
@@ -916,7 +1007,7 @@ function CameraManagement() {
                   <th>Location (Lat, Long)</th>
                   <th>Direction</th>
                   <th>Camera Status</th>
-                  <th style={{ width: 140 }}>Actions</th>
+                  <th style={{ width: 70 }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -935,12 +1026,14 @@ function CameraManagement() {
                         <td className="cm-camera-name">{c.name}</td>
                         {showVillageColumn && <td>{getVillageName(c.village_id)}</td>}
                         <td className="cm-location">
-                          {Number(c.lat).toFixed(6)}, {Number(c.long).toFixed(6)}
+                          {formatCoordinate(c.lat, c.long) ? (
+                            <span>{formatCoordinate(c.lat, c.long)}</span>
+                          ) : (
+                            <span className="cm-location-empty">ยังไม่ได้ระบุ</span>
+                          )}
                         </td>
-                        <td>
-                          <span className={`cm-direction-badge ${c.direction || 'entry'}`}>
-                            {DIRECTION_LABELS[c.direction] || '-'}
-                          </span>
+                        <td className="cm-direction-text">
+                          {DIRECTION_LABELS[c.direction] || c.direction || '-'}
                         </td>
                         <td className="cm-status-cell">
                           <div className="cm-status-unified-wrapper">
@@ -959,22 +1052,38 @@ function CameraManagement() {
                           </div>
                         </td>
                         <td>
-                          <div className="cm-actions">
-                            <button
-                              className="cm-icon-btn reset"
-                              disabled={isChecking}
-                              onClick={() => !isChecking && handleVerificationCheck(c)}
-                              title={isChecking ? 'กำลังตรวจสอบ...' : 'ตรวจสอบสถานะกล้องใหม่'}
-                            >
-                              <FaRotate className={isChecking ? 'cm-spin' : ''} />
-                            </button>
-                            <button className="cm-icon-btn edit" onClick={() => openEditModal(c)} title="แก้ไขกล้อง">
-                              <FaPen />
-                            </button>
-                            <button className="cm-icon-btn delete" onClick={() => handleDelete(c)} title="ลบกล้อง">
-                              <FaTrashCan />
-                            </button>
-                          </div>
+                          <ActionMenu
+                            items={[
+                              {
+                                key: 'verify-camera',
+                                label: 'ตรวจสอบสัญญาณ',
+                                icon: <FaRotate className={isChecking ? 'cm-spin' : ''} />,
+                                disabled: isChecking,
+                                onClick: () => handleVerificationCheck(c)
+                              },
+                              {
+                                key: 'toggle-camera-active',
+                                label: c.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน',
+                                icon: <FaPowerOff />,
+                                danger: c.is_active,
+                                success: !c.is_active,
+                                onClick: () => handleToggleCameraActive(c)
+                              },
+                              {
+                                key: 'edit-camera',
+                                label: 'แก้ไขข้อมูลกล้อง',
+                                icon: <FaPen />,
+                                onClick: () => openEditModal(c)
+                              },
+                              {
+                                key: 'delete-camera',
+                                label: 'ลบกล้อง',
+                                icon: <FaTrashCan />,
+                                danger: true,
+                                onClick: () => handleDelete(c)
+                              }
+                            ]}
+                          />
                         </td>
                       </tr>
                     )
@@ -1323,26 +1432,11 @@ function CameraManagement() {
               <div className="cm-form-field">
                 <label>Direction (ทิศทาง)</label>
                 <select name="direction" value={formData.direction} onChange={handleFormChange}>
-                  <option value="entry">entry</option>
-                  <option value="exit">exit</option>
-                  <option value="internal">internal</option>
+                  <option value="entry">ขาเข้า (Entry)</option>
+                  <option value="exit">ขาออก (Exit)</option>
+                  <option value="internal">ภายใน (Internal)</option>
                 </select>
               </div>
-              {editingCamera && (
-                <div className="cm-form-field">
-                  <label>สถานะ</label>
-                  <select
-                    name="isActive"
-                    value={formData.isActive ? 'active' : 'inactive'}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, isActive: e.target.value === 'active' }))
-                    }
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-              )}
               <div className="cm-form-actions">
                 <button
                   type="button"
@@ -1398,20 +1492,21 @@ function CameraManagement() {
                       {paginatedKpiCameras.map((c) => {
                         const isChecking = checkingCameraIds.has(c.id)
                         const badge = getUnifiedCameraStatusBadge(c, isChecking)
-                        const latVal = c.lat != null && !isNaN(Number(c.lat)) ? Number(c.lat).toFixed(6) : '-'
-                        const longVal = c.long != null && !isNaN(Number(c.long)) ? Number(c.long).toFixed(6) : '-'
+                        const formattedCoord = formatCoordinate(c.lat, c.long)
 
                         return (
                           <tr key={c.id}>
                             <td className="cm-camera-name" style={{ fontWeight: 600 }}>{c.name}</td>
                             {showVillageColumn && <td>{getVillageName(c.village_id) || '-'}</td>}
-                            <td>
-                              <span className={`cm-direction-badge ${c.direction || 'entry'}`}>
-                                {c.direction === 'entry' ? 'ขาเข้า (Entry)' : c.direction === 'exit' ? 'ขาออก (Exit)' : 'ภายใน (Internal)'}
-                              </span>
+                            <td className="cm-direction-text">
+                              {DIRECTION_LABELS[c.direction] || c.direction || '-'}
                             </td>
                             <td className="cm-location">
-                              {latVal !== '-' && longVal !== '-' ? `${latVal}, ${longVal}` : '-'}
+                              {formattedCoord ? (
+                                <span>{formattedCoord}</span>
+                              ) : (
+                                <span className="cm-location-empty">ยังไม่ได้ระบุ</span>
+                              )}
                             </td>
                             <td className="cm-status-cell">
                               <div className="cm-status-unified-wrapper">

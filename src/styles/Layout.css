@@ -255,7 +255,7 @@
   align-items: center;
   padding: 0 24px;
   gap: 16px;
-  z-index: 50;
+  z-index: 500;
   border: 1px solid var(--navbar-border);
 }
 
@@ -387,7 +387,7 @@
   border-radius: 16px;
   width: 220px;              /* 👈 ขยายจาก 180px เป็น 220px */
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  z-index: 100;
+  z-index: 600;
   padding: 8px;
 }
 
@@ -471,7 +471,7 @@
   border-radius: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border-color);
-  z-index: 100;
+  z-index: 600;
   overflow: hidden;
 }
 

@@ -108,8 +108,9 @@
 }
 
 .cm-description {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 14px;
+  color: var(--text-main, rgb(27, 42, 71));
+  opacity: 0.85;
   margin: 4px 0 0;
 }
 
@@ -223,13 +224,13 @@
   top: 0;
   z-index: 2;
   text-align: left;
-  padding: 10px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  padding: 11px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid rgba(27, 42, 71, 0.06);
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid rgba(27, 42, 71, 0.08);
   background: rgba(248, 250, 252, 0.95);
   backdrop-filter: blur(4px);
 }
@@ -254,12 +255,27 @@
   font-weight: 600;
 }
 
+.cm-direction-text {
+  font-family: 'DM Sans', 'Sarabun', sans-serif;
+  font-size: 13.5px;
+  color: var(--text-main, rgb(27, 42, 71));
+  white-space: nowrap;
+}
+
 .cm-location {
   font-family: 'DM Sans', sans-serif;
+  font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
   font-size: 13.5px;
   white-space: nowrap;
   min-width: 210px;
+}
+
+.cm-location-empty {
+  color: var(--text-secondary, #94a3b8);
+  font-style: italic;
+  font-family: 'Sarabun', 'DM Sans', sans-serif;
+  font-size: 13px;
 }
 
 /* Unified Status Badge */

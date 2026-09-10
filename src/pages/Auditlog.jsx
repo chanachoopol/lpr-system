@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { FaSearch, FaCalendarAlt, FaRedo, FaEye } from 'react-icons/fa'
 import { FaClipboardList, FaXmark, FaCircleExclamation, FaCircleCheck } from 'react-icons/fa6'
 import DatePicker from 'react-datepicker'
@@ -13,7 +13,21 @@ import useVillageStore from '../store/villageStore'
 import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader'
 import '../styles/Auditlog.css'
 
-const PAGE_SIZE = 20
+const DEFAULT_PAGE_SIZE = 6
+const MAX_VISIBLE_PAGES = 4
+
+function getVisiblePageNumbers(currentPage, totalPages, maxVisible = 4) {
+  if (totalPages <= maxVisible) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+  let start = Math.max(1, currentPage - Math.floor(maxVisible / 2))
+  let end = start + maxVisible - 1
+  if (end > totalPages) {
+    end = totalPages
+    start = end - maxVisible + 1
+  }
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+}
 
 // รายการ action ที่รู้จัก — เผื่อ backend เพิ่ม action ใหม่ในอนาคตที่ยังไม่ได้ map ไว้
 // ตัวไหนไม่ตรงกับ list นี้ ระบบจะ fallback ไป format string ให้อ่านง่ายแทน (ดู formatActionLabel)
@@ -85,13 +99,49 @@ function AuditLog() {
   const [logs, setLogs] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [isLoading, setIsLoading] = useState(true)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
 
   const [actionFilter, setActionFilter] = useState('all')
-  const [dateRange, setDateRange] = useState([null, null])
-  const [dateFrom, dateTo] = dateRange || [null, null]
+  const [dateFrom, setDateFrom] = useState(null)
+  const [dateTo, setDateTo] = useState(null)
 
   const [selectedLog, setSelectedLog] = useState(null)
+  const tableContainerRef = useRef(null)
+
+  // คำนวณจำนวนแถวที่พอดีกับความสูงของแต่ละหน้าจอโดยอัตโนมัติ (Dynamic Auto-Fit)
+  useEffect(() => {
+    function calculatePageSize() {
+      if (!tableContainerRef.current) return
+      const containerHeight = tableContainerRef.current.clientHeight
+      const theadHeight = 44
+      const availableHeight = containerHeight - theadHeight - 4
+      const rowHeight = 44 // ความสูงมาตรฐานของแถวในตาราง
+      const calculated = Math.max(4, Math.floor(availableHeight / rowHeight))
+      setPageSize((prev) => (prev !== calculated ? calculated : prev))
+    }
+
+    calculatePageSize()
+
+    let resizeObserver = null
+    if (window.ResizeObserver && tableContainerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        calculatePageSize()
+      })
+      resizeObserver.observe(tableContainerRef.current)
+    } else {
+      window.addEventListener('resize', calculatePageSize)
+    }
+
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      } else {
+        window.removeEventListener('resize', calculatePageSize)
+      }
+    }
+  }, [])
 
   // KPI — ยิงแยกจากตารางหลัก เพราะต้องใช้ total ของ query ที่ไม่ผูกกับ filter บนตาราง
   const [kpiLoading, setKpiLoading] = useState(true)
@@ -100,7 +150,7 @@ function AuditLog() {
   const [failedLoginToday, setFailedLoginToday] = useState(0)
 
   const fetchLogs = useCallback(async () => {
-    setIsLoading(true)
+    setIsFetching(true)
     try {
       const isSuper = currentUser?.role === 'superadmin'
       const targetVillageId = isSuper ? (selectedVillageId || undefined) : undefined
@@ -110,19 +160,11 @@ function AuditLog() {
         createdAtFrom: dateFrom ? startOfDayISO(dateFrom) : undefined,
         createdAtTo: dateTo ? endOfDayISO(dateTo) : undefined,
         page,
-        pageSize: PAGE_SIZE
+        pageSize
       })
 
-      // ถ้าเป็น Admin ให้กรอง Audit Log ของ Superadmin ออก
-      const visibleItems = isSuper
-        ? (data?.items || [])
-        : (data?.items || []).filter((item) => {
-            const uname = item.username?.toLowerCase()?.trim()
-            return uname !== 'superadmin'
-          })
-
-      setLogs(visibleItems)
-      setTotal(isSuper ? (data?.total || 0) : Math.max(0, (data?.total || 0) - ((data?.items?.length || 0) - visibleItems.length)))
+      setLogs(data?.items || [])
+      setTotal(data?.total || 0)
     } catch (error) {
       console.error('AuditLog fetchLogs error:', error)
       Swal.fire({
@@ -132,9 +174,10 @@ function AuditLog() {
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     } finally {
-      setIsLoading(false)
+      setIsInitialLoading(false)
+      setIsFetching(false)
     }
-  }, [currentUser?.role, selectedVillageId, actionFilter, dateFrom, dateTo, page])
+  }, [currentUser?.role, selectedVillageId, actionFilter, dateFrom, dateTo, page, pageSize])
 
   useEffect(() => {
     fetchLogs()
@@ -143,7 +186,7 @@ function AuditLog() {
   // เปลี่ยน filter ใดๆ → กลับไปหน้า 1 เสมอ
   useEffect(() => {
     setPage(1)
-  }, [actionFilter, dateFrom, dateTo])
+  }, [actionFilter, dateFrom, dateTo, pageSize])
 
   // ปิด modal ดูรายละเอียด Log Detail เมื่อกดปุ่ม Escape
   useEffect(() => {
@@ -195,10 +238,19 @@ function AuditLog() {
 
   function handleReset() {
     setActionFilter('all')
-    setDateRange([null, null])
+    setDateFrom(null)
+    setDateTo(null)
   }
 
-  const totalPages = Math.ceil(total / PAGE_SIZE)
+  function handleFilterFailedLoginsToday() {
+    const today = new Date()
+    setActionFilter('login_failed')
+    setDateFrom(today)
+    setDateTo(today)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const visiblePages = useMemo(() => getVisiblePageNumbers(page, totalPages, MAX_VISIBLE_PAGES), [page, totalPages])
 
   return (
     <Layout title="Audit Log">
@@ -226,7 +278,13 @@ function AuditLog() {
             </div>
           </div>
 
-          <div className="al-kpi-card">
+          <div
+            className="al-kpi-card interactive"
+            onClick={handleFilterFailedLoginsToday}
+            role="button"
+            tabIndex={0}
+            title="คลิกเพื่อกรองเฉพาะรายการเข้าสู่ระบบล้มเหลวของวันนี้"
+          >
             <div className="al-kpi-icon red">
               <FaCircleExclamation />
             </div>
@@ -250,57 +308,69 @@ function AuditLog() {
 
           {/* Filter Bar */}
           <div className="al-filter-bar">
-            <div className="al-filter-group">
-              <label>Action</label>
-              <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-                <option value="all">All Actions</option>
-                {ACTION_OPTIONS.map((action) => (
-                  <option key={action} value={action}>
-                    {ACTION_META[action].label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="al-filter-group al-filter-group-date">
-              <label>Date Range</label>
-              <div className="al-date-wrap">
-                <FaCalendarAlt className="al-date-icon" />
-                <DatePicker
-                  selectsRange
-                  startDate={dateFrom}
-                  endDate={dateTo}
-                  onChange={(update) => setDateRange(update ?? [null, null])}
-                  dateFormat="dd/MM/yyyy"
-                  maxDate={new Date()}
-                  isClearable
-                  placeholderText="All dates"
-                  showPopperArrow={false}
-                  renderCustomHeader={renderCustomDatePickerHeader}
-                  className="datepicker-al"
-                />
+            <div className="al-filter-right">
+              <div className="al-filter-group al-filter-group-date">
+                <label>Date Range (ช่วงวันที่)</label>
+                <div className="al-date-range-wrap">
+                  <div className="al-date-input-wrap">
+                    <FaCalendarAlt className="al-date-icon" />
+                    <DatePicker
+                      selected={dateFrom}
+                      onChange={(date) => {
+                        setDateFrom(date)
+                        setPage(1)
+                      }}
+                      maxDate={dateTo || new Date()}
+                      dateFormat="dd/MM/yyyy"
+                      className="datepicker-al"
+                      placeholderText="จากวันที่"
+                      isClearable
+                      showPopperArrow={false}
+                      renderCustomHeader={renderCustomDatePickerHeader}
+                    />
+                  </div>
+                  <span className="al-date-separator">-</span>
+                  <div className="al-date-input-wrap">
+                    <FaCalendarAlt className="al-date-icon" />
+                    <DatePicker
+                      selected={dateTo}
+                      onChange={(date) => {
+                        setDateTo(date)
+                        setPage(1)
+                      }}
+                      minDate={dateFrom}
+                      maxDate={new Date()}
+                      dateFormat="dd/MM/yyyy"
+                      className="datepicker-al"
+                      placeholderText="ถึงวันที่"
+                      isClearable
+                      showPopperArrow={false}
+                      renderCustomHeader={renderCustomDatePickerHeader}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <button className="btn-reset-al" onClick={handleReset}>
-              <FaRedo /> Reset
-            </button>
+              <button className="btn-reset-al" onClick={handleReset} title="ล้างตัวกรองทั้งหมด">
+                <FaRedo /> Reset
+              </button>
+            </div>
           </div>
 
-          <div className="table-responsive">
-            <table className="al-table">
+          <div className="table-responsive" ref={tableContainerRef}>
+            <table className={`al-table ${isFetching ? 'al-table-fetching' : ''}`}>
               <thead>
                 <tr>
                   <th>Timestamp</th>
                   <th>User</th>
-                  <th>Action</th>
+                  <th>Activity</th>
                   <th>Detail</th>
                   <th>IP Address</th>
-                  <th>Action</th>
+                  <th style={{ width: 70 }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? (
+                {isInitialLoading && logs.length === 0 ? (
                   <tr>
                     <td colSpan={6}>
                       <Spinner text="Loading audit logs..." />
@@ -346,44 +416,43 @@ function AuditLog() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="pagination">
-              <button
-                className="page-btn"
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-              >
-                ‹
-              </button>
+          <div className="al-table-footer">
+            <p className="al-total-count">
+              Showing {logs.length > 0 ? (page - 1) * pageSize + 1 : 0}–{(page - 1) * pageSize + logs.length} of {total.toLocaleString()} records
+            </p>
+            {totalPages > 1 && (
+              <div className="pagination">
+                <button
+                  className="page-btn"
+                  disabled={page <= 1 || isFetching}
+                  onClick={() => setPage(page - 1)}
+                  title="หน้าก่อนหน้า"
+                >
+                  ‹
+                </button>
 
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-                .map((p, idx, arr) => (
-                  <span key={p} style={{ display: 'flex', gap: '6px' }}>
-                    {idx > 0 && arr[idx - 1] !== p - 1 && <span className="page-ellipsis">…</span>}
-                    <button
-                      className={`page-btn ${page === p ? 'active' : ''}`}
-                      onClick={() => setPage(p)}
-                    >
-                      {p}
-                    </button>
-                  </span>
+                {visiblePages.map((p) => (
+                  <button
+                    key={p}
+                    className={`page-btn ${page === p ? 'active' : ''}`}
+                    onClick={() => setPage(p)}
+                    disabled={isFetching}
+                  >
+                    {p}
+                  </button>
                 ))}
 
-              <button
-                className="page-btn"
-                disabled={page === totalPages}
-                onClick={() => setPage(page + 1)}
-              >
-                ›
-              </button>
-            </div>
-          )}
-
-          <p className="al-total-count">
-            Showing {logs.length > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}–{(page - 1) * PAGE_SIZE + logs.length} of {total.toLocaleString()} records
-          </p>
+                <button
+                  className="page-btn"
+                  disabled={page >= totalPages || isFetching}
+                  onClick={() => setPage(page + 1)}
+                  title="หน้าถัดไป"
+                >
+                  ›
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

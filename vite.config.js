@@ -10,7 +10,7 @@ export default defineConfig({
     allowedHosts: true, // 👈 อนุญาตการเชื่อมต่อผ่าน ngrok ทุกโดเมน
     proxy: {
       '/api': {
-        target: 'http://192.168.100.97',
+        target: 'http://192.168.100.211:8000',
         changeOrigin: true,
         secure: false,
         cookieDomainRewrite: '', // ปลด domain ให้คุกกี้ผูกกับ Host/IP ที่เปิดใช้งานจริง (เช่น 192.168.x.x หรือ localhost)
