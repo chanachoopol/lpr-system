@@ -1203,7 +1203,7 @@ function saveHistoricalWhitelistPlates(map) {
                     }}
                     maxDate={endDate || new Date()}
                     dateFormat="dd/MM/yyyy"
-                    placeholderText="จากวันที่"
+                    placeholderText="From date"
                     className="bl-datepicker-input"
                     isClearable
                     showPopperArrow={false}
@@ -1222,7 +1222,7 @@ function saveHistoricalWhitelistPlates(map) {
                     minDate={startDate}
                     maxDate={new Date()}
                     dateFormat="dd/MM/yyyy"
-                    placeholderText="ถึงวันที่"
+                    placeholderText="To date"
                     className="bl-datepicker-input"
                     isClearable
                     showPopperArrow={false}

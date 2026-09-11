@@ -38,6 +38,12 @@ export default defineConfig({
             }
           })
         }
+      },
+      // 👈 Proxy สตรีมมิ่งวิดีโอ MediaMTX (HLS .m3u8 / .ts)
+      '/mediamtx': {
+        target: 'http://192.168.100.97',
+        changeOrigin: true,
+        secure: false
       }
     }
   }

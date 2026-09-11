@@ -537,7 +537,7 @@ function History() {
           </div>
 
           <div className="filter-group filter-group-date">
-            <label>Date Range (จากวันที่ - ถึงวันที่)</label>
+            <label>Date Range</label>
             <div className="filter-date-range-wrap">
               <div className="filter-input-wrap">
                 <FaCalendarAlt className="filter-icon" />
@@ -550,7 +550,7 @@ function History() {
                   maxDate={endDate || new Date()}
                   dateFormat="dd/MM/yyyy"
                   className="datepicker-history"
-                  placeholderText="จากวันที่"
+                  placeholderText="From date"
                   isClearable
                   showPopperArrow={false}
                   renderCustomHeader={renderCustomDatePickerHeader}
@@ -569,7 +569,7 @@ function History() {
                   maxDate={new Date()}
                   dateFormat="dd/MM/yyyy"
                   className="datepicker-history"
-                  placeholderText="ถึงวันที่"
+                  placeholderText="To date"
                   isClearable
                   showPopperArrow={false}
                   renderCustomHeader={renderCustomDatePickerHeader}

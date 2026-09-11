@@ -1,8 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { FaHome, FaDesktop, FaHistory, FaExclamationTriangle, FaChartBar, FaUser, FaSignOutAlt, FaUsers, FaVideo, FaClipboardList} from 'react-icons/fa'
+import { FaHome, FaDesktop, FaHistory, FaExclamationTriangle, FaChartBar, FaUsers, FaVideo, FaClipboardList} from 'react-icons/fa'
 import useAuthStore from '../store/authStore'
-import { useNavigate } from 'react-router-dom'
-import Swal from 'sweetalert2'
 import { FaRoute } from 'react-icons/fa6'
 
 // แต่ละเมนูมี roles กำกับว่า role ไหนเห็นได้บ้าง
@@ -20,26 +18,8 @@ const menuItems = [
 ]
 
 function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
-  const { user, avatarUrl, logout } = useAuthStore()
-  const navigate = useNavigate()
+  const { user } = useAuthStore()
 
-  async function handleLogout() {
-  const result = await Swal.fire({
-    icon: 'question',
-    title: 'ยืนยันการออกจากระบบ?',
-    text: 'คุณต้องการออกจากระบบใช่หรือไม่',
-    showCancelButton: true,
-    confirmButtonText: 'ออกจากระบบ',
-    cancelButtonText: 'ยกเลิก',
-    confirmButtonColor: 'rgb(220, 38, 38)',
-    cancelButtonColor: 'var(--sidebar-bg)'
-  })
-
-  if (!result.isConfirmed) return
-
-  await logout()
-  navigate('/')
-}
   function handleMenuClick() {
     if (window.innerWidth <= 768) {
       onClose()
@@ -54,16 +34,6 @@ function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
       ${isCollapsed ? 'collapsed' : ''} 
       ${isMobileOpen ? 'mobile-open' : ''}
     `}>
-      <div className="sb-user">
-        <div className="sb-avatar">
-          {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="sb-avatar-img" /> : <FaUser />}
-        </div>
-        <div className="sb-user-info">
-          <p className="sb-user-name">{user?.fullname || user?.fullName || user?.username || 'Admin'}</p>
-          <p className="sb-user-role">{user?.role || 'Administrator'}</p>
-        </div>
-      </div>
-
       <nav className="sb-menu">
         {visibleMenuItems.map((item) => (
           <NavLink
@@ -80,15 +50,8 @@ function Sidebar({ isCollapsed, isMobileOpen, onClose }) {
           </NavLink>
         ))}
       </nav>
-
-      <div className="sb-bottom">
-        <button className="sb-logout" onClick={handleLogout}>
-          <FaSignOutAlt />
-          <span>Log out</span>
-        </button>
-      </div>
     </aside>
   )
 }
 
-export default Sidebar
+export default Sidebar

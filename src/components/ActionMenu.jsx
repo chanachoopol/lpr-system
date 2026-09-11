@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { FaEllipsisVertical } from 'react-icons/fa6'
+import { FaGear } from 'react-icons/fa6'
 import '../styles/ActionMenu.css'
 
 // Dropdown action menu (จุดสามจุด) ใช้แทนแถวปุ่ม icon เดี่ยว ๆ ที่เยอะเกินไปในตาราง
@@ -101,7 +101,7 @@ function ActionMenu({ items }) {
         onClick={() => setIsOpen((prev) => !prev)}
         title="เพิ่มเติม"
       >
-        <FaEllipsisVertical />
+        <FaGear />
       </button>
 
       {isOpen && createPortal(

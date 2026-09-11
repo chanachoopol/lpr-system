@@ -6,6 +6,7 @@ import { getCameraStreamTokenAPI } from '../data/api'
 const EXPIRY_BUFFER_MS = 30_000 // เผื่อเวลา 30 วิ ก่อน JWT จะหมดอายุจริง กัน network latency (ตามที่ backend แนะนำ)
 const MIN_REFRESH_DELAY_MS = 5_000 // กันไม่ให้ refresh ถี่เกินไปกรณี clock skew ระหว่าง client/server
 const RETRY_DELAY_MS = 10_000 // เจอ error ที่ไม่ใช่ 409 (เช่น network/5xx ชั่วคราว) — retry แบบมี backoff สั้นๆ
+const MAX_RETRIES = 5 // จำนวนครั้งสูงสุดที่ retry เมื่อเจอ HLS Network Error ก่อนจะหยุดและแสดง error
 
 // 👇 MOCK MODE — เปิด/ปิดตรงนี้บรรทัดเดียว ใช้ตอนกล้องจริงมีปัญหา
 // true  = เล่นไฟล์ mp4 ในเครื่อง แทนสตรีมจริง (ข้าม HLS/token ทั้งหมด)
@@ -38,6 +39,7 @@ function useCameraStream(cameraId) {
   const refreshTimerRef = useRef(null)
   const isMountedRef = useRef(true)
   const fetchAndRefreshRef = useRef(() => {})
+  const retryCountRef = useRef(0) // นับจำนวนครั้งที่ retry เมื่อเจอ HLS Network Error
 
   const [isVideoLoading, setIsVideoLoading] = useState(true)
   const [hasStreamError, setHasStreamError] = useState(false)
@@ -93,13 +95,47 @@ function useCameraStream(cameraId) {
         hls.attachMedia(video)
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           if (!isMountedRef.current) return
+          retryCountRef.current = 0 // โหลดสำเร็จ → reset นับ retry
           setIsVideoLoading(false)
           video.play().catch((err) => console.log('รอผู้ใช้กด Play:', err))
         })
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal && isMountedRef.current) {
-            setIsVideoLoading(false)
-            setHasStreamError(true)
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                // เกิน MAX_RETRIES → หยุดและแสดง error ถาวร
+                if (retryCountRef.current >= MAX_RETRIES) {
+                  console.error(`❌ HLS Network Error เชื่อมต่อไม่ได้ (ลองครบ ${MAX_RETRIES} ครั้งแล้ว) กล้องอาจจะออฟไลน์`)
+                  hlsRef.current?.destroy()
+                  hlsRef.current = null
+                  setIsVideoLoading(false)
+                  setHasStreamError(true)
+                  break
+                }
+                // session ถูกตัด (503/401) → destroy player เก่า แล้วขอ token + session ใหม่จาก backend
+                retryCountRef.current += 1
+                const delayMs = retryCountRef.current * 2000 // 2s, 4s, 6s, 8s, 10s
+                console.warn(`⚠️ HLS Network Error (session อาจถูกตัด) กำลังขอ session ใหม่... (ครั้งที่ ${retryCountRef.current}/${MAX_RETRIES}) รอ ${delayMs}ms`)
+                hlsRef.current.destroy()
+                hlsRef.current = null
+                setIsVideoLoading(true)
+                setHasStreamError(false)
+                setTimeout(() => {
+                  if (isMountedRef.current) {
+                    fetchAndRefreshRef.current()
+                  }
+                }, delayMs)
+                break
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                // video decode error → ลองซ่อมแซมก่อน ไม่ต้องขอ session ใหม่
+                console.warn('HLS Media Error กำลังซ่อมแซมวิดีโอ...')
+                hlsRef.current.recoverMediaError()
+                break
+              default:
+                setIsVideoLoading(false)
+                setHasStreamError(true)
+                break
+            }
           }
         })
         hlsRef.current = hls
@@ -172,6 +208,7 @@ function useCameraStream(cameraId) {
     isMountedRef.current = true
     setHasStreamError(false)
     setIsDisabled(false)
+    retryCountRef.current = 0 // reset นับ retry เมื่อเปลี่ยนกล้อง
     cleanup()
 
     if (!cameraId) {

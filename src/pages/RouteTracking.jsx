@@ -84,8 +84,8 @@ function RouteTracking() {
   }, [today]);
 
   const [queryInput, setQueryInput] = useState('');
-  const [dateFrom, setDateFrom] = useState(null);
-  const [dateTo, setDateTo] = useState(null);
+  const [dateFrom, setDateFrom] = useState(defaultDateFrom);
+  const [dateTo, setDateTo] = useState(today);
   const [formErrors, setFormErrors] = useState({
     plate: false,
     dateFrom: false,
@@ -310,18 +310,19 @@ function RouteTracking() {
     [queryInput, dateFrom, dateTo, selectedVillageId]
   );
 
-  // ฟังก์ชันรีเซ็ตค่าการค้นหากลับสู่สถานะเริ่มต้น
+  // ฟังก์ชันรีเซ็ตค่าการค้นหากลับสู่สถานะเริ่มต้น (2 สัปดาห์ล่าสุด)
   const handleReset = useCallback(() => {
     setQueryInput('');
-    setDateFrom(null);
-    setDateTo(null);
+    setDateFrom(defaultDateFrom);
+    setDateTo(today);
     setFormErrors({ plate: false, dateFrom: false, dateTo: false });
     setVehicleGroups([]);
     setSelectedVehicle(null);
     setHasSearched(false);
     setCurrentPage(1);
     setSortOrder('desc');
-  }, []);
+    setSearchParams({}, { replace: true });
+  }, [defaultDateFrom, today, setSearchParams]);
 
   // ค้นหาแบบ Real-time อัตโนมัติเมื่อพิมพ์ป้ายทะเบียน และเลือกช่วงวันที่ครบ
   useEffect(() => {
@@ -408,6 +409,16 @@ function RouteTracking() {
       // 2. ถ้าไม่ตรงเป๊ะ หรือไม่ได้ระบุ province/date มา ให้เลือก group แรก (ล่าสุด) อัตโนมัติทันที
       const targetToSelect = matchedGroup || groups[0];
       if (targetToSelect) {
+        if (targetToSelect.date) {
+          const [year, month, day] = targetToSelect.date.split('-').map(Number);
+          const vehicleDate = (!isNaN(year) && !isNaN(month) && !isNaN(day))
+            ? new Date(year, month - 1, day, 0, 0, 0)
+            : new Date(targetToSelect.date);
+
+          setDateFrom(vehicleDate);
+          setDateTo(vehicleDate);
+        }
+
         setSelectedVehicle({
           plate: targetToSelect.plate,
           province: targetToSelect.province,
@@ -665,6 +676,18 @@ function RouteTracking() {
     if (group?.plate) {
       setQueryInput(group.plate);
     }
+
+    // อัปเดตช่วงวันที่ในปฏิทินให้เป็นวันที่พบป้ายทะเบียนคันนี้
+    if (group?.date) {
+      const [year, month, day] = group.date.split('-').map(Number);
+      const vehicleDate = (!isNaN(year) && !isNaN(month) && !isNaN(day))
+        ? new Date(year, month - 1, day, 0, 0, 0)
+        : new Date(group.date);
+
+      setDateFrom(vehicleDate);
+      setDateTo(vehicleDate);
+    }
+
     setSelectedVehicle({
       plate: group.plate,
       province: group.province,
@@ -678,8 +701,13 @@ function RouteTracking() {
       province: group.province || '',
       date: group.date || ''
     };
-    if (dateFrom) params.from = formatAPIDate(dateFrom);
-    if (dateTo) params.to = formatAPIDate(dateTo);
+    if (group?.date) {
+      params.from = group.date;
+      params.to = group.date;
+    } else {
+      if (dateFrom) params.from = formatAPIDate(dateFrom);
+      if (dateTo) params.to = formatAPIDate(dateTo);
+    }
     setSearchParams(params, { replace: true });
 
     setTimeout(scrollToMap, 100);
