@@ -6,7 +6,7 @@ const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af61186
 const CARD_WIDTH = 240
 const CARD_GAP = 14 // ระยะห่างระหว่างหมุดกับการ์ด (14px)
 
-// จัดมุมมองแผนที่ให้ครอบคลุมทุกหมุดกล้องอัตโนมัติพร้อมมุมมองที่กว้างขึ้น
+// จัดมุมมองแผนที่ให้ครอบคลุมทุกหมุดกล้องอัตโนมัติพร้อมมุมมองที่กว้างขึ้น (รองรับตั้งแต่ระดับป้อมยาม ยันระดับข้ามประเทศ/ทวีป)
 function fitMapToCameras(map, cameras) {
   if (!map || !cameras || cameras.length === 0) return
 
@@ -29,21 +29,41 @@ function fitMapToCameras(map, cameras) {
   const minLat = Math.min(...lats)
   const maxLat = Math.max(...lats)
 
-  // คำนวณจุดกึ่งกลาง + ระดับการซูมที่ครอบคลุมทุกจุดพร้อมระยะเผื่อขอบ (Safety Margin)
+  // 1. ลองใช้ map.bound() ของ Longdo Map ก่อนหากระบบรองรับ (คำนวณซูมอัตโนมัติแม่นยำที่สุด)
+  try {
+    if (typeof map.bound === 'function') {
+      map.bound({
+        minLat,
+        minLon,
+        maxLat,
+        maxLon
+      })
+      return
+    }
+  } catch (e) {
+    console.warn('map.bound failed, falling back to manual zoom calculation:', e)
+  }
+
+  // 2. หากไม่มี map.bound คำนวณแบบ Logarithmic ครอบคลุมตั้งแต่ระดับทวีป (Zoom 2) จนถึงระดับซอย (Zoom 15)
   const centerLon = (minLon + maxLon) / 2
   const centerLat = (minLat + maxLat) / 2
   const maxSpan = Math.max(maxLon - minLon, maxLat - minLat)
 
   let zoom = 14
-  if (maxSpan > 1.0) zoom = 7
-  else if (maxSpan > 0.5) zoom = 8
-  else if (maxSpan > 0.2) zoom = 9
-  else if (maxSpan > 0.1) zoom = 10
-  else if (maxSpan > 0.05) zoom = 11
-  else if (maxSpan > 0.02) zoom = 12
-  else if (maxSpan > 0.01) zoom = 13
-  else if (maxSpan > 0.003) zoom = 14
-  else zoom = 14
+  if (maxSpan > 120) zoom = 2      // ข้ามทวีป / รอบโลก
+  else if (maxSpan > 60) zoom = 3
+  else if (maxSpan > 30) zoom = 4
+  else if (maxSpan > 15) zoom = 5  // ระดับหลายประเทศ
+  else if (maxSpan > 8) zoom = 6   // ระดับประเทศ
+  else if (maxSpan > 4) zoom = 7   // ระดับภาค
+  else if (maxSpan > 2) zoom = 8   // ระดับหลายจังหวัด
+  else if (maxSpan > 1) zoom = 9   // ระดับจังหวัด
+  else if (maxSpan > 0.5) zoom = 10
+  else if (maxSpan > 0.2) zoom = 11
+  else if (maxSpan > 0.1) zoom = 12
+  else if (maxSpan > 0.05) zoom = 13
+  else if (maxSpan > 0.01) zoom = 14
+  else zoom = 15
 
   map.location({ lon: centerLon, lat: centerLat }, true)
   map.zoom(zoom, true)
@@ -302,16 +322,54 @@ function MapView({ cameras = [] }) {
         }
       })
 
-      // สร้าง Marker ลงบนแผนที่
+      // รัศมีความเหลื่อมเมื่อกล้องอยู่พิกัดเดียวกันหรือใกล้กันมากใน Zoom 17 ขึ้นไป (~10 เมตร บนแผนที่)
+      const RADIAL_OFFSET = 0.0001
+
+      const renderablePins = []
       clusters.forEach((cluster) => {
         if (cluster.cameras.length === 1) {
+          renderablePins.push({
+            type: 'single',
+            lat: cluster.lat,
+            lon: cluster.lon,
+            camera: cluster.cameras[0]
+          })
+        } else if (currentZoom >= 17) {
+          // เมื่อซูม >= 17 ให้กระจายหมุดกล้องที่พิกัดซ้ำกันออกเป็นวงกลมรอบจุดศูนย์กลาง
+          const count = cluster.cameras.length
+          cluster.cameras.forEach((cam, idx) => {
+            const angle = (2 * Math.PI * idx) / count - Math.PI / 2
+            const latRad = (cluster.lat * Math.PI) / 180
+            const latOffset = Math.sin(angle) * RADIAL_OFFSET
+            const lonOffset = Math.cos(angle) * (RADIAL_OFFSET / Math.max(Math.cos(latRad), 0.1))
+
+            renderablePins.push({
+              type: 'single',
+              lat: cluster.lat + latOffset,
+              lon: cluster.lon + lonOffset,
+              camera: cam
+            })
+          })
+        } else {
+          renderablePins.push({
+            type: 'cluster',
+            lat: cluster.lat,
+            lon: cluster.lon,
+            cameras: cluster.cameras
+          })
+        }
+      })
+
+      // สร้าง Marker ลงบนแผนที่
+      renderablePins.forEach((pin) => {
+        if (pin.type === 'single') {
           // --- หมุดกล้องเดี่ยว ---
-          const cam = cluster.cameras[0]
+          const cam = pin.camera
           const isActive = cam.is_active
           const markerColor = isActive ? '#16a34a' : '#dc2626'
 
           const marker = new window.longdo.Marker(
-            { lon: cluster.lon, lat: cluster.lat },
+            { lon: pin.lon, lat: pin.lat },
             {
               clickable: true,
               icon: {
@@ -346,15 +404,15 @@ function MapView({ cameras = [] }) {
           markersRef.current.push(marker)
         } else {
           // --- หมุด Cluster รวมกลุ่ม ---
-          const count = cluster.cameras.length
+          const count = pin.cameras.length
           const marker = new window.longdo.Marker(
-            { lon: cluster.lon, lat: cluster.lat },
+            { lon: pin.lon, lat: pin.lat },
             {
               clickable: true,
               icon: {
                 offset: { x: 18, y: 18 },
                 html: `
-                  <div data-cluster-lat="${cluster.lat}" data-cluster-lon="${cluster.lon}" class="map-cluster-pin" title="มีกล้อง ${count} ตัว (คลิกเพื่อขยายดู)" style="
+                  <div data-cluster-lat="${pin.lat}" data-cluster-lon="${pin.lon}" class="map-cluster-pin" title="มีกล้อง ${count} ตัว (คลิกเพื่อขยายดู)" style="
                     width: 36px;
                     height: 36px;
                     border-radius: 50%;

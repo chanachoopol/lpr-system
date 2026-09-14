@@ -161,7 +161,10 @@ function CameraManagement() {
         return {
           ...c,
           verification_status: 'verified',
+          stream_online: latestCameraEvent.stream_online ?? true,
+          status: latestCameraEvent.status ?? true,
           is_active: latestCameraEvent.is_active ?? c.is_active,
+          detail: latestCameraEvent.detail || null,
           syncWarning: null
         }
       }
@@ -170,7 +173,10 @@ function CameraManagement() {
         return {
           ...c,
           verification_status: 'failed',
+          stream_online: latestCameraEvent.stream_online ?? false,
+          status: latestCameraEvent.status ?? false,
           is_active: latestCameraEvent.is_active ?? false,
+          detail: latestCameraEvent.detail || 'การยืนยันกล้องไม่สำเร็จ',
           syncWarning: null
         }
       }
