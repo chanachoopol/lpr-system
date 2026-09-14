@@ -43,7 +43,8 @@ function getVisiblePageNumbers(currentPage, totalPages, maxVisible = 4) {
 // มีแค่ is_active (เปิด/ปิดใช้งานกล้อง)
 // stream_ai = แหล่งสตรีมที่ป้อนเข้า (RTSP) — ส่วน stream_url เป็นค่าที่ backend generate ให้เอง ห้ามส่งตอน create/update
 // direction = ทิศทางกล้อง (enum "entry" | "exit" | "internal")
-const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', direction: 'entry', isActive: true, villageId: '' }
+// delay = เว้นระยะเวลาตรวจจับซ้ำ (1 - 60 วินาที)
+const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', direction: 'entry', delay: 1, isActive: true, villageId: '' }
 const DIRECTION_LABELS = {
   entry: 'ขาเข้า (Entry)',
   exit: 'ขาออก (Exit)',
@@ -390,6 +391,7 @@ function CameraManagement() {
       long: String(camera.long ?? ''),
       streamAi: camera.stream_ai || '',
       direction: camera.direction || 'entry', // fallback 'entry' เผื่อกล้องเก่าไม่มี field นี้
+      delay: camera.delay ?? 1,
       villageId: camera.village_id || ''
     })
     setFormTouched({})
@@ -415,6 +417,7 @@ function CameraManagement() {
         String(formData.long || '').trim() !== String(editingCamera.long ?? '').trim() ||
         (formData.streamAi || '').trim() !== (editingCamera.stream_ai || '').trim() ||
         (formData.direction || 'entry') !== (editingCamera.direction || 'entry') ||
+        Number(formData.delay ?? 1) !== Number(editingCamera.delay ?? 1) ||
         String(formData.villageId || '') !== String(editingCamera.village_id || '')
       )
     }
@@ -631,6 +634,17 @@ function CameraManagement() {
       return
     }
 
+    const delayNum = parseInt(formData.delay ?? 1, 10)
+    if (isNaN(delayNum) || delayNum < 1 || delayNum > 60) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ค่า Delay ไม่ถูกต้อง',
+        text: 'Delay ต้องเป็นตัวเลขจำนวนเต็มระหว่าง 1 ถึง 60 วินาที',
+        confirmButtonColor: 'var(--sidebar-bg)'
+      })
+      return
+    }
+
     setIsSubmitting(true)
     try {
       if (editingCamera) {
@@ -639,7 +653,8 @@ function CameraManagement() {
           lat: latNum,
           long: longNum,
           stream_ai: trimmedStreamAi,
-          direction: formData.direction
+          direction: formData.direction,
+          delay: delayNum
         })
         Swal.fire({
           icon: 'success',
@@ -664,7 +679,8 @@ function CameraManagement() {
           latNum,
           longNum,
           trimmedStreamAi,
-          formData.direction
+          formData.direction,
+          delayNum
         )
         Swal.fire({
           icon: 'success',
@@ -1006,6 +1022,7 @@ function CameraManagement() {
                   {showVillageColumn && <th>Village</th>}
                   <th>Location (Lat, Long)</th>
                   <th>Direction</th>
+                  <th>Delay</th>
                   <th>Camera Status</th>
                   <th style={{ width: 70 }}>Action</th>
                 </tr>
@@ -1013,7 +1030,7 @@ function CameraManagement() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={showVillageColumn ? 6 : 5}>
+                    <td colSpan={showVillageColumn ? 7 : 6}>
                       <Spinner text="Loading cameras..." />
                     </td>
                   </tr>
@@ -1034,6 +1051,9 @@ function CameraManagement() {
                         </td>
                         <td className="cm-direction-text">
                           {DIRECTION_LABELS[c.direction] || c.direction || '-'}
+                        </td>
+                        <td className="cm-direction-text">
+                          {c.delay != null ? `${c.delay} วินาที` : '1 วินาที'}
                         </td>
                         <td className="cm-status-cell">
                           <div className="cm-status-unified-wrapper">
@@ -1431,14 +1451,46 @@ function CameraManagement() {
                 </>
               )}
 
-              <div className="cm-form-field">
-                <label>Direction (ทิศทาง)</label>
-                <select name="direction" value={formData.direction} onChange={handleFormChange}>
-                  <option value="entry">ขาเข้า (Entry)</option>
-                  <option value="exit">ขาออก (Exit)</option>
-                  <option value="internal">ภายใน (Internal)</option>
-                </select>
+              <div className="cm-form-row">
+                <div className="cm-form-field">
+                  <label>Direction (ทิศทาง)</label>
+                  <select name="direction" value={formData.direction} onChange={handleFormChange}>
+                    <option value="entry">ขาเข้า (Entry)</option>
+                    <option value="exit">ขาออก (Exit)</option>
+                    <option value="internal">ภายใน (Internal)</option>
+                  </select>
+                </div>
+                <div className="cm-form-field">
+                  <label>
+                    Delay ตรวจจับซ้ำ <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="delay"
+                    min="1"
+                    max="60"
+                    placeholder="1 - 60 วินาที"
+                    value={formData.delay}
+                    onChange={handleFormChange}
+                    onBlur={() => handleFieldBlur('delay')}
+                    style={
+                      (formTouched.delay || hasSubmittedForm) &&
+                      (formData.delay === '' || isNaN(parseInt(formData.delay, 10)) || parseInt(formData.delay, 10) < 1 || parseInt(formData.delay, 10) > 60)
+                        ? { borderColor: '#dc2626' }
+                        : {}
+                    }
+                  />
+                  {(formTouched.delay || hasSubmittedForm) &&
+                    (formData.delay === '' || isNaN(parseInt(formData.delay, 10)) || parseInt(formData.delay, 10) < 1 || parseInt(formData.delay, 10) > 60) && (
+                      <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                        Delay ต้องเป็นตัวเลข 1 - 60 วินาที
+                      </span>
+                    )}
+                </div>
               </div>
+              <p className="cm-description" style={{ margin: '-6px 0 12px' }}>
+                เว้นระยะเวลาก่อนยอมให้ตรวจจับป้ายทะเบียนเดิมซ้ำ (1 - 60 วินาที) ช่วยแก้ปัญหาตรวจจับป้ายซ้ำขณะรถติด
+              </p>
               <div className="cm-form-actions">
                 <button
                   type="button"
@@ -1486,6 +1538,7 @@ function CameraManagement() {
                         <th>ชื่อกล้อง</th>
                         {showVillageColumn && <th>หมู่บ้าน</th>}
                         <th>ทิศทาง</th>
+                        <th>Delay</th>
                         <th>พิกัด (Lat, Long)</th>
                         <th>สถานะการทำงาน</th>
                       </tr>
@@ -1502,6 +1555,9 @@ function CameraManagement() {
                             {showVillageColumn && <td>{getVillageName(c.village_id) || '-'}</td>}
                             <td className="cm-direction-text">
                               {DIRECTION_LABELS[c.direction] || c.direction || '-'}
+                            </td>
+                            <td className="cm-direction-text">
+                              {c.delay != null ? `${c.delay} วินาที` : '1 วินาที'}
                             </td>
                             <td className="cm-location">
                               {formattedCoord ? (

@@ -387,14 +387,15 @@ export async function getCameraByIdAPI(cameraId) {
   return response.data
 }
 
-export async function createCameraAPI(villageId, name, lat, long, streamAi, direction) {
+export async function createCameraAPI(villageId, name, lat, long, streamAi, direction, delay = 1) {
   const response = await api.post('/api/cameras', {
     village_id: villageId,
     name,
     lat,
     long,
     stream_ai: streamAi,
-    direction
+    direction,
+    delay
   })
   return response.data
 }
