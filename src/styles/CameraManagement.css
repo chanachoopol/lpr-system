@@ -752,6 +752,39 @@
   color: rgb(100, 116, 139);
   margin: 0 0 10px;
 }
+.cm-password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.cm-password-input-wrap input {
+  width: 100%;
+  padding-right: 36px !important;
+}
+.cm-password-toggle-btn {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  font-size: 14px;
+  transition: color 0.2s ease;
+}
+.cm-password-toggle-btn:hover {
+  color: #1e293b;
+}
+.dark .cm-password-toggle-btn {
+  color: #94a3b8;
+}
+.dark .cm-password-toggle-btn:hover {
+  color: #f1f5f9;
+}
 .btn-onvif-probe {
   background: rgb(37, 99, 235);
   color: #fff;

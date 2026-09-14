@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { FaVideo, FaSearch } from 'react-icons/fa'
+import { FaVideo, FaSearch, FaEye, FaEyeSlash } from 'react-icons/fa'
 import { FaCirclePlus, FaPlus, FaMagnifyingGlass, FaPen, FaTrashCan, FaXmark, FaRotate, FaTriangleExclamation, FaPowerOff } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
@@ -140,6 +140,7 @@ function CameraManagement() {
 
   // ---------- ONVIF Probe (ตัวช่วยหา RTSP) — ใช้ได้เฉพาะตอนเพิ่มกล้องใหม่ ----------
   const [showOnvifPanel, setShowOnvifPanel] = useState(false)
+  const [showOnvifPassword, setShowOnvifPassword] = useState(false)
   const [onvifForm, setOnvifForm] = useState(EMPTY_ONVIF_FORM)
   const [isProbing, setIsProbing] = useState(false)
   const [onvifProfiles, setOnvifProfiles] = useState([])
@@ -299,6 +300,7 @@ function CameraManagement() {
   // ---------- ONVIF Panel Helpers ----------
   function resetOnvifPanel() {
     setShowOnvifPanel(false)
+    setShowOnvifPassword(false)
     setOnvifForm(EMPTY_ONVIF_FORM)
     setOnvifProfiles([])
     setOnvifDeviceInfo(null)
@@ -1404,13 +1406,23 @@ function CameraManagement() {
                         </div>
                         <div className="cm-form-field">
                           <label>Password</label>
-                          <input
-                            type="password"
-                            name="password"
-                            placeholder="กรอกรหัสผ่านกล้อง"
-                            value={onvifForm.password}
-                            onChange={handleOnvifFormChange}
-                          />
+                          <div className="cm-password-input-wrap">
+                            <input
+                              type={showOnvifPassword ? 'text' : 'password'}
+                              name="password"
+                              placeholder="กรอกรหัสผ่านกล้อง"
+                              value={onvifForm.password}
+                              onChange={handleOnvifFormChange}
+                            />
+                            <button
+                              type="button"
+                              className="cm-password-toggle-btn"
+                              onClick={() => setShowOnvifPassword(!showOnvifPassword)}
+                              title={showOnvifPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                            >
+                              {showOnvifPassword ? <FaEye /> : <FaEyeSlash />}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
