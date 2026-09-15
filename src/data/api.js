@@ -313,7 +313,8 @@ export async function getAuditLogsAPI({
   createdAtFrom,
   createdAtTo,
   page = 1,
-  pageSize = 20
+  pageSize = 20,
+  order = 'desc'
 } = {}) {
   const params = { page, page_size: pageSize }
   if (villageId) params.village_id = villageId
@@ -321,6 +322,7 @@ export async function getAuditLogsAPI({
   if (action) params.action = action
   if (createdAtFrom) params.created_at_from = createdAtFrom
   if (createdAtTo) params.created_at_to = createdAtTo
+  if (order) params.order = order
 
   const response = await api.get('/api/audit-logs', { params })
   return response.data

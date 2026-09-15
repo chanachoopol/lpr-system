@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { FaSearch, FaCalendarAlt, FaRedo, FaEye } from 'react-icons/fa'
-import { FaClipboardList, FaXmark, FaCircleExclamation, FaCircleCheck } from 'react-icons/fa6'
+import { FaClipboardList, FaXmark, FaCircleExclamation, FaCircleCheck, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Swal from 'sweetalert2'
@@ -100,6 +100,7 @@ function AuditLog() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [sortOrder, setSortOrder] = useState('desc')
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isFetching, setIsFetching] = useState(false)
 
@@ -160,7 +161,8 @@ function AuditLog() {
         createdAtFrom: dateFrom ? startOfDayISO(dateFrom) : undefined,
         createdAtTo: dateTo ? endOfDayISO(dateTo) : undefined,
         page,
-        pageSize
+        pageSize,
+        order: sortOrder
       })
 
       setLogs(data?.items || [])
@@ -177,7 +179,7 @@ function AuditLog() {
       setIsInitialLoading(false)
       setIsFetching(false)
     }
-  }, [currentUser?.role, selectedVillageId, actionFilter, dateFrom, dateTo, page, pageSize])
+  }, [currentUser?.role, selectedVillageId, actionFilter, dateFrom, dateTo, page, pageSize, sortOrder])
 
   useEffect(() => {
     fetchLogs()
@@ -186,7 +188,7 @@ function AuditLog() {
   // เปลี่ยน filter ใดๆ → กลับไปหน้า 1 เสมอ
   useEffect(() => {
     setPage(1)
-  }, [actionFilter, dateFrom, dateTo, pageSize])
+  }, [actionFilter, dateFrom, dateTo, pageSize, sortOrder])
 
   // ปิด modal ดูรายละเอียด Log Detail เมื่อกดปุ่ม Escape
   useEffect(() => {
@@ -240,6 +242,7 @@ function AuditLog() {
     setActionFilter('all')
     setDateFrom(null)
     setDateTo(null)
+    setSortOrder('desc')
   }
 
   function handleFilterFailedLoginsToday() {
@@ -351,6 +354,31 @@ function AuditLog() {
                 </div>
               </div>
 
+              <button
+                type="button"
+                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                title={sortOrder === 'desc' ? 'เรียงลำดับ: ใหม่ไปเก่า (คลิกเพื่อสลับเป็น เก่าไปใหม่)' : 'เรียงลำดับ: เก่าไปใหม่ (คลิกเพื่อสลับเป็น ใหม่ไปเก่า)'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(27, 42, 71, 0.15)',
+                  background: 'rgb(255, 255, 255)',
+                  color: 'var(--text-main)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0
+                }}
+              >
+                {sortOrder === 'desc' ? (
+                  <FaArrowDownWideShort size={16} />
+                ) : (
+                  <FaArrowUpWideShort size={16} color="rgb(37, 99, 235)" />
+                )}
+              </button>
               <button className="btn-reset-al" onClick={handleReset} title="ล้างตัวกรองทั้งหมด">
                 <FaRedo /> Reset
               </button>
@@ -361,7 +389,20 @@ function AuditLog() {
             <table className={`al-table ${isFetching ? 'al-table-fetching' : ''}`}>
               <thead>
                 <tr>
-                  <th>Timestamp</th>
+                  <th 
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                    title="คลิกเพื่อเรียงลำดับตามเวลา"
+                  >
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      Timestamp
+                      {sortOrder === 'desc' ? (
+                        <FaArrowDownWideShort size={12} color="var(--text-secondary)" />
+                      ) : (
+                        <FaArrowUpWideShort size={12} color="rgb(37, 99, 235)" />
+                      )}
+                    </div>
+                  </th>
                   <th>User</th>
                   <th>Activity</th>
                   <th>Detail</th>
