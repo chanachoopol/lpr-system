@@ -314,11 +314,12 @@ const useNotificationStore = create((set, get) => ({
       }
 
       function handleCameraVerifiedEvent(data) {
+        const camId = data.camera_id || data.id || data.cameraId || data.camera?.id
         set({
           latestCameraEvent: {
             type: 'verified',
-            camera_id: data.camera_id || data.id,
-            camera_name: data.camera_name,
+            camera_id: camId,
+            camera_name: data.camera_name || data.name,
             verification_status: data.verification_status || 'verified',
             is_active: data.is_active ?? true,
             village_id: data.village_id,
@@ -328,16 +329,17 @@ const useNotificationStore = create((set, get) => ({
         })
         const user = useAuthStore.getState().user
         if (user?.role === 'admin' || user?.role === 'superadmin') {
-          toast.success(`Camera Synced${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+          toast.success(`Camera Synced${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
         }
       }
 
       function handleCameraFailedEvent(data, isTimeout = false) {
+        const camId = data.camera_id || data.id || data.cameraId || data.camera?.id
         set({
           latestCameraEvent: {
             type: 'verification_failed',
-            camera_id: data.camera_id || data.id,
-            camera_name: data.camera_name,
+            camera_id: camId,
+            camera_name: data.camera_name || data.name,
             verification_status: data.verification_status || 'failed',
             is_active: data.is_active ?? false,
             village_id: data.village_id,
@@ -349,18 +351,19 @@ const useNotificationStore = create((set, get) => ({
         if (user?.role === 'admin' || user?.role === 'superadmin') {
           toast.error(
             isTimeout
-              ? `Camera Verification Timeout${data.camera_name ? ` — ${data.camera_name}` : ''}`
-              : `Camera Verification Failed${data.camera_name ? ` — ${data.camera_name}` : ''}`
+              ? `Camera Verification Timeout${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`
+              : `Camera Verification Failed${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`
           )
         }
       }
 
       function handleCameraSyncFailedEvent(data) {
+        const camId = data.camera_id || data.id || data.cameraId || data.camera?.id
         set({
           latestCameraEvent: {
             type: 'sync_failed',
-            camera_id: data.camera_id || data.id,
-            camera_name: data.camera_name,
+            camera_id: camId,
+            camera_name: data.camera_name || data.name,
             failed_services: data.failed_services || [],
             village_id: data.village_id,
             _ts: Date.now(),
@@ -369,7 +372,7 @@ const useNotificationStore = create((set, get) => ({
         })
         const user = useAuthStore.getState().user
         if (user?.role === 'admin' || user?.role === 'superadmin') {
-          toast.error(`Camera Sync Failed${data.camera_name ? ` — ${data.camera_name}` : ''}`)
+          toast.error(`Camera Sync Failed${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
         }
       }
 

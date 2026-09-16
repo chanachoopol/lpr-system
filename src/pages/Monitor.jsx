@@ -165,7 +165,15 @@ function Monitor() {
         if (cameraFromURL && data.some((cam) => String(cam.id) === String(cameraFromURL))) {
           setSelectedCamera(cameraFromURL)
         } else if (data.length > 0) {
-          setSelectedCamera(data[0].id)
+          setSelectedCamera((prev) => {
+            if (prev === GRID_VIEW_VALUE) return GRID_VIEW_VALUE
+            if (data.some((cam) => String(cam.id) === String(prev))) {
+              return prev
+            }
+            return data[0].id
+          })
+        } else {
+          setSelectedCamera('')
         }
       } catch (error) {
         console.error(error)
@@ -433,6 +441,8 @@ function Monitor() {
                       ref={videoRef}
                       className="live-video"
                       controls={true}
+                      autoPlay={true}
+                      playsInline={true}
                       muted={true}
                       style={{ display: isVideoLoading ? 'none' : 'block' }}
                     />

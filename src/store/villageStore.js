@@ -42,6 +42,16 @@ export function getVillageInfo(villageId, currentVillages = []) {
   return { name: 'หมู่บ้านที่ไม่ทราบชื่อ', isDeleted: true }
 }
 
+const STORAGE_KEY_SELECTED_VILLAGE = 'lpr_selected_village_id'
+
+export function getPersistedSelectedVillage() {
+  try {
+    return sessionStorage.getItem(STORAGE_KEY_SELECTED_VILLAGE) || null
+  } catch (e) {
+    return null
+  }
+}
+
 // เก็บรายชื่อหมู่บ้านทั้งหมด + หมู่บ้านที่กำลังดูอยู่ (สำหรับ superadmin สลับดูได้)
 // admin/user ธรรมดา: selectedVillageId จะถูกล็อกไว้ที่หมู่บ้านของตัวเองเสมอ
 const useVillageStore = create((set, get) => ({
@@ -68,18 +78,28 @@ const useVillageStore = create((set, get) => ({
   },
 
   // เรียกตอน login สำเร็จ (หรือตอน restore session จาก cookie) — ตั้งค่าเริ่มต้นตาม role
-  // superadmin: default = ทุกหมู่บ้าน (null) เลือกเปลี่ยนได้ทีหลังผ่าน dropdown
+  // superadmin: ใช้ค่าที่เคยเลือกไว้จาก sessionStorage ถ้าไม่มีให้ default = ทุกหมู่บ้าน (null)
   // admin/user: ล็อกไว้ที่หมู่บ้านตัวเอง เปลี่ยนไม่ได้
   initSelectedVillage: (user) => {
     if (user?.role === 'superadmin') {
-      set({ selectedVillageId: null })
+      const persisted = getPersistedSelectedVillage()
+      set({ selectedVillageId: persisted })
     } else {
       set({ selectedVillageId: user?.village_id || null })
     }
   },
 
   // ใช้เฉพาะตอน superadmin เปลี่ยนหมู่บ้านจาก dropdown
-  setSelectedVillage: (villageId) => set({ selectedVillageId: villageId }),
+  setSelectedVillage: (villageId) => {
+    try {
+      if (villageId) {
+        sessionStorage.setItem(STORAGE_KEY_SELECTED_VILLAGE, villageId)
+      } else {
+        sessionStorage.removeItem(STORAGE_KEY_SELECTED_VILLAGE)
+      }
+    } catch (e) {}
+    set({ selectedVillageId: villageId })
+  },
 
   // หาชื่อหมู่บ้านจาก id — คืน '-' ถ้ายังไม่โหลดหรือหาไม่เจอ
   getVillageName: (villageId) => {
@@ -91,7 +111,12 @@ const useVillageStore = create((set, get) => ({
   },
 
   // เรียกตอน logout — เคลียร์ทุกอย่างกันข้อมูลหมู่บ้านของ user เก่าค้าง
-  reset: () => set({ villages: [], selectedVillageId: null, hasFetched: false })
+  reset: () => {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY_SELECTED_VILLAGE)
+    } catch (e) {}
+    set({ villages: [], selectedVillageId: null, hasFetched: false })
+  }
 }))
 
 export default useVillageStore

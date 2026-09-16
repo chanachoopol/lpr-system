@@ -51,6 +51,15 @@ const DIRECTION_LABELS = {
   internal: 'ภายใน (Internal)'
 }
 
+function getDirectionLabel(dir) {
+  if (!dir) return '-'
+  const lower = String(dir).toLowerCase().trim()
+  if (lower === 'entry' || lower === 'in') return 'ขาเข้า (Entry)'
+  if (lower === 'exit' || lower === 'out') return 'ขาออก (Exit)'
+  if (lower === 'internal') return 'ภายใน (Internal)'
+  return DIRECTION_LABELS[dir] || dir
+}
+
 function formatCoordinate(lat, long) {
   if (lat == null || long == null || lat === '' || long === '') return null
   const numLat = Number(lat)
@@ -62,6 +71,78 @@ function formatCoordinate(lat, long) {
 // ฟอร์ม ONVIF — เป็นแค่ตัวช่วยหา RTSP URI ไม่ใช่ field ที่ backend เก็บถาวร (session state เท่านั้น)
 const EMPTY_ONVIF_FORM = { host: '', port: 80, username: '', password: '' }
 
+// แปลงข้อความ Technical Error จาก Backend ให้เป็นภาษาไทยที่สุภาพและเข้าใจง่าย
+function formatCameraErrorDetail(rawDetail) {
+  if (!rawDetail) return ''
+  let text = ''
+  if (typeof rawDetail === 'string') {
+    text = rawDetail
+  } else if (typeof rawDetail === 'object') {
+    text = rawDetail.detail || rawDetail.message || rawDetail.note || JSON.stringify(rawDetail)
+  }
+  const lower = text.toLowerCase()
+
+  // 1. ตรวจจับกรณีข้อความรวม (Multiple status combined) เช่น:
+  // "Stream is offline, Camera is not active, Verification status is 'failed'"
+  // "Camera is offline, Verification status is 'pending'"
+  if (
+    (lower.includes('offline') || lower.includes('stream')) &&
+    (lower.includes('failed') || lower.includes('not active'))
+  ) {
+    return 'ไม่สามารถเชื่อมต่อสัญญาณกล้องได้ (สัญญาณออฟไลน์ หรือลิงก์ RTSP ไม่ถูกต้อง)'
+  }
+
+  if (lower.includes('offline') && lower.includes('pending')) {
+    return 'สัญญาณกล้องออฟไลน์ (ไม่พบการตอบสนองจากลิงก์ RTSP ที่ระบุ)'
+  }
+
+  if (
+    lower.includes('stream is offline') ||
+    lower.includes('stream offline') ||
+    lower.includes('stream is not online') ||
+    lower.includes('camera is offline')
+  ) {
+    return 'ไม่พบสัญญาณสตรีมของกล้อง กรุณาตรวจสอบลิงก์ RTSP หรือสถานะการเปิดของกล้อง'
+  }
+
+  if (
+    lower.includes("verification status is 'failed'") ||
+    lower.includes('verification status is failed') ||
+    lower.includes('verification failed') ||
+    lower.includes('verify failed')
+  ) {
+    return 'การยืนยันสัญญาณกล้องไม่สำเร็จ (ไม่สามารถดึงภาพวิดีโอจากลิงก์ได้)'
+  }
+
+  if (lower.includes("verification status is 'pending'") || lower.includes('verification status is pending')) {
+    return 'อยู่ระหว่างรอการยืนยันสัญญาณจากกล้อง'
+  }
+
+  if (
+    lower.includes('cannot connect') ||
+    lower.includes('connection refused') ||
+    lower.includes('failed to connect') ||
+    lower.includes('could not connect')
+  ) {
+    return 'ไม่สามารถเชื่อมต่อสัญญาณกล้องได้ กรุณาตรวจสอบ IP หรือเครือข่าย'
+  }
+
+  if (lower.includes('camera is not active') || lower.includes('camera inactive')) {
+    return 'กล้องถูกปิดการใช้งาน'
+  }
+
+  if (lower.includes('ai vision') || lower.includes('ai_vision')) {
+    return 'ไม่สามารถเชื่อมต่อระบบ AI Vision กับกล้องตัวนี้ได้'
+  }
+
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'หมดเวลาการเชื่อมต่อสัญญาณกล้อง (กล้องไม่ตอบสนอง)'
+  }
+
+  // หากเป็นภาษาไทยอยู่แล้ว หรือข้อความอื่นๆ ให้คืนค่าเดิม
+  return text
+}
+
 // รวมสถานะกล้อง (Power, AI Vision, Streaming / MediaMTX) ให้เป็น Camera Status เดียวที่เข้าใจง่าย
 function getUnifiedCameraStatusBadge(camera, isChecking = false) {
   // 1. กำลังโหลด/ตรวจสอบเฉพาะกล้องตัวนี้
@@ -69,32 +150,44 @@ function getUnifiedCameraStatusBadge(camera, isChecking = false) {
     return { label: 'กำลังตรวจสอบสัญญาณ...', tone: 'starting', description: 'กำลังส่งคำขอตรวจสอบไปยังระบบ' }
   }
 
-  // 2. ปิดใช้งานกล้อง
-  if (!camera.is_active) {
-    return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ปิดการทำงานกล้อง' }
-  }
-
-  // 3. กำลังเริ่มระบบ (เชื่อมต่อสัญญาณ / สตรีม / รอยืนยันเมื่อเพิ่มกล้องใหม่)
-  if (
-    camera.is_starting ||
+  // 2. อยู่ระหว่างรอยืนยันสัญญาณ / กำลังเริ่มระบบ (Pending / Connecting / Starting)
+  // ตรวจสอบตรงนี้ก่อน เพื่อไม่ให้กล้องที่เพิ่งเพิ่มใหม่ (verification_status = pending) หลุดไปเป็น "ขัดข้อง"
+  const isPending =
     camera.verification_status === 'pending' ||
     camera.verification_status === 'connecting' ||
-    (camera.status === undefined && camera.stream_online === undefined) ||
-    (camera.status === undefined && camera.stream_online === false && camera.verification_status !== 'failed')
-  ) {
-    return { label: 'กำลังเริ่มระบบ...', tone: 'starting', description: 'กำลังเชื่อมต่อสัญญาณกล้อง' }
+    camera.is_starting === true
+
+  if (isPending && camera.verification_status !== 'failed' && camera.status !== false) {
+    return {
+      label: 'รอยืนยันสัญญาณ...',
+      tone: 'starting',
+      description: 'กำลังตรวจสอบการเชื่อมต่อกับกล้อง (กรุณารอสักครู่)'
+    }
   }
 
-  // 4. ขัดข้อง (เมื่อยืนยันว่าล้มเหลวจริง: backend status === false หรือ verification_status === 'failed' หรือ verified แล้วแต่ stream หลุด)
-  if (
+  // 3. ขัดข้อง / เชื่อมต่อไม่สำเร็จ (เมื่อยืนยันว่าล้มเหลวจริง)
+  const hasFailureSignals =
     camera.verification_status === 'failed' ||
-    camera.status === false ||
-    (camera.verification_status === 'verified' && camera.stream_online === false)
-  ) {
-    let errDetail = camera.detail
+    (camera.status === false && camera.verification_status !== 'pending') ||
+    (camera.verification_status === 'verified' && camera.stream_online === false) ||
+    (camera.detail &&
+      camera.verification_status !== 'pending' &&
+      !camera.detail.includes('ถี่เกินไป') &&
+      !camera.detail.toLowerCase().includes('rate limit') &&
+      (
+        camera.detail.toLowerCase().includes('offline') ||
+        camera.detail.toLowerCase().includes('failed') ||
+        camera.detail.toLowerCase().includes('refused') ||
+        camera.detail.toLowerCase().includes('ขัดข้อง') ||
+        camera.detail.toLowerCase().includes('ไม่สำเร็จ')
+      ))
+
+  // กล้องที่ใส่ลิงก์ปลอม หรือสัญญาณหลุด หรือ verify ไม่ผ่าน ต้องขึ้น "ขัดข้อง" เสมอ ไม่ใช่ "ปิดใช้งาน"
+  if (hasFailureSignals) {
+    let errDetail = formatCameraErrorDetail(camera.detail)
     if (!errDetail) {
       if (camera.verification_status === 'failed') {
-        errDetail = 'การยืนยันกล้องไม่สำเร็จ'
+        errDetail = 'การยืนยันกล้องไม่สำเร็จ (ไม่พบสัญญาณ)'
       } else if (camera.stream_online === false) {
         errDetail = 'สัญญาณสตรีมมิ่งออฟไลน์'
       } else {
@@ -109,15 +202,28 @@ function getUnifiedCameraStatusBadge(camera, isChecking = false) {
     }
   }
 
+  // 4. ปิดใช้งานกล้อง (เฉพาะกรณีที่กล้องไม่มี error ใดๆ แต่ถูกสั่งปิดโดยผู้ใช้เองเท่านั้น)
+  if (!camera.is_active) {
+    return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ผู้ใช้ปิดการทำงานกล้อง' }
+  }
+
   // 5. พร้อมใช้งาน (เมื่อ backend status === true หรือผ่านเงื่อนไข verified & stream_online)
   const isReady = camera.status === true || (camera.verification_status === 'verified' && camera.stream_online === true)
   if (isReady) {
     return { label: 'พร้อมใช้งาน', tone: 'ready', description: 'กล้องพร้อมตรวจจับ' }
   }
 
+  // 6. ถ้ายังไม่มี status ชัดเจน แต่ยังไม่ล้มเหลว
+  if (
+    (camera.status === undefined && camera.stream_online === undefined) ||
+    (camera.status === undefined && camera.stream_online === false)
+  ) {
+    return { label: 'รอยืนยันสัญญาณ...', tone: 'starting', description: 'กำลังเชื่อมต่อสัญญาณกล้อง' }
+  }
+
   // Fallback
   return {
-    label: camera.verification_status || 'กำลังเริ่มระบบ...',
+    label: camera.verification_status || 'รอยืนยันสัญญาณ...',
     tone: 'starting',
     description: 'กำลังเชื่อมต่อสัญญาณกล้อง'
   }
@@ -160,47 +266,56 @@ function CameraManagement() {
     if (!latestCameraEvent) return
     const { type, camera_id } = latestCameraEvent
 
-    setCameras((prev) => prev.map((c) => {
-      if (c.id !== camera_id) return c
+    setCameras((prev) =>
+      prev.map((c) => {
+        if (String(c.id) !== String(camera_id)) return c
 
-      if (type === 'verified') {
-        return {
-          ...c,
-          verification_status: 'verified',
-          stream_online: latestCameraEvent.stream_online ?? true,
-          status: latestCameraEvent.status ?? true,
-          is_active: latestCameraEvent.is_active ?? c.is_active,
-          detail: latestCameraEvent.detail || null,
-          syncWarning: null
+        if (type === 'verified') {
+          return {
+            ...c,
+            verification_status: 'verified',
+            stream_online: latestCameraEvent.stream_online ?? true,
+            status: latestCameraEvent.status ?? true,
+            is_starting: false,
+            is_active: latestCameraEvent.is_active ?? c.is_active,
+            detail: null,
+            syncWarning: null
+          }
         }
-      }
-      if (type === 'verification_failed') {
-        // backend ปิดกล้องอัตโนมัติตอน verify failed → ต้อง sync is_active ด้วย ไม่ใช่แค่ badge
-        return {
-          ...c,
-          verification_status: 'failed',
-          stream_online: latestCameraEvent.stream_online ?? false,
-          status: latestCameraEvent.status ?? false,
-          is_active: latestCameraEvent.is_active ?? false,
-          detail: latestCameraEvent.detail || 'การยืนยันกล้องไม่สำเร็จ',
-          syncWarning: null
+        if (type === 'verification_failed') {
+          // backend ปิดกล้องอัตโนมัติตอน verify failed → ต้อง sync is_active ด้วย ไม่ใช่แค่ badge
+          return {
+            ...c,
+            verification_status: 'failed',
+            stream_online: latestCameraEvent.stream_online ?? false,
+            status: latestCameraEvent.status ?? false,
+            is_starting: false,
+            is_active: latestCameraEvent.is_active ?? false,
+            detail: formatCameraErrorDetail(latestCameraEvent.detail) || 'การยืนยันกล้องไม่สำเร็จ (ไม่พบสัญญาณภาพ)',
+            syncWarning: null
+          }
         }
-      }
-      if (type === 'sync_failed') {
-        // ไม่แตะ verification_status/is_active เลย เป็นแค่ warning ซ้อน
-        return {
-          ...c,
-          syncWarning: { failedServices: latestCameraEvent.failed_services, at: new Date() }
+        if (type === 'sync_failed') {
+          return {
+            ...c,
+            status: false,
+            stream_online: false,
+            is_starting: false,
+            verification_status: 'failed',
+            detail: 'ซิงค์ระบบกับกล้องไม่สำเร็จ (ไม่สามารถเชื่อมต่อสัญญาณได้)',
+            syncWarning: { failedServices: latestCameraEvent.failed_services, at: new Date() }
+          }
         }
-      }
-      return c
-    }))
+        return c
+      })
+    )
   }, [latestCameraEvent])
 
   // ดึงรายการกล้องจาก backend จริง — ยึดตาม selectedVillageId (หมู่บ้านที่กำลังดูอยู่)
   // superadmin เลือก "ทุกหมู่บ้าน" (null) → ไม่ส่ง village_id ได้ทุกหมู่บ้าน
-  const fetchCameras = useCallback(async () => {
-    setIsLoading(true)
+  // showFullLoading: true เฉพาะตอนสลับหมู่บ้านหรือโหลดครั้งแรก (ไม่กะพริบทั้งตารางตอนกด Save)
+  const fetchCameras = useCallback(async (showFullLoading = true) => {
+    if (showFullLoading) setIsLoading(true)
     try {
       const data = await getCameraListAPI({
         villageId: selectedVillageId || undefined,
@@ -208,9 +323,29 @@ function CameraManagement() {
         pageSize: 100
       })
       const cameraItems = data.items || []
-      setCameras(cameraItems)
+      setCameras((prev) => {
+        if (!showFullLoading && prev.length > 0) {
+          const prevMap = new Map(prev.map((item) => [String(item.id), item]))
+          return cameraItems.map((item) => {
+            const existing = prevMap.get(String(item.id))
+            return existing
+              ? {
+                  ...item,
+                  ...existing,
+                  name: item.name,
+                  village_id: item.village_id,
+                  lat: item.lat,
+                  long: item.long,
+                  direction: item.direction,
+                  delay: item.delay
+                }
+              : item
+          })
+        }
+        return cameraItems
+      })
       setTotal(data.total || cameraItems.length)
-      setIsLoading(false)
+      if (showFullLoading) setIsLoading(false)
 
       // ดึงสถานะกล้อง (status, stream_online, verification_status, is_starting, detail) จาก GET /api/cameras/{id}/status แบบคู่ขนาน
       const statusResults = await Promise.allSettled(
@@ -235,13 +370,16 @@ function CameraManagement() {
       )
     } catch (error) {
       console.error(error)
-      Swal.fire({
-        icon: 'error',
-        title: 'โหลดข้อมูลกล้องไม่สำเร็จ',
-        text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
-        confirmButtonColor: 'var(--sidebar-bg)'
-      })
-      setIsLoading(false)
+      if (showFullLoading) {
+        Swal.fire({
+          icon: 'error',
+          title: 'โหลดข้อมูลกล้องไม่สำเร็จ',
+          text: 'กรุณาลองรีเฟรชหน้าใหม่อีกครั้ง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+      }
+    } finally {
+      if (showFullLoading) setIsLoading(false)
     }
   }, [selectedVillageId])
 
@@ -703,14 +841,15 @@ function CameraManagement() {
       }
 
       closeFormModal()
-      fetchCameras()
+      fetchCameras(false)
     } catch (error) {
       console.error(error)
       const backendMessage = error.response?.data?.detail
+      const displayMessage = formatCameraErrorDetail(backendMessage) || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
       Swal.fire({
         icon: 'error',
         title: 'บันทึกไม่สำเร็จ',
-        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        text: displayMessage,
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     } finally {
@@ -739,7 +878,16 @@ function CameraManagement() {
         is_active: !isCurrentlyActive
       })
       setCameras((prev) =>
-        prev.map((c) => (c.id === camera.id ? { ...c, is_active: !isCurrentlyActive } : c))
+        prev.map((c) =>
+          String(c.id) === String(camera.id)
+            ? {
+                ...c,
+                is_active: !isCurrentlyActive,
+                is_starting: !isCurrentlyActive,
+                status: !isCurrentlyActive ? null : false
+              }
+            : c
+        )
       )
       Swal.fire({
         icon: 'success',
@@ -750,30 +898,52 @@ function CameraManagement() {
       try {
         const statusRes = await getCameraStatusAPI(camera.id)
         setCameras((prev) =>
-          prev.map((c) =>
-            c.id === camera.id
-              ? {
-                  ...c,
-                  is_active: !isCurrentlyActive,
-                  stream_online: statusRes.stream_online,
-                  verification_status: statusRes.verification_status ?? c.verification_status,
-                  is_starting: statusRes.is_starting,
-                  status: statusRes.status,
-                  detail: statusRes.detail
-                }
-              : c
-          )
+          prev.map((c) => {
+            if (String(c.id) !== String(camera.id)) return c
+            // หาก SSE แจ้งว่า fail ไปแล้ว หรือ statusRes ล้มเหลว อย่าให้ response ช้ามาทับเป็น is_starting
+            const alreadyFailed = c.status === false || c.verification_status === 'failed'
+            const isFailed =
+              statusRes.status === false ||
+              statusRes.verification_status === 'failed' ||
+              (statusRes.status === undefined && statusRes.stream_online === false)
+            return {
+              ...c,
+              is_active: !isCurrentlyActive,
+              stream_online: statusRes.stream_online,
+              verification_status: statusRes.verification_status ?? c.verification_status,
+              is_starting: (alreadyFailed || isFailed) ? false : statusRes.is_starting,
+              status: alreadyFailed ? false : statusRes.status,
+              detail: statusRes.detail || c.detail
+            }
+          })
         )
       } catch (err) {
         console.error('Failed to fetch updated camera status:', err)
       }
     } catch (error) {
       console.error(error)
+      const isRateLimit =
+        error.response?.status === 429 ||
+        String(error.response?.data?.detail).toLowerCase().includes('rate limit') ||
+        String(error.response?.data?.detail).includes('ถี่เกินไป')
+
+      if (isRateLimit) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'มีการเรียกใช้งานถี่เกินไป',
+          text: 'กรุณารอสักครู่แล้วลองใหม่อีกครั้ง',
+          confirmButtonText: 'ตกลง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+        return
+      }
+
       const backendMessage = error.response?.data?.detail
+      const displayMessage = formatCameraErrorDetail(backendMessage) || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
       Swal.fire({
         icon: 'error',
         title: `${actionLabel}ไม่สำเร็จ`,
-        text: typeof backendMessage === 'string' ? backendMessage : 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+        text: displayMessage,
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     }
@@ -870,7 +1040,7 @@ function CameraManagement() {
         statusRes = await getCameraStatusAPI(camId)
         setCameras((prev) =>
           prev.map((c) =>
-            c.id === camId
+            String(c.id) === String(camId)
               ? {
                   ...c,
                   stream_online: statusRes.stream_online,
@@ -887,11 +1057,31 @@ function CameraManagement() {
       }
 
       // ประเมินผลลัพธ์จริงเพื่อแสดงข้อความแจ้งเตือนที่ไม่ขัดแย้งกับสถานะในตาราง
-      const isFailed = statusRes?.status === false || statusRes?.verification_status === 'failed' || (statusRes?.status === undefined && statusRes?.stream_online === false)
-      const isReady = statusRes?.status === true || (statusRes?.verification_status === 'verified' && statusRes?.stream_online === true)
+      const isFailed =
+        statusRes?.status === false ||
+        statusRes?.verification_status === 'failed' ||
+        (statusRes?.status === undefined && statusRes?.stream_online === false)
+      const isReady =
+        statusRes?.status === true ||
+        (statusRes?.verification_status === 'verified' && statusRes?.stream_online === true)
 
       if (isFailed) {
-        const errorDetail = statusRes?.detail || res?.note || 'ไม่สามารถติดต่อ AI Vision Service หรือเชื่อมต่อสัญญาณกล้องได้'
+        const rawErr = statusRes?.detail || res?.note || 'ไม่สามารถติดต่อ AI Vision Service หรือเชื่อมต่อสัญญาณกล้องได้'
+        const errorDetail = formatCameraErrorDetail(rawErr)
+        setCameras((prev) =>
+          prev.map((c) =>
+            String(c.id) === String(camId)
+              ? {
+                  ...c,
+                  status: false,
+                  verification_status: 'failed',
+                  stream_online: false,
+                  is_starting: false,
+                  detail: errorDetail
+                }
+              : c
+          )
+        )
         Swal.fire({
           icon: 'error',
           title: `การเชื่อมต่อ ${camera.name} ขัดข้อง`,
@@ -911,17 +1101,49 @@ function CameraManagement() {
         Swal.fire({
           icon: 'info',
           title: `กำลังเริ่มระบบ ${camera.name}`,
-          text: res?.note || 'ระบบกำลังเชื่อมต่อสัญญาณกล้องใหม่อีกครั้ง กรุณารอสักครู่',
+          text: formatCameraErrorDetail(res?.note) || 'ระบบกำลังเชื่อมต่อสัญญาณกล้องใหม่อีกครั้ง กรุณารอสักครู่',
           confirmButtonText: 'ตกลง',
           confirmButtonColor: 'var(--sidebar-bg)'
         })
       }
     } catch (error) {
       console.error(error)
+      const isRateLimit =
+        error.response?.status === 429 ||
+        String(error.response?.data?.detail).toLowerCase().includes('rate limit') ||
+        String(error.response?.data?.detail).includes('ถี่เกินไป')
+
+      if (isRateLimit) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'มีการเรียกใช้งานถี่เกินไป',
+          text: 'กรุณารอสักครู่แล้วลองใหม่อีกครั้ง',
+          confirmButtonText: 'ตกลง',
+          confirmButtonColor: 'var(--sidebar-bg)'
+        })
+        return
+      }
+
+      const rawError = error.response?.data?.detail
+      const displayError = formatCameraErrorDetail(rawError) || 'เกิดข้อผิดพลาดในการส่งคำขอ กรุณาลองใหม่'
+      setCameras((prev) =>
+        prev.map((c) =>
+          String(c.id) === String(camId)
+            ? {
+                ...c,
+                status: false,
+                verification_status: 'failed',
+                stream_online: false,
+                is_starting: false,
+                detail: displayError
+              }
+            : c
+        )
+      )
       Swal.fire({
         icon: 'error',
         title: 'ตรวจสอบไม่สำเร็จ',
-        text: error.response?.data?.detail || 'เกิดข้อผิดพลาดในการส่งคำขอ กรุณาลองใหม่',
+        text: displayError,
         confirmButtonColor: 'var(--sidebar-bg)'
       })
     } finally {
@@ -1063,7 +1285,7 @@ function CameraManagement() {
                           )}
                         </td>
                         <td className="cm-direction-text">
-                          {DIRECTION_LABELS[c.direction] || c.direction || '-'}
+                          {getDirectionLabel(c.direction)}
                         </td>
                         <td className="cm-direction-text">
                           {c.delay != null ? `${c.delay} วินาที` : '1 วินาที'}
@@ -1097,18 +1319,19 @@ function CameraManagement() {
                                 onClick: () => handleVerificationCheck(c)
                               },
                               {
-                                key: 'toggle-camera-active',
-                                label: c.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน',
-                                icon: <FaPowerOff />,
-                                danger: c.is_active,
-                                success: !c.is_active,
-                                onClick: () => handleToggleCameraActive(c)
-                              },
-                              {
                                 key: 'edit-camera',
                                 label: 'แก้ไขข้อมูลกล้อง',
                                 icon: <FaPen />,
                                 onClick: () => openEditModal(c)
+                              },
+                              {
+                                key: 'toggle-camera-active',
+                                label: badge.tone === 'ready' ? 'ระงับการใช้งาน' : 'เปิดใช้งาน',
+                                icon: <FaPowerOff />,
+                                danger: badge.tone === 'ready',
+                                success: badge.tone === 'disabled',
+                                hidden: badge.tone === 'error' || badge.tone === 'starting',
+                                onClick: () => handleToggleCameraActive(c)
                               },
                               {
                                 key: 'delete-camera',
@@ -1125,7 +1348,7 @@ function CameraManagement() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={showVillageColumn ? 6 : 5}>
+                    <td colSpan={showVillageColumn ? 7 : 6}>
                       <EmptyState
                         icon={<FaVideo />}
                         title="No cameras found"
@@ -1577,7 +1800,7 @@ function CameraManagement() {
                             <td className="cm-camera-name" style={{ fontWeight: 600 }}>{c.name}</td>
                             {showVillageColumn && <td>{getVillageName(c.village_id) || '-'}</td>}
                             <td className="cm-direction-text">
-                              {DIRECTION_LABELS[c.direction] || c.direction || '-'}
+                              {getDirectionLabel(c.direction)}
                             </td>
                             <td className="cm-direction-text">
                               {c.delay != null ? `${c.delay} วินาที` : '1 วินาที'}

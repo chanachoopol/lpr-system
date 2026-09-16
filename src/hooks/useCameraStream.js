@@ -38,7 +38,7 @@ function useCameraStream(cameraId) {
   const hlsRef = useRef(null)
   const refreshTimerRef = useRef(null)
   const isMountedRef = useRef(true)
-  const fetchAndRefreshRef = useRef(() => {})
+  const currentStreamUrlRef = useRef(null)
   const retryCountRef = useRef(0) // นับจำนวนครั้งที่ retry เมื่อเจอ HLS Network Error
 
   const [isVideoLoading, setIsVideoLoading] = useState(true)
@@ -86,21 +86,23 @@ function useCameraStream(cameraId) {
   }, [])
 
   const attachSource = useCallback((streamUrl) => {
+    if (!streamUrl) return
+    currentStreamUrlRef.current = streamUrl
     const video = videoRef.current
-    if (!video || !streamUrl) return
+    if (!video) return
 
     if (Hls.isSupported()) {
       if (!hlsRef.current) {
         const hls = new Hls({
           lowLatencyMode: true,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 5,
-          maxBufferLength: 3,
-          maxMaxBufferLength: 5,
+          liveSyncDuration: 1.0,
+          liveMaxLatencyDuration: 2.5,
+          maxBufferLength: 2,
+          maxMaxBufferLength: 4,
           backBufferLength: 0,
-          xhrSetup: (xhr) => {
-            xhr.setRequestHeader('ngrok-skip-browser-warning', 'true')
-          }
+          maxLiveSyncPlaybackRate: 1.3,
+          liveDurationInfinity: true,
+          autoStartLoad: true
         })
         hls.attachMedia(video)
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -126,20 +128,20 @@ function useCameraStream(cameraId) {
                 retryCountRef.current += 1
                 const delayMs = retryCountRef.current * 2000 // 2s, 4s, 6s, 8s, 10s
                 console.warn(`⚠️ HLS Network Error (session อาจถูกตัด) กำลังขอ session ใหม่... (ครั้งที่ ${retryCountRef.current}/${MAX_RETRIES}) รอ ${delayMs}ms`)
-                hlsRef.current.destroy()
+                hlsRef.current?.destroy()
                 hlsRef.current = null
                 setIsVideoLoading(true)
                 setHasStreamError(false)
                 setTimeout(() => {
-                  if (isMountedRef.current) {
-                    fetchAndRefreshRef.current()
+                  if (isMountedRef.current && cameraId) {
+                    fetchAndRefresh(cameraId)
                   }
                 }, delayMs)
                 break
               case Hls.ErrorTypes.MEDIA_ERROR:
                 // video decode error → ลองซ่อมแซมก่อน ไม่ต้องขอ session ใหม่
                 console.warn('HLS Media Error กำลังซ่อมแซมวิดีโอ...')
-                hlsRef.current.recoverMediaError()
+                hlsRef.current?.recoverMediaError()
                 break
               default:
                 setIsVideoLoading(false)
@@ -165,9 +167,9 @@ function useCameraStream(cameraId) {
         setHasStreamError(true)
       })
     }
-  }, [])
+  }, [cameraId])
 
-  const scheduleNext = useCallback((expiresAt) => {
+  const scheduleNext = useCallback((expiresAt, targetId = cameraId) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
 
     // 👇 คำนวณเวลาที่ต้อง refresh จาก expires_at เสมอ ไม่ hardcode 300 วิ (ตามคำแนะนำของ backend)
@@ -175,20 +177,23 @@ function useCameraStream(cameraId) {
     const refreshIn = Math.max(msUntilExpiry - EXPIRY_BUFFER_MS, MIN_REFRESH_DELAY_MS)
 
     refreshTimerRef.current = setTimeout(() => {
-      fetchAndRefreshRef.current()
+      if (isMountedRef.current && targetId) {
+        fetchAndRefresh(targetId)
+      }
     }, refreshIn)
-  }, [])
+  }, [cameraId])
 
-  const fetchAndRefresh = useCallback(async () => {
-    if (!cameraId || !isMountedRef.current) return
+  const fetchAndRefresh = useCallback(async (targetCameraId = cameraId) => {
+    const idToFetch = targetCameraId || cameraId
+    if (!idToFetch || !isMountedRef.current) return
 
     try {
-      const data = await getCameraStreamTokenAPI(cameraId)
+      const data = await getCameraStreamTokenAPI(idToFetch)
       if (!isMountedRef.current) return
 
       setHasStreamError(false)
       attachSource(data.stream_url)
-      scheduleNext(data.expires_at)
+      scheduleNext(data.expires_at, idToFetch)
     } catch (error) {
       if (!isMountedRef.current) return
 
@@ -205,20 +210,31 @@ function useCameraStream(cameraId) {
       setHasStreamError(true)
       // network/5xx อื่นๆ — retry แบบมี backoff สั้นๆ กันสแปม request รัว
       refreshTimerRef.current = setTimeout(() => {
-        fetchAndRefreshRef.current()
+        if (isMountedRef.current && idToFetch) {
+          fetchAndRefresh(idToFetch)
+        }
       }, RETRY_DELAY_MS)
     }
   }, [cameraId, attachSource, scheduleNext, cleanup])
 
-  useEffect(() => {
-    fetchAndRefreshRef.current = fetchAndRefresh
-  }, [fetchAndRefresh])
+  // Callback ref: เมื่อแท็ก <video> mount เข้า DOM ให้ผูกสัญญาณสตรีมมิ่งทันที (แก้ปัญหา race condition ตอนสลับหมู่บ้าน)
+  const setVideoRef = useCallback((el) => {
+    videoRef.current = el
+    if (el && !IS_MOCK_CAMERA) {
+      if (hlsRef.current) {
+        hlsRef.current.attachMedia(el)
+      } else if (currentStreamUrlRef.current) {
+        attachSource(currentStreamUrlRef.current)
+      }
+    }
+  }, [attachSource])
 
   useEffect(() => {
     isMountedRef.current = true
     setHasStreamError(false)
     setIsDisabled(false)
     retryCountRef.current = 0 // reset นับ retry เมื่อเปลี่ยนกล้อง
+    currentStreamUrlRef.current = null
     cleanup()
 
     if (!cameraId) {
@@ -233,7 +249,7 @@ function useCameraStream(cameraId) {
     if (IS_MOCK_CAMERA) {
       detachMock = attachMockVideo()
     } else {
-      fetchAndRefreshRef.current()
+      fetchAndRefresh(cameraId)
     }
 
     return () => {
@@ -241,10 +257,9 @@ function useCameraStream(cameraId) {
       cleanup()
       if (detachMock) detachMock()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraId])
+  }, [cameraId, fetchAndRefresh, cleanup, attachMockVideo])
 
-  return { videoRef, isVideoLoading, hasStreamError, isDisabled }
+  return { videoRef: setVideoRef, isVideoLoading, hasStreamError, isDisabled }
 }
 
 export default useCameraStream

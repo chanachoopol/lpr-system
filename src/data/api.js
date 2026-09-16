@@ -356,15 +356,16 @@ export async function changePasswordAPI(currentPassword, newPassword, confirmNew
 
 // ==================== Camera API (สำหรับ dropdown เลือกกล้อง เช่น Monitor/History) ====================
 export async function getCamerasAPI(villageId) {
-  const response = await api.get('/api/cameras', {
-    params: {
-      village_id: villageId,
-      is_active: true,
-      page: 1,
-      page_size: 100
-    }
-  })
-  return response.data.items
+  const params = {
+    is_active: true,
+    page: 1,
+    page_size: 100
+  }
+  if (villageId && villageId !== 'all') {
+    params.village_id = villageId
+  }
+  const response = await api.get('/api/cameras', { params })
+  return Array.isArray(response.data?.items) ? response.data.items : []
 }
 
 export async function getCameraLiveAPI(cameraId, limit) {
