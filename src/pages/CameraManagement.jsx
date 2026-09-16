@@ -74,8 +74,23 @@ function getUnifiedCameraStatusBadge(camera, isChecking = false) {
     return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ปิดการทำงานกล้อง' }
   }
 
-  // 3. ขัดข้อง (เมื่อ backend status === false หรือ verification_status === 'failed' หรือ stream_online === false)
-  if (camera.status === false || camera.verification_status === 'failed' || (camera.status === undefined && camera.stream_online === false)) {
+  // 3. กำลังเริ่มระบบ (เชื่อมต่อสัญญาณ / สตรีม / รอยืนยันเมื่อเพิ่มกล้องใหม่)
+  if (
+    camera.is_starting ||
+    camera.verification_status === 'pending' ||
+    camera.verification_status === 'connecting' ||
+    (camera.status === undefined && camera.stream_online === undefined) ||
+    (camera.status === undefined && camera.stream_online === false && camera.verification_status !== 'failed')
+  ) {
+    return { label: 'กำลังเริ่มระบบ...', tone: 'starting', description: 'กำลังเชื่อมต่อสัญญาณกล้อง' }
+  }
+
+  // 4. ขัดข้อง (เมื่อยืนยันว่าล้มเหลวจริง: backend status === false หรือ verification_status === 'failed' หรือ verified แล้วแต่ stream หลุด)
+  if (
+    camera.verification_status === 'failed' ||
+    camera.status === false ||
+    (camera.verification_status === 'verified' && camera.stream_online === false)
+  ) {
     let errDetail = camera.detail
     if (!errDetail) {
       if (camera.verification_status === 'failed') {
@@ -94,27 +109,17 @@ function getUnifiedCameraStatusBadge(camera, isChecking = false) {
     }
   }
 
-  // 4. พร้อมใช้งาน (เมื่อ backend status === true หรือผ่านเงื่อนไข verified & stream_online)
+  // 5. พร้อมใช้งาน (เมื่อ backend status === true หรือผ่านเงื่อนไข verified & stream_online)
   const isReady = camera.status === true || (camera.verification_status === 'verified' && camera.stream_online === true)
   if (isReady) {
     return { label: 'พร้อมใช้งาน', tone: 'ready', description: 'กล้องพร้อมตรวจจับ' }
   }
 
-  // 5. กำลังเริ่มระบบ (เชื่อมต่อสัญญาณ / สตรีม)
-  if (camera.is_starting || camera.verification_status === 'pending') {
-    return { label: 'กำลังเริ่มระบบ...', tone: 'starting', description: 'กำลังเชื่อมต่อสัญญาณกล้อง' }
-  }
-
-  // 6. กำลังโหลดสถานะ
-  if (camera.stream_online === undefined && camera.status === undefined) {
-    return { label: 'กำลังตรวจสอบ...', tone: 'checking', description: '' }
-  }
-
   // Fallback
   return {
-    label: camera.verification_status || 'พร้อมใช้งาน',
-    tone: 'ready',
-    description: ''
+    label: camera.verification_status || 'กำลังเริ่มระบบ...',
+    tone: 'starting',
+    description: 'กำลังเชื่อมต่อสัญญาณกล้อง'
   }
 }
 

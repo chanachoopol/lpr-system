@@ -74,8 +74,9 @@ function scheduleProactiveRefresh(expiresInSec = null, token = null) {
 
   if (!durationMs || durationMs <= 0) return
 
-  // เผื่อเวลาล่วงหน้าไม่เกิน 20% ของอายุ Token และสูงสุดไม่เกิน 60 วินาที (1 นาที)
-  const bufferMs = Math.min(60 * 1000, durationMs * 0.2)
+  // เผื่อเวลาล่วงหน้า 20% ของอายุ Token (ขั้นต่ำ 10 วินาที สูงสุดไม่เกิน 3 นาที / 180 วินาที)
+  // ปรับตัวตามอายุจริงแบบ Dynamic 100% ไม่มีการ Hardcode
+  const bufferMs = Math.min(180 * 1000, Math.max(10 * 1000, durationMs * 0.2))
   const delayMs = Math.max(1000, durationMs - bufferMs)
 
   proactiveTimer = setTimeout(async () => {
@@ -85,6 +86,14 @@ function scheduleProactiveRefresh(expiresInSec = null, token = null) {
       }
     } catch (err) {
       console.warn('Proactive token refresh error:', err)
+      // ถ้าล้มเหลวเพราะเน็ตกระตุกชั่วคราว (ไม่ใช่ 401) ให้ลองใหม่ในอีก 15 วินาที
+      if (err?.response?.status !== 401 && useAuthStore.getState().isLoggedIn) {
+        proactiveTimer = setTimeout(() => {
+          if (useAuthStore.getState().isLoggedIn) {
+            useAuthStore.getState().refreshAccessToken().catch(() => {})
+          }
+        }, 15000)
+      }
     }
   }, delayMs)
 }
@@ -148,7 +157,10 @@ const useAuthStore = create((set, get) => ({
         set({ accessToken: data.access_token, isLoggedIn: true, isLoading: false })
         return data.access_token
       } catch (error) {
-        get().clearSession()
+        // เคลียร์ session เฉพาะเมื่อได้รับ 401 (Refresh Token หมดอายุหรือถูกเพิกถอนจริง)
+        if (error?.response?.status === 401) {
+          get().clearSession()
+        }
         throw error
       } finally {
         inFlightRefresh = null

@@ -91,7 +91,17 @@ function useCameraStream(cameraId) {
 
     if (Hls.isSupported()) {
       if (!hlsRef.current) {
-        const hls = new Hls()
+        const hls = new Hls({
+          lowLatencyMode: true,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 5,
+          maxBufferLength: 3,
+          maxMaxBufferLength: 5,
+          backBufferLength: 0,
+          xhrSetup: (xhr) => {
+            xhr.setRequestHeader('ngrok-skip-browser-warning', 'true')
+          }
+        })
         hls.attachMedia(video)
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           if (!isMountedRef.current) return
