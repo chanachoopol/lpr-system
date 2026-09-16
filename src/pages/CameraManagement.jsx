@@ -43,7 +43,7 @@ function getVisiblePageNumbers(currentPage, totalPages, maxVisible = 4) {
 // มีแค่ is_active (เปิด/ปิดใช้งานกล้อง)
 // stream_ai = แหล่งสตรีมที่ป้อนเข้า (RTSP) — ส่วน stream_url เป็นค่าที่ backend generate ให้เอง ห้ามส่งตอน create/update
 // direction = ทิศทางกล้อง (enum "entry" | "exit" | "internal")
-// delay = เว้นระยะเวลาตรวจจับซ้ำ (1 - 60 วินาที)
+// delay = เว้นระยะเวลาตรวจจับซ้ำ (1 - 300 วินาที)
 const EMPTY_FORM = { name: '', lat: '', long: '', streamAi: '', direction: 'entry', delay: 1, isActive: true, villageId: '' }
 const DIRECTION_LABELS = {
   entry: 'ขาเข้า (Entry)',
@@ -786,11 +786,11 @@ function CameraManagement() {
     }
 
     const delayNum = parseInt(formData.delay ?? 1, 10)
-    if (isNaN(delayNum) || delayNum < 1 || delayNum > 60) {
+    if (isNaN(delayNum) || delayNum < 1 || delayNum > 300) {
       Swal.fire({
         icon: 'warning',
         title: 'ค่า Delay ไม่ถูกต้อง',
-        text: 'Delay ต้องเป็นตัวเลขจำนวนเต็มระหว่าง 1 ถึง 60 วินาที',
+        text: 'Delay ต้องเป็นตัวเลขจำนวนเต็มระหว่าง 1 ถึง 300 วินาที',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       return
@@ -1714,28 +1714,28 @@ function CameraManagement() {
                     type="number"
                     name="delay"
                     min="1"
-                    max="60"
-                    placeholder="1 - 60 วินาที"
+                    max="300"
+                    placeholder="1 - 300 วินาที"
                     value={formData.delay}
                     onChange={handleFormChange}
                     onBlur={() => handleFieldBlur('delay')}
                     style={
                       (formTouched.delay || hasSubmittedForm) &&
-                      (formData.delay === '' || isNaN(parseInt(formData.delay, 10)) || parseInt(formData.delay, 10) < 1 || parseInt(formData.delay, 10) > 60)
+                      (formData.delay === '' || isNaN(parseInt(formData.delay, 10)) || parseInt(formData.delay, 10) < 1 || parseInt(formData.delay, 10) > 300)
                         ? { borderColor: '#dc2626' }
                         : {}
                     }
                   />
                   {(formTouched.delay || hasSubmittedForm) &&
-                    (formData.delay === '' || isNaN(parseInt(formData.delay, 10)) || parseInt(formData.delay, 10) < 1 || parseInt(formData.delay, 10) > 60) && (
+                    (formData.delay === '' || isNaN(parseInt(formData.delay, 10)) || parseInt(formData.delay, 10) < 1 || parseInt(formData.delay, 10) > 300) && (
                       <span style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-                        Delay ต้องเป็นตัวเลข 1 - 60 วินาที
+                        Delay ต้องเป็นตัวเลข 1 - 300 วินาที
                       </span>
                     )}
                 </div>
               </div>
               <p className="cm-description" style={{ margin: '-6px 0 12px' }}>
-                เว้นระยะเวลาก่อนยอมให้ตรวจจับป้ายทะเบียนเดิมซ้ำ (1 - 60 วินาที) ช่วยแก้ปัญหาตรวจจับป้ายซ้ำขณะรถติด
+                เว้นระยะเวลาก่อนยอมให้ตรวจจับป้ายทะเบียนเดิมซ้ำ (1 - 300 วินาที หรือสูงสุด 5 นาที) ช่วยแก้ปัญหาตรวจจับป้ายซ้ำขณะรถติด
               </p>
               <div className="cm-form-actions">
                 <button
