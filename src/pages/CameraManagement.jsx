@@ -145,12 +145,23 @@ function formatCameraErrorDetail(rawDetail) {
 
 // รวมสถานะกล้อง (Power, AI Vision, Streaming / MediaMTX) ให้เป็น Camera Status เดียวที่เข้าใจง่าย
 function getUnifiedCameraStatusBadge(camera, isChecking = false) {
-  // 1. กำลังโหลด/ตรวจสอบเฉพาะกล้องตัวนี้
+  if (!camera) {
+    return { label: 'ไม่ทราบสถานะ', tone: 'starting', description: 'ไม่มีข้อมูลสถานะกล้อง' }
+  }
+
+  // 1. ปิดใช้งานกล้อง (ผู้ใช้สั่งปิดการทำงานเอง — is_active: false)
+  // ต้องตรวจเช็คตรงนี้ก่อนเป็นลำดับแรกสุด เพราะเมื่อสั่งปิด Backend จะตัดสตรีม (status: false, stream_online: false)
+  // ซึ่งไม่ใช่ข้อผิดพลาดของกล้อง แต่เกิดจากความตั้งใจของผู้ใช้เอง
+  if (!camera.is_active) {
+    return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ผู้ใช้ปิดการทำงานกล้อง' }
+  }
+
+  // 2. กำลังโหลด/ตรวจสอบเฉพาะกล้องตัวนี้
   if (isChecking) {
     return { label: 'กำลังตรวจสอบสัญญาณ...', tone: 'starting', description: 'กำลังส่งคำขอตรวจสอบไปยังระบบ' }
   }
 
-  // 2. อยู่ระหว่างรอยืนยันสัญญาณ / กำลังเริ่มระบบ (Pending / Connecting / Starting)
+  // 3. อยู่ระหว่างรอยืนยันสัญญาณ / กำลังเริ่มระบบ (Pending / Connecting / Starting)
   // ตรวจสอบตรงนี้ก่อน เพื่อไม่ให้กล้องที่เพิ่งเพิ่มใหม่ (verification_status = pending) หลุดไปเป็น "ขัดข้อง"
   const isPending =
     camera.verification_status === 'pending' ||
@@ -165,7 +176,7 @@ function getUnifiedCameraStatusBadge(camera, isChecking = false) {
     }
   }
 
-  // 3. ขัดข้อง / เชื่อมต่อไม่สำเร็จ (เมื่อยืนยันว่าล้มเหลวจริง)
+  // 4. ขัดข้อง / เชื่อมต่อไม่สำเร็จ (เมื่อยืนยันว่าล้มเหลวจริง ในขณะที่กล้องยังเปิดใช้งานอยู่)
   const hasFailureSignals =
     camera.verification_status === 'failed' ||
     (camera.status === false && camera.verification_status !== 'pending') ||
@@ -200,11 +211,6 @@ function getUnifiedCameraStatusBadge(camera, isChecking = false) {
       description: errDetail,
       canRetry: true
     }
-  }
-
-  // 4. ปิดใช้งานกล้อง (เฉพาะกรณีที่กล้องไม่มี error ใดๆ แต่ถูกสั่งปิดโดยผู้ใช้เองเท่านั้น)
-  if (!camera.is_active) {
-    return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ผู้ใช้ปิดการทำงานกล้อง' }
   }
 
   // 5. พร้อมใช้งาน (เมื่อ backend status === true หรือผ่านเงื่อนไข verified & stream_online)
@@ -884,7 +890,9 @@ function CameraManagement() {
                 ...c,
                 is_active: !isCurrentlyActive,
                 is_starting: !isCurrentlyActive,
-                status: !isCurrentlyActive ? null : false
+                status: !isCurrentlyActive ? null : false,
+                verification_status: !isCurrentlyActive ? 'pending' : c.verification_status,
+                detail: !isCurrentlyActive ? null : c.detail
               }
             : c
         )
@@ -894,26 +902,50 @@ function CameraManagement() {
         title: `${actionLabel}กล้องแล้ว`,
         confirmButtonColor: 'var(--sidebar-bg)'
       })
+
+      // หากเป็นการ "เปิดใช้งาน" ให้สั่งตรวจสอบสัญญาณและยืนยันการเชื่อมต่อให้อัตโนมัติในพื้นหลัง
+      if (!isCurrentlyActive) {
+        try {
+          await checkCameraVerificationAPI(camera.id)
+        } catch (verifyErr) {
+          console.warn('Auto verification check warning:', verifyErr)
+        }
+      }
+
       // Refresh status in background
       try {
         const statusRes = await getCameraStatusAPI(camera.id)
         setCameras((prev) =>
           prev.map((c) => {
             if (String(c.id) !== String(camera.id)) return c
-            // หาก SSE แจ้งว่า fail ไปแล้ว หรือ statusRes ล้มเหลว อย่าให้ response ช้ามาทับเป็น is_starting
-            const alreadyFailed = c.status === false || c.verification_status === 'failed'
-            const isFailed =
-              statusRes.status === false ||
-              statusRes.verification_status === 'failed' ||
-              (statusRes.status === undefined && statusRes.stream_online === false)
-            return {
-              ...c,
-              is_active: !isCurrentlyActive,
-              stream_online: statusRes.stream_online,
-              verification_status: statusRes.verification_status ?? c.verification_status,
-              is_starting: (alreadyFailed || isFailed) ? false : statusRes.is_starting,
-              status: alreadyFailed ? false : statusRes.status,
-              detail: statusRes.detail || c.detail
+            if (!isCurrentlyActive) {
+              // กรณีเปิดใช้งาน: นำสถานะจริงหลังการเชื่อมต่อมาใช้
+              const isReady =
+                statusRes.status === true ||
+                (statusRes.verification_status === 'verified' && statusRes.stream_online === true)
+              const isFailed =
+                statusRes.status === false ||
+                statusRes.verification_status === 'failed'
+
+              return {
+                ...c,
+                is_active: true,
+                stream_online: statusRes.stream_online,
+                verification_status: statusRes.verification_status ?? (isReady ? 'verified' : c.verification_status),
+                is_starting: (isReady || isFailed) ? false : (statusRes.is_starting ?? true),
+                status: isReady ? true : (isFailed ? false : statusRes.status),
+                detail: statusRes.detail || (isFailed ? 'การยืนยันกล้องไม่สำเร็จ' : null)
+              }
+            } else {
+              // กรณีระงับการใช้งาน
+              return {
+                ...c,
+                is_active: false,
+                stream_online: false,
+                is_starting: false,
+                status: false,
+                detail: statusRes.detail || c.detail
+              }
             }
           })
         )
