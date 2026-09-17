@@ -212,8 +212,12 @@ const useNotificationStore = create((set, get) => ({
       // กรองการแจ้งเตือน: ถ้าเป็น role user ไม่ต้องแสดงการแจ้งเตือนเกี่ยวกับกล้องและความปลอดภัย
       if (isRegularUser) {
         items = items.filter((n) => n.type !== 'camera' && n.type !== 'security')
+        // ซิงค์ unreadCount ให้ตรงกับรายการที่ user มีสิทธิ์เห็นจริง
+        const visibleUnread = items.filter((n) => !n.read).length
+        set({ notifications: items, unreadCount: visibleUnread })
+      } else {
+        set({ notifications: items })
       }
-      set({ notifications: items })
     } catch (error) {
       console.error('โหลดการแจ้งเตือนไม่สำเร็จ:', error)
     } finally {
@@ -223,6 +227,21 @@ const useNotificationStore = create((set, get) => ({
 
   fetchUnreadCount: async () => {
     try {
+      const currentUser = useAuthStore.getState().user
+      const isRegularUser = currentUser?.role === 'user'
+
+      // ถ้าเป็น role user ให้ดึงเฉพาะรายการที่ยังไม่อ่านมากรองเฉพาะประเภทที่ user มีสิทธิ์เห็นจริง
+      if (isRegularUser) {
+        const data = await getNotificationsAPI({ isRead: false, page: 1, pageSize: 100 })
+        const visibleUnread = (data.items || [])
+          .map(mapNotification)
+          .filter((n) => n.type !== 'camera' && n.type !== 'security')
+          .length
+        set({ unreadCount: visibleUnread })
+        return
+      }
+
+      // admin / superadmin ใช้ยอดจาก backend ตามปกติ
       const data = await getUnreadNotificationCountAPI()
       set({ unreadCount: data.count })
     } catch (error) {
