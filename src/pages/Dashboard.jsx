@@ -359,7 +359,38 @@ function Dashboard() {
   const [directionSearchQuery, setDirectionSearchQuery] = useState('')
   const [directionSortOrder, setDirectionSortOrder] = useState('desc')
 
-  const DIRECTION_PAGE_SIZE = 10
+  // คำนวณจำนวนแถวต่อหน้าตามความสูงหน้าจอ (Viewport Height) เพื่อให้พอดีกับจอและไม่มี Scrollbar
+  const calculateDirectionPageSize = useCallback(() => {
+    if (typeof window === 'undefined') return 8
+    const vh = window.innerHeight
+    if (vh >= 820) return 10
+    if (vh >= 680) return 8
+    return 6
+  }, [])
+
+  const [directionPageSize, setDirectionPageSize] = useState(() => {
+    if (typeof window === 'undefined') return 8
+    const vh = window.innerHeight
+    if (vh >= 820) return 10
+    if (vh >= 680) return 8
+    return 6
+  })
+
+  useEffect(() => {
+    function handleResize() {
+      const newSize = calculateDirectionPageSize()
+      setDirectionPageSize((prev) => {
+        if (prev !== newSize) {
+          setDirectionPage(1)
+          return newSize
+        }
+        return prev
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [calculateDirectionPageSize])
 
   const fetchDirectionDetections = useCallback(async (dir, isInitial = false) => {
     if (!dir) return
@@ -398,6 +429,7 @@ function Dashboard() {
     setDirectionSearchQuery('')
     setDirectionSortOrder('desc')
     setDirectionPage(1)
+    setDirectionPageSize(calculateDirectionPageSize())
     fetchDirectionDetections(dir, true)
   }
 
@@ -440,11 +472,11 @@ function Dashboard() {
     return list
   }, [directionList, directionSearchQuery, directionSortOrder, cameras])
 
-  const totalDirectionPages = Math.ceil(processedDirectionList.length / DIRECTION_PAGE_SIZE) || 1
+  const totalDirectionPages = Math.ceil(processedDirectionList.length / directionPageSize) || 1
   const displayedDirectionItems = useMemo(() => {
-    const start = (directionPage - 1) * DIRECTION_PAGE_SIZE
-    return processedDirectionList.slice(start, start + DIRECTION_PAGE_SIZE)
-  }, [processedDirectionList, directionPage])
+    const start = (directionPage - 1) * directionPageSize
+    return processedDirectionList.slice(start, start + directionPageSize)
+  }, [processedDirectionList, directionPage, directionPageSize])
 
 
   // ปิด modal / fullscreen เมื่อกดปุ่ม Escape
@@ -730,7 +762,7 @@ function Dashboard() {
         </div>
       ) : directionModal ? (
         <div className="modal-overlay" onClick={closeDirectionModal}>
-          <div className="modal-content modal-large bl-direction-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content modal-large dash-direction-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-header-left">
                 <h3>
@@ -790,7 +822,14 @@ function Dashboard() {
             </div>
 
             <div className="modal-registered-body" style={{ padding: '20px 24px' }}>
-              <div className="table-responsive">
+              <div
+                className="table-responsive"
+                style={{
+                  height: `${38 + directionPageSize * 44}px`,
+                  minHeight: `${38 + directionPageSize * 44}px`,
+                  maxHeight: `${38 + directionPageSize * 44}px`
+                }}
+              >
                 <table className="bl-table">
                   <thead>
                     <tr>
@@ -821,7 +860,7 @@ function Dashboard() {
                         )
                         return (
                           <tr key={item.id || index} className={isBlacklist ? 'history-row-blacklist' : ''}>
-                            <td>{(directionPage - 1) * DIRECTION_PAGE_SIZE + index + 1}</td>
+                            <td>{(directionPage - 1) * directionPageSize + index + 1}</td>
                             <td>{formatDate(item.time_detect)}</td>
                             <td>{formatTime(item.time_detect)}</td>
                             <td className="bold-plate" style={{ fontWeight: 600 }}>
@@ -855,7 +894,8 @@ function Dashboard() {
 
               {/* Pagination (สไตล์ Blacklist) */}
               {totalDirectionPages > 1 && (
-                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <span className="pagination-info">Page {directionPage} of {totalDirectionPages}</span>
                   <button
                     className="page-btn"
                     disabled={directionPage === 1 || isLoadingDirection}

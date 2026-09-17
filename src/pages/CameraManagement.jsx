@@ -1399,6 +1399,7 @@ function CameraManagement() {
             </p>
             {totalPages > 1 && (
               <div className="pagination">
+                <span className="pagination-info">Page {currentPage} of {totalPages}</span>
                 <button
                   className="page-btn"
                   disabled={currentPage === 1}
@@ -1878,6 +1879,7 @@ function CameraManagement() {
                   แสดง {paginatedKpiCameras.length} จากทั้งหมด {kpiModalCameras.length.toLocaleString()} รายการ
                 </p>
                 <div className="pagination">
+                  <span className="pagination-info">Page {kpiModalPage} of {kpiModalTotalPages}</span>
                   <button
                     className="page-btn"
                     disabled={kpiModalPage === 1}

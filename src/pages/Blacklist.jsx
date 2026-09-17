@@ -1409,6 +1409,7 @@ function saveHistoricalWhitelistPlates(map) {
             </p>
             {totalPages > 1 && (
               <div className="pagination">
+                <span className="pagination-info">Page {currentPage} of {totalPages}</span>
                 <button
                   className="page-btn"
                   disabled={currentPage === 1}
@@ -1860,7 +1861,8 @@ function saveHistoricalWhitelistPlates(map) {
 
               {/* Pagination */}
               {totalTodayPages > 1 && (
-                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <span className="pagination-info">Page {todayPage} of {totalTodayPages}</span>
                   <button
                     className="page-btn"
                     disabled={todayPage <= 1}
@@ -2083,7 +2085,8 @@ function saveHistoricalWhitelistPlates(map) {
 
               {/* Pagination */}
               {totalRegisteredPages > 1 && (
-                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <div className="pagination" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <span className="pagination-info">Page {registeredPage} of {totalRegisteredPages}</span>
                   <button
                     className="page-btn"
                     disabled={registeredPage <= 1}

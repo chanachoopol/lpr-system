@@ -463,6 +463,7 @@ function AuditLog() {
             </p>
             {totalPages > 1 && (
               <div className="pagination">
+                <span className="pagination-info">Page {page} of {totalPages}</span>
                 <button
                   className="page-btn"
                   disabled={page <= 1 || isFetching}

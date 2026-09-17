@@ -719,6 +719,7 @@ function History() {
 
           {/* Pagination — แสดงตลอดเวลาเพื่อรักษาระยะ Layout ให้สวยงามคงที่ */}
           <div className="pagination">
+            <span className="pagination-info">Page {currentPage} of {totalPages}</span>
             <button
               className="page-btn"
               disabled={currentPage <= 1}

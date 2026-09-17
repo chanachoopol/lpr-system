@@ -204,3 +204,13 @@ body {
   color: rgb(148, 163, 184);
   font-weight: 400;
 }
+
+/* Pagination Info */
+.pagination-info {
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+  font-weight: 500;
+  margin-right: 8px;
+  white-space: nowrap;
+  user-select: none;
+}

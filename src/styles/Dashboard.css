@@ -515,23 +515,24 @@
   cursor: not-allowed;
 }
 
+.dash-direction-modal,
 .bl-direction-modal {
   max-width: 920px !important;
   width: 95% !important;
 }
 
-.bl-direction-modal .table-responsive {
-  height: 480px !important;
-  min-height: 480px !important;
-  max-height: 480px !important;
+.dash-direction-modal .table-responsive {
   overflow: hidden !important;
+  transition: height 0.2s ease;
 }
 
+.dash-direction-modal .bl-table,
 .bl-direction-modal .bl-table {
   width: 100%;
   border-collapse: collapse;
 }
 
+.dash-direction-modal .bl-table th,
 .bl-direction-modal .bl-table th {
   color: var(--text-main, #1b2a47) !important;
   font-size: 13.5px !important;
@@ -541,6 +542,7 @@
   box-sizing: border-box;
 }
 
+.dash-direction-modal .bl-table td,
 .bl-direction-modal .bl-table td {
   font-size: 14px !important;
   padding: 7px 12px !important;

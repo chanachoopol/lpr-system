@@ -1289,6 +1289,7 @@ function UserManagement() {
               <p className="um-total-count">Showing {paginatedVillages.length} of {villagesList.length.toLocaleString()} villages</p>
               {totalVillagePages > 1 && (
                 <div className="pagination">
+                  <span className="pagination-info">Page {villagePage} of {totalVillagePages}</span>
                   <button
                     className="page-btn"
                     disabled={villagePage === 1}
@@ -1524,6 +1525,7 @@ function UserManagement() {
             <p className="um-total-count">Showing {users.length} of {total.toLocaleString()} users</p>
             {totalPages > 1 && (
               <div className="pagination">
+                <span className="pagination-info">Page {currentPage} of {totalPages}</span>
                 <button
                   className="page-btn"
                   disabled={currentPage === 1}
