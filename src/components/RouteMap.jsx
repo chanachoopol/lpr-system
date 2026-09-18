@@ -494,6 +494,7 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
                       ">
                         ${point.order}
                       </span>
+                      ${point.count > 1 ? `<span class="rt-map-marker-pin-count">x${point.count}</span>` : ''}
                     </div>
                   `
                 }
@@ -639,12 +640,31 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
             <span>{hoveredPoint.point.time ? new Date(hoveredPoint.point.time).toLocaleString('th-TH') : '-'}</span>
           </div>
 
+          {hoveredPoint.point.count > 1 && (
+            <>
+              <div className="rt-map-hover-card-row">
+                <span className="rt-map-hover-card-label">ตรวจพบ</span>
+                <span style={{ color: '#b45309', fontWeight: 700 }}>
+                  ต่อเนื่อง {hoveredPoint.point.count} ครั้ง
+                </span>
+              </div>
+              {hoveredPoint.point.durationText && (
+                <div className="rt-map-hover-card-row">
+                  <span className="rt-map-hover-card-label">ระยะเวลา</span>
+                  <span>{hoveredPoint.point.durationText}</span>
+                </div>
+              )}
+            </>
+          )}
+
           <span
             className={`rt-map-hover-card-badge ${
               hoveredPoint.point.direction === 'entry'
                 ? 'entry'
                 : hoveredPoint.point.direction === 'exit'
                 ? 'exit'
+                : hoveredPoint.point.direction === 'internal'
+                ? 'internal'
                 : 'unknown'
             }`}
           >
@@ -653,6 +673,8 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
               ? 'ขาเข้า'
               : hoveredPoint.point.direction === 'exit'
               ? 'ขาออก'
+              : hoveredPoint.point.direction === 'internal'
+              ? 'ภายใน'
               : 'ไม่ทราบทิศทาง'}
           </span>
         </div>

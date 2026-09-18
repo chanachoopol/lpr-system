@@ -2,7 +2,29 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding-bottom: 24px;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 4px 6px 36px 4px;
+  box-sizing: border-box;
+}
+
+/* Custom Scrollbar for Profile */
+.pf-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pf-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pf-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(27, 42, 71, 0.15);
+  border-radius: 999px;
+}
+
+.pf-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(27, 42, 71, 0.3);
 }
 
 /* Header Card */

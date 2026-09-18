@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FaSearch, FaCalendarAlt, FaArrowLeft } from 'react-icons/fa';
-import { FaCar, FaRoute, FaMapLocationDot, FaXmark, FaArrowRotateLeft, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6';
+import { FaCar, FaRoute, FaMapLocationDot, FaXmark, FaArrowRotateLeft, FaArrowDownWideShort, FaArrowUpWideShort, FaCamera, FaClock, FaCalendarDays } from 'react-icons/fa6';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Swal from 'sweetalert2';
@@ -55,7 +55,140 @@ function formatDateTime(isoString) {
 function getDirectionLabel(direction) {
   if (direction === 'entry') return 'เข้า';
   if (direction === 'exit') return 'ออก';
+  if (direction === 'internal') return 'ภายใน';
   return '-';
+}
+
+function formatDwellDuration(firstTimeIso, lastTimeIso) {
+  if (!firstTimeIso || !lastTimeIso) return '';
+  const diffMs = Math.abs(new Date(lastTimeIso).getTime() - new Date(firstTimeIso).getTime());
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) {
+    return `${diffSec} วินาที`;
+  }
+  const diffMin = Math.floor(diffSec / 60);
+  const remSec = diffSec % 60;
+  if (diffMin < 60) {
+    return remSec > 0 ? `${diffMin} นาที ${remSec} วิ` : `${diffMin} นาที`;
+  }
+  const diffHours = Math.floor(diffMin / 60);
+  const remMin = diffMin % 60;
+  return remMin > 0 ? `${diffHours} ชม. ${remMin} นาที` : `${diffHours} ชม.`;
+}
+
+function formatDwellDurationMinutesOnly(firstTimeIso, lastTimeIso) {
+  if (!firstTimeIso || !lastTimeIso) return '';
+  const diffMs = Math.abs(new Date(lastTimeIso).getTime() - new Date(firstTimeIso).getTime());
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) {
+    return '< 1 นาที';
+  }
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) {
+    return `${diffMin} นาที`;
+  }
+  const diffHours = Math.floor(diffMin / 60);
+  const remMin = diffMin % 60;
+  return remMin > 0 ? `${diffHours} ชม. ${remMin} นาที` : `${diffHours} ชม.`;
+}
+
+function formatThaiDate(dateObj) {
+  if (!dateObj) return '-';
+  return dateObj.toLocaleDateString('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
+function formatTimeHM(dateObj) {
+  if (!dateObj) return '-';
+  return dateObj.toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function formatTimelineStats(firstIso, lastIso) {
+  if (!firstIso || !lastIso) {
+    return {
+      dateLabel: 'วันที่:',
+      dateValue: '-',
+      timeLabel: 'เวลา:',
+      timeValue: '-'
+    };
+  }
+
+  const d1 = new Date(firstIso);
+  const d2 = new Date(lastIso);
+
+  const isSameDay =
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+
+  const dateLabel = isSameDay ? 'วันที่:' : 'ช่วงวันที่:';
+  const dateValue = isSameDay
+    ? formatThaiDate(d1)
+    : `${formatThaiDate(d1)} — ${formatThaiDate(d2)}`;
+
+  const t1 = formatTimeHM(d1);
+  const t2 = formatTimeHM(d2);
+
+  const isSameTime = Math.abs(d2.getTime() - d1.getTime()) < 60000;
+  const timeLabel = isSameTime ? 'เวลา:' : 'ช่วงเวลา:';
+  const timeValue = isSameTime
+    ? `${t1} น.`
+    : `${t1} – ${t2} น.`;
+
+  return { dateLabel, dateValue, timeLabel, timeValue };
+}
+
+function clusterConsecutiveDetections(items) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const clusters = [];
+
+  items.forEach((curr) => {
+    const prev = clusters[clusters.length - 1];
+
+    const isSameCamera = prev && (
+      (prev.camera_id && curr.camera_id && String(prev.camera_id) === String(curr.camera_id)) ||
+      (prev.camera_name && curr.camera_name && prev.camera_name === curr.camera_name) ||
+      (Number.isFinite(Number(prev.lat)) && Number.isFinite(Number(curr.lat)) &&
+       Math.abs(Number(prev.lat) - Number(curr.lat)) < 0.00005 &&
+       Math.abs(Number(prev.long) - Number(curr.long)) < 0.00005)
+    );
+
+    // ห่างกันไม่เกิน 2 ชั่วโมงสำหรับกล้องเดิมต่อเนื่อง
+    const timeDiffMs = prev
+      ? Math.abs(new Date(curr.time_detect).getTime() - new Date(prev.last_time).getTime())
+      : 0;
+    const isConsecutive = isSameCamera && timeDiffMs <= 2 * 60 * 60 * 1000;
+
+    if (isConsecutive) {
+      prev.count += 1;
+      prev.last_time = curr.time_detect;
+      prev.rawItems.push(curr);
+      prev.detection_id = curr.detection_id || prev.detection_id;
+      prev.time_detect = curr.time_detect;
+      if (curr.image_full || curr.image_crop) {
+        prev.image_full = curr.image_full;
+        prev.image_crop = curr.image_crop;
+      }
+    } else {
+      clusters.push({
+        ...curr,
+        cluster_id: `cluster-${curr.detection_id || clusters.length}-${Date.now()}`,
+        first_time: curr.time_detect,
+        last_time: curr.time_detect,
+        count: 1,
+        rawItems: [curr]
+      });
+    }
+  });
+
+  return clusters;
 }
 
 function getVisiblePageNumbers(current, total, maxVisible) {
@@ -475,10 +608,26 @@ function RouteTracking() {
   const allItems = useMemo(() => selectedGroup?.items || [], [selectedGroup]);
 
   /*
-   * ใช้ Detection ทุกตัวสำหรับ Map จำกัดเฉพาะ 50 จุดล่าสุด
+   * จัดกลุ่มประวัติที่ตรวจพบจากกล้องเดิมอย่างต่อเนื่อง (Consecutive Clustering)
    */
-  const mapItems = useMemo(() => allItems.slice(-MAX_ROUTE_POINTS), [allItems]);
-  const isTruncated = allItems.length > MAX_ROUTE_POINTS;
+  const clusteredItems = useMemo(
+    () => clusterConsecutiveDetections(allItems),
+    [allItems]
+  );
+
+  /*
+   * ใช้ข้อมูลที่จัดกลุ่มแล้วสำหรับ Map และ Timeline (จำกัดเฉพาะ 50 จุดล่าสุด)
+   */
+  const mapItems = useMemo(() => clusteredItems.slice(-MAX_ROUTE_POINTS), [clusteredItems]);
+  const isTruncated = clusteredItems.length > MAX_ROUTE_POINTS;
+
+  const timelineStats = useMemo(() => {
+    if (allItems.length === 0) return null;
+    return formatTimelineStats(
+      allItems[0]?.time_detect,
+      allItems[allItems.length - 1]?.time_detect
+    );
+  }, [allItems]);
 
   // Timeline Pagination & Sorting & Dynamic Rows (ฝั่งขวา)
   const [timelineSortOrder, setTimelineSortOrder] = useState('asc'); // 'asc' = เก่าไปใหม่ (1->N), 'desc' = ใหม่ไปเก่า
@@ -506,9 +655,10 @@ function RouteTracking() {
     if (!el) return;
     const height = el.clientHeight;
     if (!height) return;
-    const paginationReserved = 52; // ความสูงสำหรับแถบ pagination + margin
+    const paginationReserved = 48; // ความสูงสำหรับแถบ pagination + margin
     const available = height - paginationReserved;
-    const itemHeight = 98; // ความสูงจริงของแต่ละการ์ด timeline item
+    const firstItemEl = el.querySelector('.rt-timeline-item');
+    const itemHeight = firstItemEl && firstItemEl.offsetHeight > 0 ? firstItemEl.offsetHeight : 74;
     if (available > 0) {
       const calculated = Math.max(2, Math.floor(available / itemHeight));
       setTimelinePageSize((prev) => (prev !== calculated ? calculated : prev));
@@ -557,6 +707,8 @@ function RouteTracking() {
             return null;
           }
 
+          const durationText = item.count > 1 ? formatDwellDuration(item.first_time, item.last_time) : '';
+
           return {
             id: item.detection_id,
             detectionId: item.detection_id,
@@ -564,7 +716,11 @@ function RouteTracking() {
             long,
             name: item.camera_name || 'ไม่ทราบชื่อกล้อง',
             order: index + 1,
-            time: item.time_detect,
+            time: item.first_time || item.time_detect,
+            firstTime: item.first_time || item.time_detect,
+            lastTime: item.last_time || item.time_detect,
+            durationText,
+            count: item.count || 1,
             licensePlate: item.license_plate || '',
             province: item.province || '',
             color: item.color || '',
@@ -578,8 +734,11 @@ function RouteTracking() {
   /*
    * แสดงกล้องทุก Detection
    */
-  const gateSummary = allItems
-    .map((item) => item.camera_name || 'ไม่ทราบชื่อกล้อง')
+  const gateSummary = clusteredItems
+    .map((item) => {
+      const name = item.camera_name || 'ไม่ทราบชื่อกล้อง';
+      return item.count > 1 ? `${name} (x${item.count})` : name;
+    })
     .join('  -->  ');
 
   const [routeImages, setRouteImages] = useState({});
@@ -587,12 +746,84 @@ function RouteTracking() {
   const [hoveredImageId, setHoveredImageId] = useState(null);
   const [hoverPos, setHoverPos] = useState(null);
 
+  // Gallery Modal สำหรับดูภาพย่อยทั้งหมดของ Cluster
+  const [galleryCluster, setGalleryCluster] = useState(null);
+  const [galleryImages, setGalleryImages] = useState({});
+  const [isLoadingGalleryImages, setIsLoadingGalleryImages] = useState(false);
+  const [galleryPage, setGalleryPage] = useState(1);
+  const [lightboxImage, setLightboxImage] = useState(null);
+
+  const GALLERY_PAGE_SIZE = 9;
+
+  useEffect(() => {
+    setGalleryPage(1);
+    setLightboxImage(null);
+  }, [galleryCluster]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (lightboxImage) {
+          setLightboxImage(null);
+        } else if (galleryCluster) {
+          setGalleryCluster(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxImage, galleryCluster]);
+
+  const galleryRawItems = galleryCluster?.rawItems || [];
+  const totalGalleryPages = Math.max(1, Math.ceil(galleryRawItems.length / GALLERY_PAGE_SIZE));
+  const paginatedGalleryItems = useMemo(() => {
+    const start = (galleryPage - 1) * GALLERY_PAGE_SIZE;
+    return galleryRawItems.slice(start, start + GALLERY_PAGE_SIZE);
+  }, [galleryRawItems, galleryPage]);
+
+  useEffect(() => {
+    if (!galleryCluster || !galleryCluster.rawItems || galleryCluster.rawItems.length === 0) {
+      setGalleryImages({});
+      return;
+    }
+
+    let isCancelled = false;
+    setIsLoadingGalleryImages(true);
+
+    Promise.allSettled(
+      galleryCluster.rawItems.map(async (item) => {
+        const src = item.image_full || item.image_crop;
+        if (!src) return [item.detection_id, null];
+        const url = await getAuthedImageURL(src);
+        return [item.detection_id, url];
+      })
+    )
+      .then((results) => {
+        if (isCancelled) return;
+        const imgMap = {};
+        results.forEach((res) => {
+          if (res.status === 'fulfilled' && res.value) {
+            const [id, url] = res.value;
+            imgMap[id] = url;
+          }
+        });
+        setGalleryImages(imgMap);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingGalleryImages(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [galleryCluster]);
+
   function handleThumbHover(e, itemId) {
     if (!routeImages[itemId]) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const PREVIEW_W = 300;
-    const PREVIEW_H = 380;
+    const PREVIEW_W = 260;
+    const PREVIEW_H = 190;
     const GAP = 14;
 
     let left = rect.right + GAP;
@@ -1059,15 +1290,17 @@ function RouteTracking() {
                     </div>
                     <div className="rt-timeline-stats-bar">
                       <div className="rt-stat-badge">
+                        <FaCamera className="rt-stat-icon" />
                         <span className="rt-stat-label">จำนวนครั้งที่พบ:</span>
                         <span className="rt-stat-value">{allItems.length} ครั้ง</span>
                       </div>
-                      <div className="rt-stat-badge">
-                        <span className="rt-stat-label">ช่วงเวลา:</span>
-                        <span className="rt-stat-value">
-                          {formatDateTime(allItems[0]?.time_detect)} — {formatDateTime(allItems[allItems.length - 1]?.time_detect)}
-                        </span>
-                      </div>
+                      {timelineStats && (
+                        <div className="rt-stat-badge">
+                          <FaCalendarDays className="rt-stat-icon" />
+                          <span className="rt-stat-label">{timelineStats.dateLabel}</span>
+                          <span className="rt-stat-value">{timelineStats.dateValue}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1082,6 +1315,16 @@ function RouteTracking() {
                             (m) => String(m.detection_id) === String(item.detection_id)
                           );
                           const pointNumber = pointIndex !== -1 ? pointIndex + 1 : 1;
+                          const hasValidProvince =
+                            item.province &&
+                            typeof item.province === 'string' &&
+                            item.province.trim().toUpperCase() !== 'UNKNOWN' &&
+                            item.province.trim() !== '-';
+                          const hasValidColor =
+                            item.color &&
+                            typeof item.color === 'string' &&
+                            item.color.trim() !== '' &&
+                            item.color.trim() !== '-';
 
                           return (
                             <div
@@ -1092,39 +1335,35 @@ function RouteTracking() {
                                 scrollToMap();
                               }}
                             >
+                              {/* คอลัมน์ 1: ลำดับ */}
                               <div className="rt-timeline-marker">{pointNumber}</div>
 
+                              {/* คอลัมน์ 2: กรอบป้ายทะเบียนไทย (Hover เพื่อดูรูปถ่ายรถ) */}
                               <div
-                                className={`rt-timeline-thumb${
-                                  routeImages[item.detection_id]
-                                    ? ' rt-timeline-thumb-hoverable'
-                                    : ''
-                                }`}
+                                className="rt-timeline-plate-badge"
                                 onMouseEnter={(e) => handleThumbHover(e, item.detection_id)}
                                 onMouseLeave={() => {
                                   setHoveredImageId(null);
                                   setHoverPos(null);
                                 }}
                               >
-                                {routeImages[item.detection_id] ? (
-                                  <img
-                                    src={routeImages[item.detection_id]}
-                                    alt={`จุดที่ ${pointNumber}`}
-                                  />
-                                ) : (
-                                  <div className="rt-timeline-noimg">ไม่มีรูปภาพ</div>
+                                <span className="rt-timeline-plate-num">
+                                  {item.license_plate || '-'}
+                                </span>
+                                {hasValidProvince && (
+                                  <span className="rt-timeline-plate-prov">
+                                    {item.province.trim()}
+                                  </span>
                                 )}
                               </div>
 
-                              <div className="rt-timeline-body">
+                              {/* คอลัมน์ 3: กล้อง และ สี -> ทิศทาง (ชิดซ้าย) */}
+                              <div className="rt-timeline-info">
                                 <p className="rt-timeline-camera">
                                   {item.camera_name || 'ไม่ทราบชื่อกล้อง'}
-                                </p>
-                                <p className="rt-timeline-time">
-                                  {formatDateTime(item.time_detect)}
-                                </p>
-                                <p className="rt-timeline-plate">
-                                  {item.license_plate || '-'} {item.province ? `(${item.province})` : ''} {' • '} {item.color || '-'}
+                                  {hasValidColor && (
+                                    <span className="rt-timeline-color"> • {item.color.trim()}</span>
+                                  )}
                                 </p>
                                 <span
                                   className={`rt-direction-badge ${
@@ -1132,11 +1371,29 @@ function RouteTracking() {
                                       ? 'rt-direction-entry'
                                       : direction === 'exit'
                                       ? 'rt-direction-exit'
+                                      : direction === 'internal'
+                                      ? 'rt-direction-internal'
                                       : 'rt-direction-unknown'
                                   }`}
                                 >
                                   {getDirectionLabel(direction)}
                                 </span>
+                              </div>
+
+                              {/* คอลัมน์ 4: การดูภาพทั้งหมด (ชิดซ้าย) */}
+                              <div className="rt-timeline-side">
+                                {item.count > 1 && (
+                                  <button
+                                    type="button"
+                                    className="rt-view-snapshots-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setGalleryCluster(item);
+                                    }}
+                                  >
+                                    <FaCamera /> ดูภาพทั้งหมด ({item.count} ช็อต)
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );
@@ -1188,6 +1445,11 @@ function RouteTracking() {
         const hoveredItem = mapItems.find(
           (item) => item.detection_id === hoveredImageId
         );
+        const hasValidProvince =
+          hoveredItem?.province &&
+          typeof hoveredItem.province === 'string' &&
+          hoveredItem.province.trim().toUpperCase() !== 'UNKNOWN' &&
+          hoveredItem.province.trim() !== '-';
         const isDesktop = typeof window !== 'undefined' && window.innerWidth > 768;
 
         return (
@@ -1199,35 +1461,164 @@ function RouteTracking() {
                 : undefined
             }
           >
-            <img
-              src={routeImages[hoveredImageId]}
-              alt="ภาพเต็มจากกล้อง"
-              className="rt-hover-preview-img"
-            />
-            {hoveredItem && (
-              <div className="rt-hover-preview-body">
-                <p className="rt-hover-preview-camera">
-                  {hoveredItem.camera_name || 'ไม่ทราบชื่อกล้อง'}
-                </p>
-                <p className="rt-hover-preview-time">
-                  {formatDateTime(hoveredItem.time_detect)}
-                </p>
-                <span
-                  className={`rt-direction-badge ${
-                    hoveredItem.direction === 'entry'
-                      ? 'rt-direction-entry'
-                      : hoveredItem.direction === 'exit'
-                      ? 'rt-direction-exit'
-                      : 'rt-direction-unknown'
-                  }`}
-                >
-                  {getDirectionLabel(hoveredItem.direction)}
-                </span>
-              </div>
-            )}
+            <div className="rt-hover-preview-img-wrap">
+              <img
+                src={routeImages[hoveredImageId]}
+                alt="ภาพเต็มจากกล้อง"
+                className="rt-hover-preview-img"
+              />
+            </div>
           </div>
         );
       })()}
+
+      {/* Modal ดูภาพ Snapshots ย่อยทั้งหมดของ Cluster */}
+      {galleryCluster && (
+        <div
+          className="rt-gallery-modal-overlay"
+          onClick={() => setGalleryCluster(null)}
+        >
+          <div
+            className="rt-gallery-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="rt-gallery-header">
+              <div className="rt-gallery-title-wrap">
+                <h4 className="rt-gallery-title">
+                  ภาพหลักฐานทั้งหมด — {galleryCluster.license_plate || '-'}
+                  {(() => {
+                    const hasValidProvince =
+                      galleryCluster.province &&
+                      typeof galleryCluster.province === 'string' &&
+                      galleryCluster.province.trim().toUpperCase() !== 'UNKNOWN' &&
+                      galleryCluster.province.trim() !== '-';
+                    return hasValidProvince ? ` (${galleryCluster.province.trim()})` : '';
+                  })()} • ตรวจพบต่อเนื่อง {galleryCluster.count} ครั้ง
+                  {formatDwellDuration(galleryCluster.first_time, galleryCluster.last_time)
+                    ? ` (${formatDwellDuration(galleryCluster.first_time, galleryCluster.last_time)})`
+                    : ''}
+                </h4>
+              </div>
+              <button
+                type="button"
+                className="rt-gallery-close-btn"
+                onClick={() => setGalleryCluster(null)}
+                title="ปิดหน้าต่าง (ESC)"
+              >
+                <FaXmark />
+              </button>
+            </div>
+
+            <div className="rt-gallery-body">
+              {isLoadingGalleryImages ? (
+                <div style={{ gridColumn: '1 / -1', padding: '40px 0' }}>
+                  <Spinner text="กำลังโหลดรูปภาพทั้งหมด..." />
+                </div>
+              ) : (
+                paginatedGalleryItems.map((subItem, sIdx) => {
+                  const actualIndex = (galleryPage - 1) * GALLERY_PAGE_SIZE + sIdx;
+                  const imgUrl = galleryImages[subItem.detection_id];
+                  return (
+                    <div key={subItem.detection_id || sIdx} className="rt-gallery-card">
+                      <div className="rt-gallery-img-wrap">
+                        {imgUrl ? (
+                          <img
+                            src={imgUrl}
+                            alt={`ช็อตที่ ${actualIndex + 1}`}
+                            className="rt-gallery-img"
+                            onClick={() => {
+                              setLightboxImage(imgUrl);
+                            }}
+                            title="คลิกเพื่อดูรูปขนาดเต็มในหน้านี้ (ESC เพื่อปิด)"
+                          />
+                        ) : (
+                          <span className="rt-gallery-img-placeholder">ไม่มีรูปภาพ</span>
+                        )}
+                      </div>
+                      <div className="rt-gallery-info">
+                        <span className="rt-gallery-shot-number">
+                          ช็อตที่ {actualIndex + 1} จาก {galleryCluster.count}
+                        </span>
+                        <span className="rt-gallery-time">
+                          <FaClock style={{ fontSize: '11px', opacity: 0.8 }} /> {formatTime(subItem.time_detect)}
+                        </span>
+                        <span className="rt-gallery-plate">
+                          {formatDate(subItem.time_detect)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Pagination สำหรับ Gallery Modal (3 คอลัมน์ 3 แถว = 9 รูปต่อหน้า) */}
+            {totalGalleryPages > 1 && (
+              <div className="rt-gallery-pagination">
+                <span className="pagination-info">
+                  หน้า {galleryPage} จาก {totalGalleryPages} (ทั้งหมด {galleryRawItems.length} ภาพ)
+                </span>
+                <div className="rt-gallery-page-btns">
+                  <button
+                    type="button"
+                    className="page-btn"
+                    disabled={galleryPage <= 1}
+                    onClick={() => setGalleryPage((p) => Math.max(1, p - 1))}
+                  >
+                    ‹
+                  </button>
+                  {Array.from({ length: totalGalleryPages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`page-btn ${galleryPage === p ? 'active' : ''}`}
+                      onClick={() => setGalleryPage(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="page-btn"
+                    disabled={galleryPage >= totalGalleryPages}
+                    onClick={() => setGalleryPage((p) => Math.min(totalGalleryPages, p + 1))}
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal สำหรับดูรูปขนาดเต็มในแท็บเดิม (ESC เพื่อปิด) */}
+      {lightboxImage && (
+        <div
+          className="rt-lightbox-overlay"
+          onClick={() => setLightboxImage(null)}
+          title="คลิกพื้นที่ว่างหรือกด ESC เพื่อปิด"
+        >
+          <div
+            className="rt-lightbox-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="rt-lightbox-close-btn"
+              onClick={() => setLightboxImage(null)}
+              title="ปิดรูปภาพ (ESC)"
+            >
+              <FaXmark />
+            </button>
+            <img
+              src={lightboxImage}
+              alt="รูปภาพขนาดเต็ม"
+              className="rt-lightbox-img"
+            />
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
