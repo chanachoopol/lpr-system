@@ -1371,18 +1371,9 @@ function saveHistoricalWhitelistPlates(map) {
                         )}
                       </td>
                       <td>
-                        <div className="bl-action-row">
-                          <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
-                            <FaEye /> View
-                          </button>
-                          <button
-                            className="btn-bl-route"
-                            onClick={() => handleGoToRouteTracking(item)}
-                            title="ดูเส้นทาง"
-                          >
-                            <FaRoute /> Route
-                          </button>
-                        </div>
+                        <button className="btn-bl-view" onClick={() => setSelectedItem(item)}>
+                          <FaEye /> View
+                        </button>
                       </td>
                     </tr>
                   )

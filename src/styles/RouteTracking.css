@@ -1435,24 +1435,36 @@
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
 }
 
-.rt-gallery-shot-number {
+.rt-gallery-shot-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 2px 8px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: #0284c7;
+  background: #e0f2fe;
+  border-radius: 9999px;
+  border: 1px solid #bae6fd;
+  line-height: 1.4;
 }
 
 .rt-gallery-time {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
   font-weight: 600;
   color: #1e293b;
 }
 
-.rt-gallery-plate {
+.rt-gallery-time-icon {
   font-size: 11px;
   color: #64748b;
+  opacity: 0.85;
 }
 
 /* ---------- Snapshots Gallery Pagination ---------- */
@@ -1509,64 +1521,25 @@
   cursor: not-allowed;
 }
 
-/* ---------- Snapshots Lightbox Modal (Same tab, ESC to close) ---------- */
-.rt-lightbox-overlay {
+/* ---------- Clean Fullscreen Image (No Close Button, Pure Original) ---------- */
+.image-fullscreen-overlay {
   position: fixed;
   inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 1000000;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  animation: rtModalFadeIn 0.18s ease;
   cursor: zoom-out;
+  padding: 20px;
+  animation: rtModalFadeIn 0.18s ease;
 }
 
-.rt-lightbox-content {
-  position: relative;
-  max-width: 92vw;
-  max-height: 90vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: default;
-}
-
-.rt-lightbox-img {
-  max-width: 92vw;
-  max-height: 88vh;
+.image-fullscreen-overlay img {
+  max-width: 95vw;
+  max-height: 92vh;
   object-fit: contain;
-  border-radius: 12px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55);
-  border: 2px solid rgba(255, 255, 255, 0.18);
   display: block;
-}
-
-.rt-lightbox-close-btn {
-  position: absolute;
-  top: -14px;
-  right: -14px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #1b2a47;
-  border: 2px solid #ffffff;
-  color: #ffffff;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  transition: all 0.15s ease;
-  z-index: 10;
-}
-
-.rt-lightbox-close-btn:hover {
-  background: #dc2626;
-  transform: scale(1.1);
 }
 
 @media (max-width: 768px) {

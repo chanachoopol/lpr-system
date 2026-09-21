@@ -1485,18 +1485,7 @@ function RouteTracking() {
             <div className="rt-gallery-header">
               <div className="rt-gallery-title-wrap">
                 <h4 className="rt-gallery-title">
-                  ภาพหลักฐานทั้งหมด — {galleryCluster.license_plate || '-'}
-                  {(() => {
-                    const hasValidProvince =
-                      galleryCluster.province &&
-                      typeof galleryCluster.province === 'string' &&
-                      galleryCluster.province.trim().toUpperCase() !== 'UNKNOWN' &&
-                      galleryCluster.province.trim() !== '-';
-                    return hasValidProvince ? ` (${galleryCluster.province.trim()})` : '';
-                  })()} • ตรวจพบต่อเนื่อง {galleryCluster.count} ครั้ง
-                  {formatDwellDuration(galleryCluster.first_time, galleryCluster.last_time)
-                    ? ` (${formatDwellDuration(galleryCluster.first_time, galleryCluster.last_time)})`
-                    : ''}
+                  ภาพหลักฐานทั้งหมด
                 </h4>
               </div>
               <button
@@ -1536,14 +1525,11 @@ function RouteTracking() {
                         )}
                       </div>
                       <div className="rt-gallery-info">
-                        <span className="rt-gallery-shot-number">
+                        <span className="rt-gallery-shot-badge">
                           ช็อตที่ {actualIndex + 1} จาก {galleryCluster.count}
                         </span>
                         <span className="rt-gallery-time">
-                          <FaClock style={{ fontSize: '11px', opacity: 0.8 }} /> {formatTime(subItem.time_detect)}
-                        </span>
-                        <span className="rt-gallery-plate">
-                          {formatDate(subItem.time_detect)}
+                          <FaClock className="rt-gallery-time-icon" /> {formatTime(subItem.time_detect)} น.
                         </span>
                       </div>
                     </div>
@@ -1592,31 +1578,17 @@ function RouteTracking() {
         </div>
       )}
 
-      {/* Lightbox Modal สำหรับดูรูปขนาดเต็มในแท็บเดิม (ESC เพื่อปิด) */}
+      {/* รูปเต็มจอ — ไม่มีปุ่มกากบาท ไม่เป็นป๊อปอัปซ้อน คลิกที่ไหนก็ปิด */}
       {lightboxImage && (
         <div
-          className="rt-lightbox-overlay"
+          className="image-fullscreen-overlay"
           onClick={() => setLightboxImage(null)}
-          title="คลิกพื้นที่ว่างหรือกด ESC เพื่อปิด"
+          title="คลิกที่ไหนก็ได้เพื่อปิด (ESC)"
         >
-          <div
-            className="rt-lightbox-content"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="rt-lightbox-close-btn"
-              onClick={() => setLightboxImage(null)}
-              title="ปิดรูปภาพ (ESC)"
-            >
-              <FaXmark />
-            </button>
-            <img
-              src={lightboxImage}
-              alt="รูปภาพขนาดเต็ม"
-              className="rt-lightbox-img"
-            />
-          </div>
+          <img
+            src={lightboxImage}
+            alt="รูปภาพต้นฉบับขนาดเต็ม"
+          />
         </div>
       )}
     </Layout>

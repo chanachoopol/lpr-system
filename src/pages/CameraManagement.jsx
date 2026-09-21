@@ -1021,7 +1021,7 @@ function CameraManagement() {
       await resyncAllCamerasAPI()
       Swal.fire({
         icon: 'success',
-        title: 'สั่งซิงค์กล้องทั้งหมดกับ Streaming แล้ว',
+        title: 'สั่งดึงสัญญาณกล้องใหม่ทั้งหมดแล้ว',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
       fetchCameras()
@@ -1029,7 +1029,7 @@ function CameraManagement() {
       console.error(error)
       Swal.fire({
         icon: 'error',
-        title: 'ซิงค์ไม่สำเร็จ',
+        title: 'ดึงสัญญาณไม่สำเร็จ',
         text: 'เกิดข้อผิดพลาด กรุณาลองใหม่',
         confirmButtonColor: 'var(--sidebar-bg)'
       })
@@ -1264,15 +1264,15 @@ function CameraManagement() {
                   onChange={(e) => setSearchInput(e.target.value)}
                 />
               </div>
-              {/* ปุ่ม Resync All กล้องทั้งหมดกับ Streaming — เฉพาะ Superadmin/Admin */}
+              {/* ปุ่มดึงสัญญาณกล้องทั้งหมดใหม่กับ Streaming — เฉพาะ Superadmin/Admin */}
               <button
                 className="btn-resync-all"
                 onClick={handleResyncAll}
                 disabled={isResyncingAll || cameras.length === 0}
-                title="สั่งระบบ Streaming ดึงและเชื่อมต่อกล้องทั้งหมดใหม่อีกครั้ง"
+                title="ดึงสัญญาณกล้องทุกตัวใหม่พร้อมกัน (ใช้เมื่อกล้องขัดข้องหรือสัญญาณหลุดหลายตัว)"
               >
                 <FaRotate className={isResyncingAll ? 'cm-spin' : ''} />
-                <span>{isResyncingAll ? 'กำลังซิงค์ทั้งหมด...' : 'Resync All'}</span>
+                <span>{isResyncingAll ? 'กำลังดึงสัญญาณใหม่ทั้งหมด...' : 'ดึงสัญญาณใหม่ทั้งหมด'}</span>
               </button>
               <button className="btn-add-camera" onClick={openAddModal}>
                 <FaPlus />
