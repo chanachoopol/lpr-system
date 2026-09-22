@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { FaVideo, FaThLarge, FaSearch } from 'react-icons/fa'
+import { FaVideo, FaThLarge, FaSearch, FaExpand, FaCompress } from 'react-icons/fa'
 import { FaXmark, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/fa6'
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
@@ -18,6 +18,7 @@ const GRID_VIEW_VALUE = 'all' // 👈 ค่าพิเศษของ selected
 const MONITOR_RECENT_LIMIT = 20
 
 const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
+const STORAGE_KEY_SELECTED_CAMERA = 'lpr_monitor_selected_camera'
 
 function getHistoricalCameras() {
   try {
@@ -69,7 +70,7 @@ function Monitor() {
   const [cameras, setCameras] = useState([])
   const [isLoadingCameras, setIsLoadingCameras] = useState(true)
   const [selectedCamera, setSelectedCamera] = useState('')
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [latestCaptures, setLatestCaptures] = useState([])
   const [isLoadingDetections, setIsLoadingDetections] = useState(true)
@@ -150,6 +151,39 @@ function Monitor() {
     isDisabled: isCameraDisabled
   } = useCameraStream(isGridMode ? null : selectedCamera)
 
+  const videoWrapperRef = useRef(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement && document.fullscreenElement === videoWrapperRef.current))
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+    }
+  }, [])
+
+  const handleToggleFullscreen = useCallback(() => {
+    const el = videoWrapperRef.current || videoRef.current
+    if (!el) return
+    if (!document.fullscreenElement) {
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch((err) => console.log('Fullscreen error:', err))
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen()
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch((err) => console.log('Exit fullscreen error:', err))
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen()
+      }
+    }
+  }, [videoRef])
+
   useEffect(() => {
     async function fetchCameras() {
       if (!user) return
@@ -162,16 +196,29 @@ function Monitor() {
         saveHistoricalCameras(data)
 
         const cameraFromURL = searchParams.get('camera')
-        if (cameraFromURL && data.some((cam) => String(cam.id) === String(cameraFromURL))) {
-          setSelectedCamera(cameraFromURL)
+        let savedCamera = null
+        try {
+          savedCamera = localStorage.getItem(STORAGE_KEY_SELECTED_CAMERA)
+        } catch (e) {}
+
+        const targetCamera = cameraFromURL || savedCamera
+
+        if (targetCamera === GRID_VIEW_VALUE) {
+          setSelectedCamera(GRID_VIEW_VALUE)
+          try {
+            localStorage.setItem(STORAGE_KEY_SELECTED_CAMERA, GRID_VIEW_VALUE)
+          } catch (e) {}
+        } else if (targetCamera && data.some((cam) => String(cam.id) === String(targetCamera))) {
+          setSelectedCamera(String(targetCamera))
+          try {
+            localStorage.setItem(STORAGE_KEY_SELECTED_CAMERA, String(targetCamera))
+          } catch (e) {}
         } else if (data.length > 0) {
-          setSelectedCamera((prev) => {
-            if (prev === GRID_VIEW_VALUE) return GRID_VIEW_VALUE
-            if (data.some((cam) => String(cam.id) === String(prev))) {
-              return prev
-            }
-            return data[0].id
-          })
+          const defaultCamId = String(data[0].id)
+          setSelectedCamera(defaultCamId)
+          try {
+            localStorage.setItem(STORAGE_KEY_SELECTED_CAMERA, defaultCamId)
+          } catch (e) {}
         } else {
           setSelectedCamera('')
         }
@@ -348,6 +395,24 @@ function Monitor() {
     })
   }, [latestDetection, selectedCamera, isGridMode])
 
+  const handleCameraChange = useCallback(
+    (newCamId) => {
+      setSelectedCamera(newCamId)
+      try {
+        localStorage.setItem(STORAGE_KEY_SELECTED_CAMERA, newCamId)
+      } catch (e) {}
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.set('camera', newCamId)
+          return next
+        },
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
+
   const latestCapture = processedCaptures[0] || null
 
   return (
@@ -361,7 +426,7 @@ function Monitor() {
             id="cameraSelect"
             className="camera-select"
             value={selectedCamera}
-            onChange={(e) => setSelectedCamera(e.target.value)}
+            onChange={(e) => handleCameraChange(e.target.value)}
             disabled={isLoadingCameras || cameras.length === 0}
           >
             {isLoadingCameras ? (
@@ -399,7 +464,7 @@ function Monitor() {
           <div className="monitor-content">
 
             <div className="monitor-left content-card">
-              <div className="video-wrapper">
+              <div ref={videoWrapperRef} className="video-wrapper">
 
                 {isLoadingCameras ? (
                   <div className="video-skeleton">
@@ -440,17 +505,29 @@ function Monitor() {
                     <video
                       ref={videoRef}
                       className="live-video"
-                      controls={true}
+                      controls={false}
                       autoPlay={true}
                       playsInline={true}
                       muted={true}
                       style={{ display: isVideoLoading ? 'none' : 'block' }}
+                      onDoubleClick={handleToggleFullscreen}
                     />
 
                     {!isVideoLoading && (
-                      <div className="video-overlay">
-                        <span className="live-badge">● LIVE</span>
-                      </div>
+                      <>
+                        <div className="video-overlay">
+                          <span className="live-badge">● LIVE</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="video-fullscreen-btn"
+                          onClick={handleToggleFullscreen}
+                          title={isFullscreen ? 'ออกจากโหมดเต็มหน้าจอ (Esc)' : 'เต็มหน้าจอ (หรือดับเบิลคลิกที่วิดีโอ)'}
+                          aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                        >
+                          {isFullscreen ? <FaCompress /> : <FaExpand />}
+                        </button>
+                      </>
                     )}
                   </>
                 )}

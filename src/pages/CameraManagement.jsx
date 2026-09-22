@@ -1358,11 +1358,11 @@ function CameraManagement() {
                               },
                               {
                                 key: 'toggle-camera-active',
-                                label: badge.tone === 'ready' ? 'ระงับการใช้งาน' : 'เปิดใช้งาน',
+                                label: c.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน',
                                 icon: <FaPowerOff />,
-                                danger: badge.tone === 'ready',
-                                success: badge.tone === 'disabled',
-                                hidden: badge.tone === 'error' || badge.tone === 'starting',
+                                danger: Boolean(c.is_active),
+                                success: !c.is_active,
+                                disabled: isChecking,
                                 onClick: () => handleToggleCameraActive(c)
                               },
                               {

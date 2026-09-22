@@ -25,6 +25,7 @@ const BLACKLIST_LOOKUP_WINDOW_MS = 5 * 60 * 1000 // ขอบเขตย้อ�
 let eventSource = null
 let reconnectTimer = null
 let isManuallyClosed = false
+let isConnecting = false
 
 // ---------- คิวของ Blacklist Alert (จัดการผ่าน Zustand Store เพื่อ render เป็น 3D Stacked Cards) ----------
 
@@ -250,8 +251,11 @@ const useNotificationStore = create((set, get) => ({
   },
 
   connect: async () => {
-    if (eventSource) return
+    if (eventSource || isConnecting) return
+    isConnecting = true
     isManuallyClosed = false
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
 
     get().fetchNotifications()
     get().fetchUnreadCount()
@@ -260,7 +264,7 @@ const useNotificationStore = create((set, get) => ({
       const currentUser = useAuthStore.getState().user
       const isAdminOrSuperadmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin'
 
-      // ขอ Ticket ทั้งหมดพร้อมกันแบบขนาน
+      // ขอ Ticket ทั้งหมดพร้อมกันแบบขนาน (Single-Use Ticket)
       const [alertsRes, secRes, presRes] = await Promise.all([
         getSSEAlertsTicketAPI().catch((err) => {
           console.error('ขอ alerts ticket ไม่สำเร็จ:', err)
@@ -278,6 +282,10 @@ const useNotificationStore = create((set, get) => ({
         })
       ])
 
+      if (isManuallyClosed) {
+        return
+      }
+
       const alertTicket = alertsRes?.ticket
       const securityTicket = secRes?.ticket
       const presenceTicket = presRes?.ticket
@@ -291,6 +299,12 @@ const useNotificationStore = create((set, get) => ({
       if (securityTicket) params.set('security_ticket', securityTicket)
       if (presenceTicket) params.set('presence_ticket', presenceTicket)
 
+      // ปิด connection เก่าถ้ามีค้างอยู่ก่อนเปิดท่อใหม่เสมอ เพื่อป้องกันการชนกันของตั๋ว
+      if (eventSource) {
+        eventSource.close()
+        eventSource = null
+      }
+
       const es = new EventSource(`${BASE_URL}/api/sse/stream?${params.toString()}`)
       eventSource = es
 
@@ -298,6 +312,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('ping', () => {})
 
       function handleDetectionEvent(data) {
+        console.log('🚗 [SSE] ตรวจพบรถผ่านกล้อง (detection_created):', data)
         set({ latestDetection: { ...data, _ts: Date.now() } })
 
         const user = useAuthStore.getState().user
@@ -434,12 +449,16 @@ const useNotificationStore = create((set, get) => ({
           const action = data.action || data.type || data.event
 
           if (action === 'blacklist_alert') {
+            console.log('🚨 [SSE:alert] Blacklist Alert:', data)
+            set({ latestDetection: { ...data, _ts: Date.now() } })
             const user = useAuthStore.getState().user
             const isSuperadmin = user?.role === 'superadmin'
             const userVillageId = user?.village_id
             const detVillageId = data.village_id || data.camera?.village_id
             triggerBlacklistModalAlert(data, !isSuperadmin && (!userVillageId || !detVillageId || String(userVillageId) === String(detVillageId)), get().pushBlacklistAlert)
           } else if (action === 'whitelist_alert') {
+            console.log('🏠 [SSE:alert] Whitelist Alert:', data)
+            set({ latestDetection: { ...data, _ts: Date.now() } })
             const user = useAuthStore.getState().user
             const isSuperadmin = user?.role === 'superadmin'
             const userVillageId = user?.village_id
@@ -489,6 +508,7 @@ const useNotificationStore = create((set, get) => ({
       es.addEventListener('presence_update', (e) => {
         try {
           const data = JSON.parse(e.data)
+          console.log('🔥 [SSE] ได้รับข้อมูล Presence:', data)
           usePresenceStore.getState().setOnlineUsers(extractOnlineUserIds(data))
         } catch (err) {
           console.error('parse presence_update error:', err)
@@ -631,16 +651,22 @@ const useNotificationStore = create((set, get) => ({
       })
 
       es.onopen = () => {
+        console.log('🟢 [SSE] เชื่อมต่อท่อ Real-time สำเร็จ (Stream Connected)')
         set({ isConnected: true })
         usePresenceStore.getState().setConnected(true)
       }
 
-      es.onerror = () => {
+      es.onerror = (err) => {
+        console.warn('🔴 [SSE] ท่อสตรีมหลุดการเชื่อมต่อ (Reconnecting in 3s...)', err)
         set({ isConnected: false })
         usePresenceStore.getState().setConnected(false)
-        es.close()
-        eventSource = null
+        if (eventSource) {
+          eventSource.close()
+          eventSource = null
+        }
+        clearTimeout(reconnectTimer)
         if (!isManuallyClosed) {
+          // ขอ Ticket ใบใหม่จาก backend เสมอเมื่อหลุด ไม่ใช้ตั๋วเก่า
           reconnectTimer = setTimeout(() => get().connect(), RECONNECT_DELAY_MS)
         }
       }
@@ -648,15 +674,24 @@ const useNotificationStore = create((set, get) => ({
       console.error('เชื่อมต่อ SSE ไม่สำเร็จ:', error)
       set({ isConnected: false })
       usePresenceStore.getState().setConnected(false)
+      if (eventSource) {
+        eventSource.close()
+        eventSource = null
+      }
+      clearTimeout(reconnectTimer)
       if (!isManuallyClosed) {
         reconnectTimer = setTimeout(() => get().connect(), RECONNECT_DELAY_MS)
       }
+    } finally {
+      isConnecting = false
     }
   },
 
   disconnect: () => {
     isManuallyClosed = true
+    isConnecting = false
     clearTimeout(reconnectTimer)
+    reconnectTimer = null
     if (eventSource) {
       eventSource.close()
       eventSource = null
@@ -702,5 +737,14 @@ const useNotificationStore = create((set, get) => ({
     })
   }
 }))
+
+// เมื่อเบราว์เซอร์กลับมาต่ออินเทอร์เน็ตได้ ให้ขอ Ticket ใหม่และเชื่อมต่อ SSE อัตโนมัติทันที
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    if (!isManuallyClosed && useAuthStore.getState().isLoggedIn) {
+      useNotificationStore.getState().connect()
+    }
+  })
+}
 
 export default useNotificationStore

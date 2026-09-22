@@ -151,6 +151,55 @@
   100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
+/* ปุ่มขยายเต็มหน้าจอแบบคัสตอม (ซ่อนตามปกติ แสดงเมื่อนำเมาส์ไปชี้ที่วิดีโอ) */
+.video-fullscreen-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease, transform 0.15s ease;
+  z-index: 10;
+  font-size: 14px;
+}
+
+.video-wrapper:hover .video-fullscreen-btn,
+.video-wrapper:fullscreen .video-fullscreen-btn,
+.video-wrapper:-webkit-full-screen .video-fullscreen-btn {
+  opacity: 1;
+}
+
+.video-fullscreen-btn:hover {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.08);
+}
+
+/* รองรับ Fullscreen API สำหรับกรอบวิดีโอ */
+.video-wrapper:fullscreen,
+.video-wrapper:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  aspect-ratio: auto;
+  border-radius: 0;
+  border: none;
+  background: #000000;
+}
+
+
 /* ฝั่งข้อมูลด้านขวา (ตาราง Latest Capture สไตล์เดียวกับ Dashboard Content Card) */
 .monitor-right {
   position: relative;
