@@ -361,10 +361,7 @@ const useNotificationStore = create((set, get) => ({
             ...data
           }
         })
-        const user = useAuthStore.getState().user
-        if (user?.role === 'admin' || user?.role === 'superadmin') {
-          toast.success(`Camera Synced${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
-        }
+        // ❌ ไม่ toast ที่นี่ — toast จะแสดงเฉพาะที่ Listener ตรง 'camera_verified' เพื่อป้องกันซ้ำ 2 ครั้ง
       }
 
       function handleCameraFailedEvent(data, isTimeout = false) {
@@ -381,14 +378,8 @@ const useNotificationStore = create((set, get) => ({
             ...data
           }
         })
-        const user = useAuthStore.getState().user
-        if (user?.role === 'admin' || user?.role === 'superadmin') {
-          toast.error(
-            isTimeout
-              ? `Camera Verification Timeout${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`
-              : `Camera Verification Failed${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`
-          )
-        }
+        // ❌ ไม่ toast ที่นี่ — toast จะแสดงเฉพาะที่ Listener ตรงเพื่อป้องกันซ้ำ 2 ครั้ง
+        // (isTimeout ส่งต่อไปเก็บไว้ใน latestCameraEvent เพื่อให้ Listener ตรงอ่านและแสดง toast ที่ถูกต้อง)
       }
 
       function handleCameraSyncFailedEvent(data) {
@@ -404,10 +395,7 @@ const useNotificationStore = create((set, get) => ({
             ...data
           }
         })
-        const user = useAuthStore.getState().user
-        if (user?.role === 'admin' || user?.role === 'superadmin') {
-          toast.error(`Camera Sync Failed${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
-        }
+        // ❌ ไม่ toast ที่นี่ — toast จะแสดงเฉพาะที่ Listener ตรงเพื่อป้องกันซ้ำ 2 ครั้ง
       }
 
       function formatLockDuration(seconds) {
@@ -597,6 +585,11 @@ const useNotificationStore = create((set, get) => ({
         try {
           const data = JSON.parse(e.data)
           handleCameraVerifiedEvent(data)
+          // ✅ Toast แสดงแค่ที่นี่ที่เดียว (Listener ตรง) — ป้องกัน double toast กับ 'alert' fallback
+          const user = useAuthStore.getState().user
+          if (user?.role === 'admin' || user?.role === 'superadmin') {
+            toast.success(`Camera Synced${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
+          }
         } catch (err) {
           console.error('parse camera_verified error:', err)
         } finally {
@@ -609,6 +602,11 @@ const useNotificationStore = create((set, get) => ({
         try {
           const data = e.data ? JSON.parse(e.data) : {}
           handleCameraFailedEvent(data)
+          // ✅ Toast แสดงแค่ที่นี่ที่เดียว
+          const user = useAuthStore.getState().user
+          if (user?.role === 'admin' || user?.role === 'superadmin') {
+            toast.error(`Camera Verification Failed${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
+          }
         } catch (err) {
           console.error('parse camera_verification_failed error:', err)
         } finally {
@@ -621,6 +619,11 @@ const useNotificationStore = create((set, get) => ({
         try {
           const data = e.data ? JSON.parse(e.data) : {}
           handleCameraFailedEvent(data, true)
+          // ✅ Toast แสดงแค่ที่นี่ที่เดียว
+          const user = useAuthStore.getState().user
+          if (user?.role === 'admin' || user?.role === 'superadmin') {
+            toast.error(`Camera Verification Timeout${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
+          }
         } catch (err) {
           console.error('parse camera_verification_timeout error:', err)
         } finally {
@@ -633,6 +636,11 @@ const useNotificationStore = create((set, get) => ({
         try {
           const data = e.data ? JSON.parse(e.data) : {}
           handleCameraSyncFailedEvent(data)
+          // ✅ Toast แสดงแค่ที่นี่ที่เดียว
+          const user = useAuthStore.getState().user
+          if (user?.role === 'admin' || user?.role === 'superadmin') {
+            toast.error(`Camera Sync Failed${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
+          }
         } catch (err) {
           console.error('parse camera_sync_failed error:', err)
         } finally {

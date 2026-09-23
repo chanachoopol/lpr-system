@@ -633,7 +633,7 @@
   font-family: 'Prompt', sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: rgb(220, 38, 38);
+  color: var(--text-main, #1e293b);
   margin: 0 0 2px;
 }
 

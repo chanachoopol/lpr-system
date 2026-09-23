@@ -1347,6 +1347,8 @@ function CameraManagement() {
                                 key: 'verify-camera',
                                 label: 'ตรวจสอบสัญญาณ',
                                 icon: <FaRotate className={isChecking ? 'cm-spin' : ''} />,
+                                // ซ่อนปุ่มเมื่อกล้องปิดใช้งาน (is_active = false) — ตรวจสอบสัญญาณได้เฉพาะเมื่อกล้องเปิดอยู่หรือขัดข้องเท่านั้น
+                                hidden: !c.is_active,
                                 disabled: isChecking,
                                 onClick: () => handleVerificationCheck(c)
                               },
