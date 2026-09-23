@@ -865,7 +865,7 @@ function CameraManagement() {
 
   async function handleToggleCameraActive(camera) {
     const isCurrentlyActive = Boolean(camera.is_active)
-    const actionLabel = isCurrentlyActive ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'
+    const actionLabel = isCurrentlyActive ? 'ปิดการใช้งาน' : 'เปิดใช้งาน'
     const result = await Swal.fire({
       icon: 'warning',
       title: `ยืนยันการ${actionLabel}กล้อง`,
@@ -1358,7 +1358,7 @@ function CameraManagement() {
                               },
                               {
                                 key: 'toggle-camera-active',
-                                label: c.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน',
+                                label: c.is_active ? 'ปิดการใช้งาน' : 'เปิดใช้งาน',
                                 icon: <FaPowerOff />,
                                 danger: Boolean(c.is_active),
                                 success: !c.is_active,
