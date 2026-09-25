@@ -599,3 +599,16 @@
   color: #cbd5e1;
   font-family: 'DM Sans', sans-serif;
 }
+
+/* สถานะแจ้งเตือนกล้องในหน้า Monitor (ปรับตัวอักษรเป็นสีขาวบนพื้นหลังเข้ม) */
+.video-skeleton .empty-title {
+  color: #ffffff;
+}
+
+.video-skeleton .empty-desc {
+  color: #cbd5e1;
+}
+
+.video-skeleton .empty-icon {
+  color: #94a3b8;
+}
