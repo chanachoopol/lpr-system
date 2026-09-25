@@ -289,12 +289,43 @@
 }
 
 @media (max-width: 768px) {
-  .stat-row {
-    grid-template-columns: 1fr;
+  /* เปิดให้ scroll ได้บนมือถือ */
+  .dashboard-wrapper {
+    overflow-y: auto;
+    height: auto;
+    max-height: none;
   }
 
+  /* KPI Cards จัดเป็น 2x2 grid */
+  .stat-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Bottom row เรียงแนวตั้ง 1 คอลัมน์ */
   .bottom-row {
     grid-template-columns: 1fr;
+    overflow: visible;
+    flex: none;
+  }
+
+  .bottom-row .content-card {
+    overflow: visible;
+    height: auto;
+    min-height: 0;
+  }
+
+  /* แผนที่ใช้ aspect-ratio แทน fixed height → พอดีกับความกว้างหน้าจอเสมอ ไม่ล้น */
+  .dashboard-map-container {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+  }
+
+  /* ตาราง History: scroll ซ้าย-ขวาเพื่อดูคอลัมน์ที่ไม่พอดี ไม่มี scroll ขึ้น-ลงซ้ำ */
+  .bottom-row .table-responsive {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
   }
 }
 

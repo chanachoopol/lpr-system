@@ -79,6 +79,8 @@ const NOTIF_META = {
   camera_verified:            { icon: 'camera',    title: 'Camera Sync Success' },
   camera_verification_failed: { icon: 'camera',    title: 'Camera Verification Failed' },
   camera_sync_failed:         { icon: 'camera',    title: 'Camera Sync Failed' },
+  camera_offline:             { icon: 'camera',    title: 'Camera Offline' },
+  camera_online:              { icon: 'camera',    title: 'Camera Online' },
   login_bruteforce_detected:  { icon: 'security',  title: 'Login Blocked (Brute-force)' }
 }
 
@@ -398,6 +400,38 @@ const useNotificationStore = create((set, get) => ({
         // ❌ ไม่ toast ที่นี่ — toast จะแสดงเฉพาะที่ Listener ตรงเพื่อป้องกันซ้ำ 2 ครั้ง
       }
 
+      function handleCameraOfflineEvent(data) {
+        const camId = data.camera_id || data.id || data.cameraId || data.camera?.id
+        set({
+          latestCameraEvent: {
+            type: 'offline',
+            camera_id: camId,
+            camera_name: data.camera_name || data.name,
+            is_online: false,
+            village_id: data.village_id,
+            _ts: Date.now(),
+            ...data
+          }
+        })
+        // ❌ ไม่ toast ที่นี่ — toast จะแสดงเฉพาะที่ Listener ตรงเพื่อป้องกันซ้ำ 2 ครั้ง
+      }
+
+      function handleCameraOnlineEvent(data) {
+        const camId = data.camera_id || data.id || data.cameraId || data.camera?.id
+        set({
+          latestCameraEvent: {
+            type: 'online',
+            camera_id: camId,
+            camera_name: data.camera_name || data.name,
+            is_online: true,
+            village_id: data.village_id,
+            _ts: Date.now(),
+            ...data
+          }
+        })
+        // ❌ ไม่ toast ที่นี่ — toast จะแสดงเฉพาะที่ Listener ตรงเพื่อป้องกันซ้ำ 2 ครั้ง
+      }
+
       function formatLockDuration(seconds) {
         const sec = Number(seconds)
         if (isNaN(sec) || sec <= 0) return 'ชั่วคราว'
@@ -460,6 +494,17 @@ const useNotificationStore = create((set, get) => ({
             handleCameraFailedEvent(data, true)
           } else if (action === 'camera_sync_failed') {
             handleCameraSyncFailedEvent(data)
+          } else if (action === 'camera_offline') {
+            handleCameraOfflineEvent(data)
+          } else if (action === 'camera_online') {
+            handleCameraOnlineEvent(data)
+          } else if (action === 'camera_status_changed') {
+            const isOnline = data.is_online ?? data.status ?? data.stream_online
+            if (isOnline) {
+              handleCameraOnlineEvent(data)
+            } else {
+              handleCameraOfflineEvent(data)
+            }
           } else if (action === 'login_bruteforce_detected') {
             handleSecurityAlertEvent(data)
           } else {
@@ -646,6 +691,57 @@ const useNotificationStore = create((set, get) => ({
         } finally {
           get().fetchNotifications()
           get().fetchUnreadCount()
+        }
+      })
+
+      // ✅ Listener ใหม่ — รับ Event 'camera_offline' จาก BE (กล้องขาดการเชื่อมต่อ)
+      es.addEventListener('camera_offline', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          handleCameraOfflineEvent(data)
+          // ✅ Toast แสดงแค่ที่นี่ที่เดียว
+          const user = useAuthStore.getState().user
+          if (user?.role === 'admin' || user?.role === 'superadmin') {
+            toast.error(`Camera Offline${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
+          }
+        } catch (err) {
+          console.error('parse camera_offline error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
+        }
+      })
+
+      // ✅ Listener ใหม่ — รับ Event 'camera_online' จาก BE (กล้องกลับมาเชื่อมต่อได้ปกติ)
+      es.addEventListener('camera_online', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          handleCameraOnlineEvent(data)
+          // ✅ Toast แสดงแค่ที่นี่ที่เดียว
+          const user = useAuthStore.getState().user
+          if (user?.role === 'admin' || user?.role === 'superadmin') {
+            toast.success(`Camera Online${data.camera_name || data.name ? ` — ${data.camera_name || data.name}` : ''}`)
+          }
+        } catch (err) {
+          console.error('parse camera_online error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
+        }
+      })
+
+      // ✅ Listener รับ Event 'camera_status_changed' จาก BE (อัปเดตสถานะกล้องบนหน้าบอร์ด/ตาราง)
+      es.addEventListener('camera_status_changed', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          const isOnline = data.is_online ?? data.status ?? data.stream_online
+          if (isOnline) {
+            handleCameraOnlineEvent(data)
+          } else {
+            handleCameraOfflineEvent(data)
+          }
+        } catch (err) {
+          console.error('parse camera_status_changed error:', err)
         }
       })
 

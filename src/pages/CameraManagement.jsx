@@ -312,6 +312,30 @@ function CameraManagement() {
             syncWarning: { failedServices: latestCameraEvent.failed_services, at: new Date() }
           }
         }
+        if (type === 'online') {
+          return {
+            ...c,
+            status: true,
+            stream_online: true,
+            is_online: true,
+            verification_status: 'verified',
+            is_starting: false,
+            is_active: latestCameraEvent.is_active ?? c.is_active,
+            detail: null,
+            syncWarning: null
+          }
+        }
+        if (type === 'offline') {
+          return {
+            ...c,
+            status: false,
+            stream_online: false,
+            is_online: false,
+            is_starting: false,
+            detail: 'ไม่พบสัญญาณสตรีมของกล้อง กรุณาตรวจสอบลิงก์ RTSP หรือสถานะการเปิดของกล้อง',
+            syncWarning: null
+          }
+        }
         return c
       })
     )
