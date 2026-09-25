@@ -450,7 +450,7 @@
 
 .camera-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
   align-content: start;
   flex: 1;
@@ -483,6 +483,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  width: 100%;
 }
 
 .grid-tile-name {
@@ -494,21 +496,68 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  height: 20px;
+  line-height: 20px;
 }
 
 .grid-tile-video {
-  border-width: 3px; /* กรอบบางลงเล็กน้อยเทียบกับ single view เพื่อไม่ให้ดูหนักตากรณีกล้องเยอะ */
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  max-height: none;
+  border-width: 3px;
+  box-sizing: border-box;
 }
 
-@media (max-width: 1024px) {
+/* ล็อกขนาดเนื้อหาภายในกล่อง 16:9 ให้เท่ากันเป๊ะทุกสถานะ (วิดีโอ/กำลังโหลด/แจ้งเตือนข้อผิดพลาด) */
+.grid-tile-video .live-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.grid-tile-video .video-skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.grid-tile-video .empty-state {
+  padding: 0;
+  gap: 8px;
+}
+
+.grid-tile-video .empty-icon {
+  font-size: 26px;
+}
+
+.grid-tile-video .empty-title {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* รองรับ 3 คอลัมน์บนจอ Mac, Laptop และ Desktop ปรับเหลือ 2 คอลัมน์เฉพาะหน้าจอเล็กกว่า 820px */
+@media (max-width: 820px) {
   .camera-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 520px) {
   .camera-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 /* เพิ่มขนาดตัวหนังสือเฉพาะคอลัมน์ Province และ Color */
