@@ -1,4 +1,3 @@
-import React from 'react'
 import './DateQuickPresets.css'
 
 export function getDatePresetRanges() {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { FaChevronLeft, FaChevronRight, FaChevronDown } from 'react-icons/fa'
 import './CustomDatePickerHeader.css'
 

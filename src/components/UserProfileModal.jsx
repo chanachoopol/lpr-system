@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import {
   FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaShieldAlt, FaCalendarAlt,
   FaFacebook, FaInstagram, FaGlobe, FaEye
@@ -104,7 +104,7 @@ function UserProfileModal({ user, onClose }) {
   const activeUser = userData || user
   const displayFullname = activeUser?.fullname || detail?.fullname || activeUser?.username || user?.username
   const targetVillageId = activeUser?.village_id ?? activeUser?.villageId ?? user?.village_id ?? user?.villageId ?? detail?.village_id
-  let displayVillage = '-'
+  let displayVillage
 
   if (targetVillageId) {
     const vName = getVillageName(targetVillageId)

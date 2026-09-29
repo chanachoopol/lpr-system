@@ -14,7 +14,10 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
@@ -27,6 +30,8 @@ export default defineConfig([
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       // อนุญาต catch block ที่ว่างเปล่าสำหรับการจัดการ error ที่ไม่จำเป็นต้องแสดงผล
       'no-empty': ['warn', { allowEmptyCatch: true }],
+      // อนุญาตการ export constants ร่วมกับ components ในไฟล์ helper
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
 ])

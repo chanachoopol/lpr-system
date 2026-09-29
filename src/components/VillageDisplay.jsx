@@ -1,5 +1,4 @@
-import React from 'react'
-import useVillageStore, { getVillageInfo, getHistoricalVillages } from '../store/villageStore'
+import useVillageStore, { getHistoricalVillages } from '../store/villageStore'
 export function renderVillageDisplay(villageId, directName, currentVillages = []) {
   if (!villageId && !directName) return '-'
 
