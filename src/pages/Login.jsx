@@ -14,6 +14,8 @@ import { isUsernameValid, getUsernameErrorMessage, isLoginPasswordValid, getPass
 import Spinner from '../components/Spinner'
 import CookieNotice from '../components/CookieNotice'
 
+const LOCKOUT_UNTIL_KEY = 'lpr_login_lockout_until'
+
 function Login() {
   const navigate = useNavigate()
   const { login, isLoggedIn, isLoading } = useAuthStore()

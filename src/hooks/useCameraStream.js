@@ -40,6 +40,7 @@ function useCameraStream(cameraId) {
   const isMountedRef = useRef(true)
   const currentStreamUrlRef = useRef(null)
   const retryCountRef = useRef(0) // นับจำนวนครั้งที่ retry เมื่อเจอ HLS Network Error
+  const fetchAndRefreshRef = useRef(null)
 
   const [isVideoLoading, setIsVideoLoading] = useState(true)
   const [hasStreamError, setHasStreamError] = useState(false)
@@ -114,7 +115,7 @@ function useCameraStream(cameraId) {
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal && isMountedRef.current) {
             switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
+              case Hls.ErrorTypes.NETWORK_ERROR: {
                 // เกิน MAX_RETRIES → หยุดและแสดง error ถาวร
                 if (retryCountRef.current >= MAX_RETRIES) {
                   console.error(`❌ HLS Network Error เชื่อมต่อไม่ได้ (ลองครบ ${MAX_RETRIES} ครั้งแล้ว) กล้องอาจจะออฟไลน์`)
@@ -134,10 +135,11 @@ function useCameraStream(cameraId) {
                 setHasStreamError(false)
                 setTimeout(() => {
                   if (isMountedRef.current && cameraId) {
-                    fetchAndRefresh(cameraId)
+                    fetchAndRefreshRef.current?.(cameraId)
                   }
                 }, delayMs)
                 break
+              }
               case Hls.ErrorTypes.MEDIA_ERROR:
                 // video decode error → ลองซ่อมแซมก่อน ไม่ต้องขอ session ใหม่
                 console.warn('HLS Media Error กำลังซ่อมแซมวิดีโอ...')
@@ -178,10 +180,10 @@ function useCameraStream(cameraId) {
 
     refreshTimerRef.current = setTimeout(() => {
       if (isMountedRef.current && targetId) {
-        fetchAndRefresh(targetId)
+        fetchAndRefreshRef.current?.(targetId)
       }
     }, refreshIn)
-  }, [cameraId])
+  }, [])
 
   const fetchAndRefresh = useCallback(async (targetCameraId = cameraId) => {
     const idToFetch = targetCameraId || cameraId
@@ -211,11 +213,13 @@ function useCameraStream(cameraId) {
       // network/5xx อื่นๆ — retry แบบมี backoff สั้นๆ กันสแปม request รัว
       refreshTimerRef.current = setTimeout(() => {
         if (isMountedRef.current && idToFetch) {
-          fetchAndRefresh(idToFetch)
+          fetchAndRefreshRef.current?.(idToFetch)
         }
       }, RETRY_DELAY_MS)
     }
   }, [cameraId, attachSource, scheduleNext, cleanup])
+
+  fetchAndRefreshRef.current = fetchAndRefresh
 
   // Callback ref: เมื่อแท็ก <video> mount เข้า DOM ให้ผูกสัญญาณสตรีมมิ่งทันที (แก้ปัญหา race condition ตอนสลับหมู่บ้าน)
   const setVideoRef = useCallback((el) => {

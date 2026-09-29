@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useThemeStore } from './store/themeStore'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
@@ -6,7 +6,6 @@ import { AnimatePresence } from 'framer-motion'
 import useAuthStore from './store/authStore'
 import useNotificationStore from './store/notificationStore'
 import ProtectedRoute from './components/ProtectedRoute'
-import Spinner from './components/Spinner'
 import BlacklistAlertModal from './components/BlacklistAlertModal'
 
 import Login from './pages/Login'

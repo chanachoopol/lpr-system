@@ -29,6 +29,7 @@ import EmptyState from '../components/EmptyState'
 import UserProfileModal from '../components/UserProfileModal'
 import VillageDetailModal from '../components/VillageDetailModal'
 import ActionMenu from '../components/ActionMenu'
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter'
 import { filterVisibleUsers } from '../utils/Permissions'
 import { isEmailValid, isPasswordValid, isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji, hasEmoji } from '../utils/passwordPolicy'
 

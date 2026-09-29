@@ -98,6 +98,68 @@ function getVisiblePageNumbers(currentPage, totalPages, maxVisible) {
   return Array.from({ length: end - start + 1 }, (_, i) => start + i)
 }
 
+const STORAGE_KEY_BLACKLIST_HISTORY = 'lpr_historical_blacklist_plates'
+const STORAGE_KEY_WHITELIST_HISTORY = 'lpr_historical_whitelist_plates'
+const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
+
+function getHistoricalCameras() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CAMERAS_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function saveHistoricalCameras(camerasList) {
+  try {
+    if (!Array.isArray(camerasList)) return
+    const existing = getHistoricalCameras()
+    let changed = false
+    camerasList.forEach((c) => {
+      if (c && c.id && c.name) {
+        if (existing[c.id] !== c.name) {
+          existing[c.id] = c.name
+          changed = true
+        }
+      }
+    })
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_CAMERAS_HISTORY, JSON.stringify(existing))
+    }
+  } catch (e) {}
+}
+
+function getHistoricalBlacklistPlates() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_BLACKLIST_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function saveHistoricalBlacklistPlates(map) {
+  try {
+    localStorage.setItem(STORAGE_KEY_BLACKLIST_HISTORY, JSON.stringify(map))
+  } catch (e) {}
+}
+
+function getHistoricalWhitelistPlates() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_WHITELIST_HISTORY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function saveHistoricalWhitelistPlates(map) {
+  try {
+    localStorage.setItem(STORAGE_KEY_WHITELIST_HISTORY, JSON.stringify(map))
+  } catch (e) {}
+}
+
 function Blacklist() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -287,68 +349,6 @@ function Blacklist() {
   useEffect(() => {
     fetchRegistered()
   }, [fetchRegistered])
-
-const STORAGE_KEY_BLACKLIST_HISTORY = 'lpr_historical_blacklist_plates'
-const STORAGE_KEY_WHITELIST_HISTORY = 'lpr_historical_whitelist_plates'
-const STORAGE_KEY_CAMERAS_HISTORY = 'lpr_historical_cameras'
-
-function getHistoricalCameras() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_CAMERAS_HISTORY)
-    return raw ? JSON.parse(raw) : {}
-  } catch (e) {
-    return {}
-  }
-}
-
-function saveHistoricalCameras(camerasList) {
-  try {
-    if (!Array.isArray(camerasList)) return
-    const existing = getHistoricalCameras()
-    let changed = false
-    camerasList.forEach((c) => {
-      if (c && c.id && c.name) {
-        if (existing[c.id] !== c.name) {
-          existing[c.id] = c.name
-          changed = true
-        }
-      }
-    })
-    if (changed) {
-      localStorage.setItem(STORAGE_KEY_CAMERAS_HISTORY, JSON.stringify(existing))
-    }
-  } catch (e) {}
-}
-
-function getHistoricalBlacklistPlates() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_BLACKLIST_HISTORY)
-    return raw ? JSON.parse(raw) : {}
-  } catch (e) {
-    return {}
-  }
-}
-
-function saveHistoricalBlacklistPlates(map) {
-  try {
-    localStorage.setItem(STORAGE_KEY_BLACKLIST_HISTORY, JSON.stringify(map))
-  } catch (e) {}
-}
-
-function getHistoricalWhitelistPlates() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_WHITELIST_HISTORY)
-    return raw ? JSON.parse(raw) : {}
-  } catch (e) {
-    return {}
-  }
-}
-
-function saveHistoricalWhitelistPlates(map) {
-  try {
-    localStorage.setItem(STORAGE_KEY_WHITELIST_HISTORY, JSON.stringify(map))
-  } catch (e) {}
-}
 
   // ดึง Detections ทั้งหมด และ Match กับรายการ Registered (คงประวัติป้ายที่เคยลงทะเบียนแม้จะลบออกไปแล้ว)
   const fetchDetectionsAndMatch = useCallback(async (isSilent = false) => {
