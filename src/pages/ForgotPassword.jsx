@@ -9,7 +9,7 @@ import '../styles/Login.css'
 import '../styles/ForgotPassword.css'
 import { forgotPasswordAPI } from '../data/api'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
-import { isEmailValid, getEmailErrorMessage, stripEmoji } from '../utils/passwordPolicy'
+import { getEmailErrorMessage, stripEmoji } from '../utils/passwordPolicy'
 const SKIP_API_FOR_DEV = false
 
 const FORGOT_PASSWORD_COOLDOWN_KEY = 'lpr_forgot_pwd_cooldown_until'

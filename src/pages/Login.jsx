@@ -10,7 +10,7 @@ import { loginAPI } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { pageVariants, pageTransition } from '../animations/pageTransition'
-import { isUsernameValid, getUsernameErrorMessage, isLoginPasswordValid, getPasswordErrorMessage, stripEmoji } from '../utils/passwordPolicy'
+import { stripEmoji } from '../utils/passwordPolicy'
 import Spinner from '../components/Spinner'
 import CookieNotice from '../components/CookieNotice'
 
