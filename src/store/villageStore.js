@@ -7,7 +7,7 @@ export function getHistoricalVillages() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_VILLAGES_HISTORY)
     return raw ? JSON.parse(raw) : {}
-  } catch (e) {
+  } catch {
     return {}
   }
 }
@@ -28,7 +28,7 @@ export function saveHistoricalVillages(villagesList) {
     if (changed) {
       localStorage.setItem(STORAGE_KEY_VILLAGES_HISTORY, JSON.stringify(existing))
     }
-  } catch (e) {}
+  } catch {}
 }
 
 export function getVillageInfo(villageId, currentVillages = []) {
@@ -47,7 +47,7 @@ const STORAGE_KEY_SELECTED_VILLAGE = 'lpr_selected_village_id'
 export function getPersistedSelectedVillage() {
   try {
     return sessionStorage.getItem(STORAGE_KEY_SELECTED_VILLAGE) || null
-  } catch (e) {
+  } catch {
     return null
   }
 }
@@ -97,7 +97,7 @@ const useVillageStore = create((set, get) => ({
       } else {
         sessionStorage.removeItem(STORAGE_KEY_SELECTED_VILLAGE)
       }
-    } catch (e) {}
+    } catch {}
     set({ selectedVillageId: villageId })
   },
 
@@ -114,7 +114,7 @@ const useVillageStore = create((set, get) => ({
   reset: () => {
     try {
       sessionStorage.removeItem(STORAGE_KEY_SELECTED_VILLAGE)
-    } catch (e) {}
+    } catch {}
     set({ villages: [], selectedVillageId: null, hasFetched: false })
   }
 }))

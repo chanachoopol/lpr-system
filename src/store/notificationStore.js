@@ -9,10 +9,7 @@ import {
   getNotificationsAPI,
   getUnreadNotificationCountAPI,
   markNotificationReadAPI,
-  markAllNotificationsReadAPI,
-  getAuthedImageURL,
-  getDetectionsAPI,
-  getCameraByIdAPI
+  markAllNotificationsReadAPI
 } from '../data/api'
 import useAuthStore from './authStore'
 import usePresenceStore, { extractOnlineUserIds } from './presenceStore'
@@ -20,7 +17,6 @@ import usePresenceStore, { extractOnlineUserIds } from './presenceStore'
 const RECONNECT_DELAY_MS = 3000
 const NOTIF_PAGE_SIZE = 20
 const MAX_BLACKLIST_QUEUE = 20 // กันคิวบวมไม่รู้จบถ้าเจอรัวๆ ผิดปกติ (เช่น backend ยิงซ้ำ)
-const BLACKLIST_LOOKUP_WINDOW_MS = 5 * 60 * 1000 // ขอบเขตย้อนหลังตอนหา detection จริงที่ตรงกับ alert (5 นาที)
 
 let eventSource = null
 let reconnectTimer = null
@@ -28,45 +24,6 @@ let isManuallyClosed = false
 let isConnecting = false
 
 // ---------- คิวของ Blacklist Alert (จัดการผ่าน Zustand Store เพื่อ render เป็น 3D Stacked Cards) ----------
-
-function formatAlertDateTime(isoString) {
-  if (!isoString) return '-'
-  return new Date(isoString).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' })
-}
-
-// ดึงรายละเอียด detection ตัวจริงจาก backend (รูปภาพ/กล้อง/เวลา) แทนพึ่ง field ที่อาจไม่มีใน payload
-// ของ event "blacklist_alert" เอง — ใช้วิธีเดียวกับหน้า History.jsx คือกรองด้วยป้ายทะเบียน เอาผลล่าสุดมาใช้
-// ⚠️ ASSUMPTION: backend คืนผลเรียงจากใหม่ไปเก่า (สมมติฐานเดียวกับที่ Dashboard.jsx ใช้อยู่แล้วตอนดึง Recent History)
-async function fetchBlacklistDetectionDetail(alertData) {
-  try {
-    const params = {
-      license_plate: alertData.license_plate,
-      time_detect_from: new Date(Date.now() - BLACKLIST_LOOKUP_WINDOW_MS).toISOString(),
-      page: 1,
-      page_size: 1
-    }
-    if (alertData.village_id) params.village_id = alertData.village_id
-
-    const data = await getDetectionsAPI(params)
-    const detection = data.items?.[0]
-    if (!detection) return null
-
-    let cameraName = null
-    if (detection.camera_id) {
-      try {
-        const camera = await getCameraByIdAPI(detection.camera_id)
-        cameraName = camera?.name || null
-      } catch (error) {
-        console.error('โหลดชื่อกล้องสำหรับ blacklist alert ไม่สำเร็จ:', error)
-      }
-    }
-
-    return { ...detection, camera_name: cameraName }
-  } catch (error) {
-    console.error('ดึงรายละเอียด detection สำหรับ blacklist alert ไม่สำเร็จ:', error)
-    return null
-  }
-}
 
 function formatAlertTime(isoString) {
   if (!isoString) return '-'
@@ -95,7 +52,7 @@ function mapNotification(n) {
   if (typeof payload === 'string') {
     try {
       payload = JSON.parse(payload)
-    } catch (e) {}
+    } catch {}
   }
   let plate = payload?.license_plate || payload?.plate || n.license_plate || n.plate || null
   if (!plate && n.detail) {
@@ -366,7 +323,7 @@ const useNotificationStore = create((set, get) => ({
         // ❌ ไม่ toast ที่นี่ — toast จะแสดงเฉพาะที่ Listener ตรง 'camera_verified' เพื่อป้องกันซ้ำ 2 ครั้ง
       }
 
-      function handleCameraFailedEvent(data, isTimeout = false) {
+      function handleCameraFailedEvent(data, _isTimeout = false) {
         const camId = data.camera_id || data.id || data.cameraId || data.camera?.id
         set({
           latestCameraEvent: {
@@ -549,7 +506,7 @@ const useNotificationStore = create((set, get) => ({
       })
 
       // 4. จัดการสัญญาณตัดการเชื่อมต่อแท็บ (Session Eviction เมื่อเปิดเกินขีดจำกัด)
-      es.addEventListener('force_close', (e) => {
+      es.addEventListener('force_close', () => {
         console.warn('[SSE] Received force_close from server: tab session evicted due to connection limit.')
         isManuallyClosed = true
         clearTimeout(reconnectTimer)

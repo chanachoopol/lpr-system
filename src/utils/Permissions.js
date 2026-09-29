@@ -1,27 +1,5 @@
-// utils/permissions.js
-// กำหนดสิทธิ์การมองเห็น profile ของ user แต่ละ role
-// - superadmin  : เห็นได้ทุกคนทุกหมู่บ้าน
-// - admin       : เห็นได้เฉพาะคนในหมู่บ้านตัวเอง (+ ตัวเอง)
-// - user        : เห็นได้แค่ตัวเอง
-
-export function canViewUserProfile(currentUser, targetUser) {
-  if (!currentUser || !targetUser) return false
-
-  const targetId = targetUser.user_id ?? targetUser.id
-
-  if (currentUser.id === targetId) return true
-
-  if (currentUser.role === 'superadmin') return true
-
-  if (currentUser.role === 'admin') {
-    return (
-      currentUser.village_id !== null &&
-      currentUser.village_id === targetUser.village_id
-    )
-  }
-
-  return false
-}
+// utils/Permissions.js
+// ฟังก์ชันจัดการและกรองสิทธิ์การมองเห็นข้อมูลผู้ใช้ (Role-Based Access Control)
 
 // ⚠️ TEMPORARY FIX (2026-08-25):
 // GET /api/users ไม่ส่ง field village_id กลับมาใน response ของแต่ละ user object

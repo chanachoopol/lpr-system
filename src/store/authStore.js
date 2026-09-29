@@ -223,7 +223,7 @@ const useAuthStore = create((set, get) => ({
                 .catch(() => get().setAvatarUrl(null))
             }
             return
-          } catch (profileErr) {
+          } catch {
             // ถ้าดึง Profile ไม่สำเร็จ (อาจถูก revoke token) -> ไหลต่อไปขั้นตอน Refresh Token
           }
         }
@@ -248,7 +248,7 @@ const useAuthStore = create((set, get) => ({
             .then((url) => get().setAvatarUrl(url))
             .catch(() => get().setAvatarUrl(null))
         }
-      } catch (error) {
+      } catch {
         get().clearSession()
       } finally {
         sessionInitPromise = null
