@@ -1,11 +1,9 @@
-﻿services:
+services:
   frontend:
-    image: node:20-alpine
-    working_dir: /app
-    command: npm run dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lpr-frontend
     ports:
-      - "5173:5173"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    restart: no
+      - "3000:80"
+    restart: unless-stopped
