@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
-import { useThemeStore } from './store/themeStore'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import useAuthStore from './store/authStore'
@@ -85,7 +84,6 @@ function AnimatedRoutes() {
 }
 
 function App() {
-  const theme = useThemeStore((state) => state.theme)
   const { initSession, isLoggedIn } = useAuthStore()
   const { connect, disconnect } = useNotificationStore()
 
@@ -102,14 +100,6 @@ function App() {
       disconnect()
     }
   }, [isLoggedIn])
-
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [theme])
 
   return (
     <BrowserRouter>
