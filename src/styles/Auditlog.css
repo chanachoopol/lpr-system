@@ -556,6 +556,19 @@
 }
 
 @media (max-width: 768px) {
+  .al-wrapper {
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 24px !important;
+  }
+
+  .al-wrapper .content-card {
+    padding: 14px 12px !important;
+    border-radius: 16px !important;
+  }
+
   .al-kpi-row {
     grid-template-columns: 1fr;
   }
@@ -563,10 +576,18 @@
   .al-filter-bar {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .al-search-box {
+    width: 100%;
   }
 
   .btn-reset-al {
     justify-content: center;
+    width: 100%;
   }
 
   .al-detail-cell {

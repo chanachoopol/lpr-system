@@ -618,15 +618,48 @@
   .cm-wrapper {
     height: auto;
     max-height: none;
-    overflow: visible;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 24px !important;
+  }
+
+  .cm-wrapper .content-card {
+    padding: 14px 12px !important;
+    border-radius: 16px !important;
   }
 
   .cm-kpi-row {
     grid-template-columns: 1fr;
   }
 
+  .cm-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .cm-form {
+    padding: 16px 14px !important;
+  }
+
   .cm-form-row {
     grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .cm-form-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .btn-cancel-cm,
+  .btn-submit-cm {
+    width: 100%;
+    justify-content: center;
   }
 }
 .cm-sync-cell {

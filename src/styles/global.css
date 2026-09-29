@@ -214,3 +214,140 @@ body {
   white-space: nowrap;
   user-select: none;
 }
+
+/* ==========================================================================
+   Mobile-Only Responsive Rules (< 768px)
+   - Universal horizontal scrollbar for tables
+   - Responsive forms and modal sizing
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* 1. ทุกตารางในระบบ: บังคับให้เลื่อนแนวนอนได้ พร้อม Scrollbar ที่เห็นเด่นชัด */
+  .table-responsive,
+  .um-table-wrap,
+  .vdm-list-wrap,
+  .report-table-wrap,
+  .rt-table-wrap,
+  .history-table-card .table-responsive,
+  .bottom-row .table-responsive,
+  .blacklist-wrapper .table-responsive,
+  .al-wrapper .table-responsive,
+  .cm-wrapper .table-responsive,
+  .monitor-right .table-responsive {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(37, 99, 235, 0.65) rgba(27, 42, 71, 0.08) !important;
+    padding-bottom: 8px !important;
+  }
+
+  /* คืนค่าการแสดงผล webkit scrollbar ที่ถูกซ่อนไว้ใน index.css */
+  .table-responsive::-webkit-scrollbar,
+  .um-table-wrap::-webkit-scrollbar,
+  .vdm-list-wrap::-webkit-scrollbar,
+  .report-table-wrap::-webkit-scrollbar,
+  .rt-table-wrap::-webkit-scrollbar,
+  .history-table-card .table-responsive::-webkit-scrollbar,
+  .bottom-row .table-responsive::-webkit-scrollbar,
+  .blacklist-wrapper .table-responsive::-webkit-scrollbar,
+  .al-wrapper .table-responsive::-webkit-scrollbar,
+  .cm-wrapper .table-responsive::-webkit-scrollbar,
+  .monitor-right .table-responsive::-webkit-scrollbar {
+    display: block !important;
+    height: 8px !important;
+  }
+
+  .table-responsive::-webkit-scrollbar-track,
+  .um-table-wrap::-webkit-scrollbar-track,
+  .vdm-list-wrap::-webkit-scrollbar-track,
+  .report-table-wrap::-webkit-scrollbar-track,
+  .rt-table-wrap::-webkit-scrollbar-track,
+  .history-table-card .table-responsive::-webkit-scrollbar-track,
+  .bottom-row .table-responsive::-webkit-scrollbar-track,
+  .blacklist-wrapper .table-responsive::-webkit-scrollbar-track,
+  .al-wrapper .table-responsive::-webkit-scrollbar-track,
+  .cm-wrapper .table-responsive::-webkit-scrollbar-track,
+  .monitor-right .table-responsive::-webkit-scrollbar-track {
+    background: rgba(27, 42, 71, 0.08) !important;
+    border-radius: 10px !important;
+  }
+
+  .table-responsive::-webkit-scrollbar-thumb,
+  .um-table-wrap::-webkit-scrollbar-thumb,
+  .vdm-list-wrap::-webkit-scrollbar-thumb,
+  .report-table-wrap::-webkit-scrollbar-thumb,
+  .rt-table-wrap::-webkit-scrollbar-thumb,
+  .history-table-card .table-responsive::-webkit-scrollbar-thumb,
+  .bottom-row .table-responsive::-webkit-scrollbar-thumb,
+  .blacklist-wrapper .table-responsive::-webkit-scrollbar-thumb,
+  .al-wrapper .table-responsive::-webkit-scrollbar-thumb,
+  .cm-wrapper .table-responsive::-webkit-scrollbar-thumb,
+  .monitor-right .table-responsive::-webkit-scrollbar-thumb {
+    background: rgba(37, 99, 235, 0.65) !important;
+    border-radius: 10px !important;
+    border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  }
+
+  /* กำหนดความกว้างขั้นต่ำของตัวตารางในทุกหน้า เพื่อไม่ให้คอลัมน์บีบอัด */
+  .table-responsive table,
+  .um-table,
+  .bl-table,
+  .al-table,
+  .cm-table,
+  .report-table,
+  .rt-table,
+  .vdm-table,
+  .history-table {
+    min-width: 580px !important;
+    width: 100% !important;
+  }
+
+  /* 2. ฟอร์มและโมดอลทุกหน้า: ปรับขนาดให้พอดีหน้าจอมือถือ */
+  .modal-content,
+  .vdm-modal,
+  .direction-modal-content,
+  .dash-direction-modal,
+  .bl-direction-modal {
+    width: 95% !important;
+    max-width: calc(100vw - 20px) !important;
+    box-sizing: border-box !important;
+    margin: 10px auto !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    border-radius: 18px !important;
+  }
+
+  /* ฟอร์มและช่อง Input ต่างๆ ปรับขนาด 100% พอดีจอ */
+  form,
+  .um-form,
+  .bl-add-form,
+  .cm-form,
+  .cp-form,
+  .pf-form {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .um-form-row,
+  .cm-form-row,
+  .form-row,
+  .form-grid {
+    grid-template-columns: 1fr !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  input,
+  select,
+  textarea {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}

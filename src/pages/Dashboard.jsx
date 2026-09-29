@@ -564,7 +564,7 @@ function Dashboard() {
           <div className="content-card">
             <h3 className="card-title">LPR Camera Map</h3>
             {isLoadingCameras ? (
-              <div className="video-skeleton" style={{ flex: 1, minHeight: '540px', borderRadius: '16px' }}>
+              <div className="video-skeleton" style={{ flex: 1, minHeight: '220px', borderRadius: '16px' }}>
                 <Spinner text="กำลังโหลดตำแหน่งกล้อง..." />
               </div>
             ) : (

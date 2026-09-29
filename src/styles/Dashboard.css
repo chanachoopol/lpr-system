@@ -289,16 +289,34 @@
 }
 
 @media (max-width: 768px) {
-  /* เปิดให้ scroll ได้บนมือถือ */
+  /* เปิดให้ scroll ได้บนมือถือ และป้องกันการล้นแนวนอนของหน้าจอ */
   .dashboard-wrapper {
     overflow-y: auto;
+    overflow-x: hidden;
     height: auto;
     max-height: none;
+    padding-bottom: 24px;
+    box-sizing: border-box;
+    width: 100%;
   }
 
   /* KPI Cards จัดเป็น 2x2 grid */
   .stat-row {
     grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+  }
+
+  .stat-val {
+    font-size: 28px;
   }
 
   /* Bottom row เรียงแนวตั้ง 1 คอลัมน์ */
@@ -306,26 +324,91 @@
     grid-template-columns: 1fr;
     overflow: visible;
     flex: none;
+    gap: 14px;
   }
 
+  /* ปรับขอบของ div กรอบ ทั้งแผนที่และประวัติการตรวจจับ ให้พอดีกับขนาดหน้าจอโทรศัพท์ ไม่ล้น */
   .bottom-row .content-card {
-    overflow: visible;
+    overflow: hidden;
     height: auto;
     min-height: 0;
+    padding: 16px 14px;
+    border-radius: 16px;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
   }
 
-  /* แผนที่ใช้ aspect-ratio แทน fixed height → พอดีกับความกว้างหน้าจอเสมอ ไม่ล้น */
+  /* กรอบแผนที่: ปรับขนาดความสูงให้พอดีกับหน้าจอมือถือ */
   .dashboard-map-container {
-    height: auto;
-    min-height: 0;
-    aspect-ratio: 4 / 3;
+    height: 230px !important;
+    min-height: 230px !important;
+    max-height: 260px !important;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
   }
 
-  /* ตาราง History: scroll ซ้าย-ขวาเพื่อดูคอลัมน์ที่ไม่พอดี ไม่มี scroll ขึ้น-ลงซ้ำ */
+  /* ส่วนค้นหาในประวัติการตรวจจับ (วันนี้) */
+  .dash-table-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .dash-table-header-right {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dash-search-wrap {
+    flex: 1;
+    width: auto;
+  }
+
+  /* ตารางประวัติ: ใช้ scrollbar แนวนอนเฉพาะภายในตารางเท่านั้น แสดงเด่นชัดให้เลื่อนได้ */
   .bottom-row .table-responsive {
-    overflow-x: auto;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: scroll !important;
     overflow-y: hidden;
-    max-height: none;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 10px;
+    margin-top: 6px;
+    padding-bottom: 8px;
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(37, 99, 235, 0.6) rgba(27, 42, 71, 0.08);
+  }
+
+  .bottom-row .table-responsive .history-table {
+    min-width: 560px;
+    width: 100%;
+  }
+
+  /* Scrollbar แนวนอนขนาด 8px เห็นเด่นชัดและแตะเลื่อนง่าย */
+  .bottom-row .table-responsive::-webkit-scrollbar {
+    height: 8px !important;
+    display: block !important;
+  }
+
+  .bottom-row .table-responsive::-webkit-scrollbar-track {
+    background: rgba(27, 42, 71, 0.08) !important;
+    border-radius: 10px !important;
+  }
+
+  .bottom-row .table-responsive::-webkit-scrollbar-thumb {
+    background: rgba(37, 99, 235, 0.6) !important;
+    border-radius: 10px !important;
+    border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  }
+
+  .bottom-row .table-responsive::-webkit-scrollbar-thumb:hover {
+    background: rgba(37, 99, 235, 0.85) !important;
   }
 }
 

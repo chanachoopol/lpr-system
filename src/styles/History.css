@@ -504,8 +504,30 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .history-wrapper {
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 24px !important;
+  }
+
   .history-filter {
     flex-direction: column;
+    padding: 12px 14px;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  .filter-date-range-wrap {
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
   }
 
   .modal-body {
@@ -514,11 +536,19 @@
 
   .filter-buttons {
     width: 100%;
+    display: flex;
+    gap: 8px;
   }
 
   .btn-filter, .btn-reset {
     flex: 1;
     justify-content: center;
+  }
+
+  .history-table-card {
+    padding: 12px 14px;
+    border-radius: 16px;
+    overflow: hidden;
   }
 }
 .datepicker-history {
