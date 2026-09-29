@@ -87,8 +87,7 @@ export const api = axios.create({
   baseURL: BASE_URL,
   withCredentials: true, // 👈 ต้องมี ไม่งั้น cookie httpOnly ของ refresh token จะไม่ถูกส่ง/ไม่ถูกเก็บเลย
   headers: {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true' // 👈 ข้ามหน้าเตือน interstitial ของ ngrok
+    'Content-Type': 'application/json'
   }
 })
 

@@ -15,21 +15,17 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: 5173,
-      allowedHosts: true, // อนุญาตการเชื่อมต่อผ่าน ngrok ทุกโดเมน
+      allowedHosts: true, // อนุญาตการเชื่อมต่อผ่าน Host / โดเมนภายนอก
       proxy: {
         '/api': {
           target: targetHost,
           changeOrigin: true,
           secure: false,
           cookieDomainRewrite: '', // ปลด domain ให้คุกกี้ผูกกับ Host/IP ที่เปิดใช้งานจริง (เช่น 192.168.x.x หรือ localhost)
-          headers: {
-            'ngrok-skip-browser-warning': '69420'
-          },
           // SSE (EventSource) ใช้ long-lived connection แบบ stream — ปิด buffering กันดีเลย์
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq) => {
               proxyReq.setHeader('Connection', 'keep-alive')
-              proxyReq.setHeader('ngrok-skip-browser-warning', '69420')
             })
 
             // ดักจับ Set-Cookie จาก backend: ปรับแต่งให้เบราว์เซอร์ในวง LAN (HTTP) ยอมรับและบันทึกคุกกี้ refresh_token
