@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { FaTriangleExclamation, FaCheck, FaCar, FaCamera, FaClock, FaLocationDot } from 'react-icons/fa6'
+import { useState, useEffect } from 'react'
+import { FaTriangleExclamation, FaCheck, FaCar, FaCamera, FaClock } from 'react-icons/fa6'
 import useNotificationStore from '../store/notificationStore'
 import { getAuthedImageURL, getDetectionsAPI } from '../data/api'
 import '../styles/BlacklistAlertModal.css'

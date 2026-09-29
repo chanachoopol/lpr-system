@@ -49,7 +49,7 @@ function fitMapToCameras(map, cameras) {
   const centerLat = (minLat + maxLat) / 2
   const maxSpan = Math.max(maxLon - minLon, maxLat - minLat)
 
-  let zoom = 14
+  let zoom
   if (maxSpan > 120) zoom = 2      // ข้ามทวีป / รอบโลก
   else if (maxSpan > 60) zoom = 3
   else if (maxSpan > 30) zoom = 4
@@ -129,7 +129,7 @@ function MapView({ cameras = [] }) {
             setHoveredCamera(null)
             try {
               setCurrentZoom(map.zoom())
-            } catch (e) {}
+            } catch {}
           })
           setCurrentZoom(map.zoom() || 14)
         } catch (error) {

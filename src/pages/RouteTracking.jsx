@@ -731,16 +731,6 @@ function RouteTracking() {
     [mapItems]
   );
 
-  /*
-   * แสดงกล้องทุก Detection
-   */
-  const gateSummary = clusteredItems
-    .map((item) => {
-      const name = item.camera_name || 'ไม่ทราบชื่อกล้อง';
-      return item.count > 1 ? `${name} (x${item.count})` : name;
-    })
-    .join('  -->  ');
-
   const [routeImages, setRouteImages] = useState({});
   const [isLoadingRouteImages, setIsLoadingRouteImages] = useState(false);
   const [hoveredImageId, setHoveredImageId] = useState(null);
@@ -1442,14 +1432,6 @@ function RouteTracking() {
 
       {/* Hover Image Preview */}
       {hoveredImageId && hoverPos && routeImages[hoveredImageId] && (() => {
-        const hoveredItem = mapItems.find(
-          (item) => item.detection_id === hoveredImageId
-        );
-        const hasValidProvince =
-          hoveredItem?.province &&
-          typeof hoveredItem.province === 'string' &&
-          hoveredItem.province.trim().toUpperCase() !== 'UNKNOWN' &&
-          hoveredItem.province.trim() !== '-';
         const isDesktop = typeof window !== 'undefined' && window.innerWidth > 768;
 
         return (

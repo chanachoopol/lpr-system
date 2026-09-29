@@ -7,8 +7,7 @@ import {
   FaPlus,
   FaArrowUpRightFromSquare,
   FaArrowDownWideShort,
-  FaArrowUpWideShort,
-  FaSort
+  FaArrowUpWideShort
 } from 'react-icons/fa6'
 import { FaCar, FaSearch, FaCheck, FaPen, FaEye, FaRoute, FaCalendarAlt, FaRedo } from 'react-icons/fa'
 import DatePicker from 'react-datepicker'
@@ -41,9 +40,9 @@ import { isValidThaiProvince } from '../data/thaiProvinces'
 import { isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji } from '../utils/passwordPolicy'
 
 // Regex สำหรับป้ายทะเบียนไทย (รองรับป้ายปกติ, ป้ายมอเตอร์ไซค์, ป้ายประมูล/สระวรรณยุกต์, ตัวเลข และขีด)
-export const THAI_LICENSE_PLATE_REGEX = /^[0-9\u0E01-\u0E3A\u0E40-\u0E4E\s-]+$/
+const THAI_LICENSE_PLATE_REGEX = /^[0-9\u0E01-\u0E3A\u0E40-\u0E4E\s-]+$/
 
-export function isThaiLicensePlateValid(plate) {
+function isThaiLicensePlateValid(plate) {
   if (!plate || typeof plate !== 'string') return false
   const trimmed = plate.trim()
   if (trimmed.length < 2 || trimmed.length > 15) return false
@@ -106,7 +105,7 @@ function getHistoricalCameras() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CAMERAS_HISTORY)
     return raw ? JSON.parse(raw) : {}
-  } catch (e) {
+  } catch {
     return {}
   }
 }
@@ -127,14 +126,14 @@ function saveHistoricalCameras(camerasList) {
     if (changed) {
       localStorage.setItem(STORAGE_KEY_CAMERAS_HISTORY, JSON.stringify(existing))
     }
-  } catch (e) {}
+  } catch {}
 }
 
 function getHistoricalBlacklistPlates() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_BLACKLIST_HISTORY)
     return raw ? JSON.parse(raw) : {}
-  } catch (e) {
+  } catch {
     return {}
   }
 }
@@ -142,14 +141,14 @@ function getHistoricalBlacklistPlates() {
 function saveHistoricalBlacklistPlates(map) {
   try {
     localStorage.setItem(STORAGE_KEY_BLACKLIST_HISTORY, JSON.stringify(map))
-  } catch (e) {}
+  } catch {}
 }
 
 function getHistoricalWhitelistPlates() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_WHITELIST_HISTORY)
     return raw ? JSON.parse(raw) : {}
-  } catch (e) {
+  } catch {
     return {}
   }
 }
@@ -157,14 +156,14 @@ function getHistoricalWhitelistPlates() {
 function saveHistoricalWhitelistPlates(map) {
   try {
     localStorage.setItem(STORAGE_KEY_WHITELIST_HISTORY, JSON.stringify(map))
-  } catch (e) {}
+  } catch {}
 }
 
 function Blacklist() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthStore()
-  const { villages, selectedVillageId, getVillageName } = useVillageStore()
+  const { villages, selectedVillageId } = useVillageStore()
   const renderVillage = (id, directName) => renderVillageDisplay(id, directName, villages)
   const latestDetection = useNotificationStore((state) => state.latestDetection)
   const isSuperAdmin = user?.role === 'superadmin'

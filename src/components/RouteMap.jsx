@@ -134,7 +134,7 @@ function fitMapToPoints(map, points) {
   const centerLat = (minLat + maxLat) / 2;
   const maxSpan = Math.max(maxLon - minLon, maxLat - minLat);
 
-  let zoom = 15;
+  let zoom;
   if (maxSpan > 1.0) zoom = 7;
   else if (maxSpan > 0.5) zoom = 9;
   else if (maxSpan > 0.2) zoom = 10;
@@ -281,7 +281,7 @@ const RouteMap = forwardRef(function RouteMap({ routePoints = [] }, ref) {
     const pinRelativeTop = pinRect.top - containerRect.top;
     const pinRelativeBottom = pinRect.bottom - containerRect.top;
 
-    let left = pinRelativeRight + CARD_GAP;
+    let left;
     let top = pinRelativeTop - 6;
 
     const fitsRight = pinRelativeRight + CARD_GAP + CARD_WIDTH <= containerRect.width - 8;
