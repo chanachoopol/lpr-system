@@ -148,7 +148,8 @@ function Monitor() {
     videoRef,
     isVideoLoading,
     hasStreamError,
-    isDisabled: isCameraDisabled
+    isDisabled: isCameraDisabled,
+    isStreamingServerDown
   } = useCameraStream(isGridMode ? null : selectedCamera)
 
   const videoWrapperRef = useRef(null)
@@ -484,6 +485,14 @@ function Monitor() {
                       icon={<FaVideo />}
                       title="กล้องนี้ถูกปิดใช้งาน"
                       description="กล้องนี้ถูกปิดใช้งานอยู่ในขณะนี้ กรุณาติดต่อผู้ดูแลระบบ"
+                    />
+                  </div>
+                ) : isStreamingServerDown ? (
+                  <div className="video-skeleton">
+                    <EmptyState
+                      icon={<FaVideo />}
+                      title="ไม่สามารถดูภาพสดได้ชั่วคราว"
+                      description="เซิร์ฟเวอร์สตรีมมิ่งขัดข้อง (ระบบจะเชื่อมต่อใหม่อัตโนมัติเมื่อระบบพร้อมใช้งาน)"
                     />
                   </div>
                 ) : hasStreamError ? (

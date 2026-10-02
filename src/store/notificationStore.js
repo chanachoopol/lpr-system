@@ -22,6 +22,7 @@ let eventSource = null
 let reconnectTimer = null
 let isManuallyClosed = false
 let isConnecting = false
+let isLoggingOut = false
 
 // ---------- คิวของ Blacklist Alert (จัดการผ่าน Zustand Store เพื่อ render เป็น 3D Stacked Cards) ----------
 
@@ -38,7 +39,9 @@ const NOTIF_META = {
   camera_sync_failed:         { icon: 'camera',    title: 'Camera Sync Failed' },
   camera_offline:             { icon: 'camera',    title: 'Camera Offline' },
   camera_online:              { icon: 'camera',    title: 'Camera Online' },
-  login_bruteforce_detected:  { icon: 'security',  title: 'Login Blocked (Brute-force)' }
+  login_bruteforce_detected:  { icon: 'security',  title: 'Login Blocked (Brute-force)' },
+  streaming_server_down:      { icon: 'streaming_down',      title: 'Streaming Server Down' },
+  streaming_server_recovered: { icon: 'streaming_recovered', title: 'Streaming Server Recovered' }
 }
 
 function formatActionTitle(action) {
@@ -54,19 +57,44 @@ function mapNotification(n) {
       payload = JSON.parse(payload)
     } catch {}
   }
-  let plate = payload?.license_plate || payload?.plate || n.license_plate || n.plate || null
-  if (!plate && n.detail) {
-    const match = n.detail.match(/([0-9ก-ฮa-zA-Z\s]{2,10})/)?.[1]?.trim()
-    if (match && match.length >= 3) plate = match
+
+  const isStreamingAction =
+    n.action === 'streaming_server_down' ||
+    n.action === 'streaming_server_recovered' ||
+    meta.icon === 'streaming_down' ||
+    meta.icon === 'streaming_recovered'
+
+  const isVehicleAction =
+    n.action === 'blacklist_alert' ||
+    n.action === 'whitelist_alert' ||
+    n.action === 'detection_created' ||
+    meta.icon === 'blacklist' ||
+    meta.icon === 'whitelist'
+
+  // สกัดป้ายทะเบียนเฉพาะกรณีเป็นการแจ้งเตือนยานพาหนะเท่านั้น ป้องกันไม่ให้ข้อความอื่นโดน regex ตัดคำเพี้ยน
+  let plate = null
+  if (isVehicleAction) {
+    plate = payload?.license_plate || payload?.plate || n.license_plate || n.plate || null
+    if (!plate && n.detail) {
+      const match = n.detail.match(/([0-9ก-ฮa-zA-Z\s]{2,10})/)?.[1]?.trim()
+      if (match && match.length >= 3) plate = match
+    }
   }
+
+  // ดึงข้อความแจ้งเตือนเต็มประโยคจาก detail หรือ payload.message
+  const fullDetail = n.detail || (typeof payload === 'object' && payload?.message) || (typeof payload === 'string' ? payload : '') || null
+
   return {
     id: n.id,
     action: n.action,
     type: meta.icon,
     title: meta.title,
-    detail: n.detail,
+    detail: fullDetail,
     plate: plate,
-    location: payload?.camera_name || payload?.location || null,
+    // streaming action ไม่มี camera_name: ไม่ดึง camera_name และให้ location เป็น null
+    location: isStreamingAction
+      ? null
+      : (payload?.camera_name || payload?.location || null),
     time: formatAlertTime(n.created_at),
     read: n.is_read
   }
@@ -113,6 +141,10 @@ const useNotificationStore = create((set, get) => ({
   latestSecurityAlert: null,
   isConnected: false,
   activeBlacklistAlerts: [],
+  streamingServerDown: false,
+  streamingServerMessage: null,
+  streamingServerReason: null,
+  streamReloadKey: 0,
 
   pushBlacklistAlert: (alert) => {
     if (!alert) return
@@ -213,6 +245,7 @@ const useNotificationStore = create((set, get) => ({
     if (eventSource || isConnecting) return
     isConnecting = true
     isManuallyClosed = false
+    isLoggingOut = false
     clearTimeout(reconnectTimer)
     reconnectTimer = null
 
@@ -462,6 +495,20 @@ const useNotificationStore = create((set, get) => ({
             } else {
               handleCameraOfflineEvent(data)
             }
+          } else if (action === 'streaming_server_down') {
+            set({
+              streamingServerDown: true,
+              streamingServerMessage: data.message || 'ระบบสตรีมมิ่งมีปัญหา: เชื่อมต่อเซิร์ฟเวอร์สตรีมมิ่งไม่ได้',
+              streamingServerReason: data.reason || 'unreachable'
+            })
+          } else if (action === 'streaming_server_recovered') {
+            set({
+              streamingServerDown: false,
+              streamingServerMessage: null,
+              streamingServerReason: null,
+              streamReloadKey: Date.now()
+            })
+            toast.success(data.message || 'ระบบสตรีมมิ่งกลับมาทำงานปกติ')
           } else if (action === 'login_bruteforce_detected') {
             handleSecurityAlertEvent(data)
           } else {
@@ -505,11 +552,16 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
-      // 4. จัดการสัญญาณตัดการเชื่อมต่อแท็บ (Session Eviction เมื่อเปิดเกินขีดจำกัด)
-      es.addEventListener('force_close', () => {
-        console.warn('[SSE] Received force_close from server: tab session evicted due to connection limit.')
+      // 4. จัดการสัญญาณตัดการเชื่อมต่อแท็บ (Session Eviction หรือ Logout)
+      es.addEventListener('force_close', (e) => {
+        // หากผู้ใช้กำลังทำการ Logout ในแท็บนี้ ให้ return ทิ้ง ไม่ต้องโชว์อะไรและไม่ต้อง reconnect
+        if (isLoggingOut) {
+          return
+        }
+
         isManuallyClosed = true
         clearTimeout(reconnectTimer)
+        reconnectTimer = null
         if (eventSource) {
           eventSource.close()
           eventSource = null
@@ -517,21 +569,46 @@ const useNotificationStore = create((set, get) => ({
         set({ isConnected: false })
         usePresenceStore.getState().setConnected(false)
 
-        Swal.fire({
-          icon: 'warning',
-          title: 'การเชื่อมต่อ Real-time ถูกระงับ',
-          text: 'เนื่องจากมีการเปิดใช้งานระบบในแท็บอื่นเกินโควตา (5 หน้าต่าง) หากต้องการใช้งานการแจ้งเตือน Real-time ในแท็บนี้ กรุณากดปุ่ม "เชื่อมต่อใหม่"',
-          showCancelButton: true,
-          confirmButtonText: 'เชื่อมต่อใหม่ในแท็บนี้',
-          cancelButtonText: 'รับทราบ',
-          confirmButtonColor: 'var(--sidebar-bg, #1b2a47)',
-          cancelButtonColor: '#64748b',
-          allowOutsideClick: false
-        }).then((result) => {
-          if (result.isConfirmed) {
-            get().connect()
+        let data = {}
+        try {
+          data = e.data ? JSON.parse(e.data) : {}
+        } catch (err) {
+          console.error('parse force_close error:', err)
+        }
+
+        const code = data.code || 'STREAM_LIMIT'
+        const detail = data.detail
+
+        if (code === 'STREAM_LIMIT') {
+          // เปิดเกิน 5 หน้าต่าง: โชว์แบนเนอร์โควตาพร้อมปุ่ม "เชื่อมต่อใหม่"
+          Swal.fire({
+            icon: 'warning',
+            title: 'การเชื่อมต่อ Real-time ถูกระงับ',
+            text: detail || 'หน้านี้หยุดรับการแจ้งเตือนแล้ว เนื่องจากเปิดเกิน 5 หน้าต่างบนอุปกรณ์นี้ หากต้องการใช้งานการแจ้งเตือน Real-time ในแท็บนี้ กรุณากดปุ่ม "เชื่อมต่อใหม่"',
+            showCancelButton: true,
+            confirmButtonText: 'เชื่อมต่อใหม่ในแท็บนี้',
+            cancelButtonText: 'รับทราบ',
+            confirmButtonColor: 'var(--sidebar-bg, #1b2a47)',
+            cancelButtonColor: '#64748b',
+            allowOutsideClick: false
+          }).then((result) => {
+            if (result.isConfirmed) {
+              isManuallyClosed = false
+              get().connect()
+            }
+          })
+        } else if (code === 'SESSION_REVOKED') {
+          // เซสชันถูกยกเลิก (Logout จากแท็บอื่น): ล้าง token และ state ของ user แล้ว redirect ไปหน้า login
+          if (detail) {
+            toast.error(detail, { duration: 5000 })
           }
-        })
+          useAuthStore.getState().clearSession()
+        } else {
+          // code อื่นที่ไม่รู้จัก: โชว์ detail
+          if (detail) {
+            toast.error(detail, { duration: 5000 })
+          }
+        }
       })
 
       // 5. Sub-events เฉพาะตัว (เพื่อความเข้ากันได้ 100%)
@@ -702,6 +779,42 @@ const useNotificationStore = create((set, get) => ({
         }
       })
 
+      // ✅ Listener รับ Event 'streaming_server_down' จาก BE (ระบบสตรีมมิ่ง MediaMTX ล่ม)
+      es.addEventListener('streaming_server_down', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          set({
+            streamingServerDown: true,
+            streamingServerMessage: data.message || 'ระบบสตรีมมิ่งมีปัญหา: เชื่อมต่อเซิร์ฟเวอร์สตรีมมิ่งไม่ได้',
+            streamingServerReason: data.reason || 'unreachable'
+          })
+        } catch (err) {
+          console.error('parse streaming_server_down error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
+        }
+      })
+
+      // ✅ Listener รับ Event 'streaming_server_recovered' จาก BE (ระบบสตรีมมิ่ง MediaMTX กลับมาปกติ)
+      es.addEventListener('streaming_server_recovered', (e) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {}
+          set({
+            streamingServerDown: false,
+            streamingServerMessage: null,
+            streamingServerReason: null,
+            streamReloadKey: Date.now()
+          })
+          toast.success(data.message || 'ระบบสตรีมมิ่งกลับมาทำงานปกติ')
+        } catch (err) {
+          console.error('parse streaming_server_recovered error:', err)
+        } finally {
+          get().fetchNotifications()
+          get().fetchUnreadCount()
+        }
+      })
+
       es.addEventListener('message', (e) => {
         try {
           const data = e.data ? JSON.parse(e.data) : {}
@@ -718,6 +831,17 @@ const useNotificationStore = create((set, get) => ({
       }
 
       es.onerror = (err) => {
+        if (isLoggingOut || isManuallyClosed) {
+          if (eventSource) {
+            eventSource.close()
+            eventSource = null
+          }
+          clearTimeout(reconnectTimer)
+          reconnectTimer = null
+          set({ isConnected: false })
+          usePresenceStore.getState().setConnected(false)
+          return
+        }
         console.warn('🔴 [SSE] ท่อสตรีมหลุดการเชื่อมต่อ (Reconnecting in 3s...)', err)
         set({ isConnected: false })
         usePresenceStore.getState().setConnected(false)
@@ -726,12 +850,23 @@ const useNotificationStore = create((set, get) => ({
           eventSource = null
         }
         clearTimeout(reconnectTimer)
-        if (!isManuallyClosed) {
+        if (!isManuallyClosed && !isLoggingOut) {
           // ขอ Ticket ใบใหม่จาก backend เสมอเมื่อหลุด ไม่ใช้ตั๋วเก่า
           reconnectTimer = setTimeout(() => get().connect(), RECONNECT_DELAY_MS)
         }
       }
     } catch (error) {
+      if (isLoggingOut || isManuallyClosed) {
+        if (eventSource) {
+          eventSource.close()
+          eventSource = null
+        }
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+        set({ isConnected: false })
+        usePresenceStore.getState().setConnected(false)
+        return
+      }
       console.error('เชื่อมต่อ SSE ไม่สำเร็จ:', error)
       set({ isConnected: false })
       usePresenceStore.getState().setConnected(false)
@@ -740,12 +875,27 @@ const useNotificationStore = create((set, get) => ({
         eventSource = null
       }
       clearTimeout(reconnectTimer)
-      if (!isManuallyClosed) {
+      if (!isManuallyClosed && !isLoggingOut) {
         reconnectTimer = setTimeout(() => get().connect(), RECONNECT_DELAY_MS)
       }
     } finally {
       isConnecting = false
     }
+  },
+
+  // ปิด SSE ทันทีตั้งแต่ก่อนเริ่มยิง API Logout เพื่อป้องกัน event ตกค้างและงด reconnect
+  prepareLogout: () => {
+    isLoggingOut = true
+    isManuallyClosed = true
+    isConnecting = false
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+    if (eventSource) {
+      eventSource.close()
+      eventSource = null
+    }
+    set({ isConnected: false })
+    usePresenceStore.getState().setConnected(false)
   },
 
   disconnect: () => {
@@ -788,13 +938,17 @@ const useNotificationStore = create((set, get) => ({
 
   reset: () => {
     get().disconnect()
+    isLoggingOut = false
     set({
       notifications: [],
       unreadCount: 0,
       latestDetection: null,
       latestCameraEvent: null,
       latestSecurityAlert: null,
-      activeBlacklistAlerts: []
+      activeBlacklistAlerts: [],
+      streamingServerDown: false,
+      streamingServerMessage: null,
+      streamingServerReason: null
     })
   }
 }))

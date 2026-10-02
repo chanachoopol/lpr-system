@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
+
 import useAuthStore from './store/authStore'
 import useNotificationStore from './store/notificationStore'
 import ProtectedRoute from './components/ProtectedRoute'

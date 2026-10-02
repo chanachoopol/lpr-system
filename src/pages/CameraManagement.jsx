@@ -144,7 +144,7 @@ function formatCameraErrorDetail(rawDetail) {
 }
 
 // รวมสถานะกล้อง (Power, AI Vision, Streaming / MediaMTX) ให้เป็น Camera Status เดียวที่เข้าใจง่าย
-function getUnifiedCameraStatusBadge(camera, isChecking = false) {
+function getUnifiedCameraStatusBadge(camera, isChecking = false, isStreamingServerDown = false) {
   if (!camera) {
     return { label: 'ไม่ทราบสถานะ', tone: 'starting', description: 'ไม่มีข้อมูลสถานะกล้อง' }
   }
@@ -154,6 +154,11 @@ function getUnifiedCameraStatusBadge(camera, isChecking = false) {
   // ซึ่งไม่ใช่ข้อผิดพลาดของกล้อง แต่เกิดจากความตั้งใจของผู้ใช้เอง
   if (!camera.is_active) {
     return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ผู้ใช้ปิดการทำงานกล้อง' }
+  }
+
+  // 1.1 เซิร์ฟเวอร์สตรีมมิ่ง (MediaMTX) มีปัญหา — แสดงสถานะเป็นไม่ทราบสถานะ ตามที่ backend แนะนำ
+  if (isStreamingServerDown) {
+    return { label: 'ไม่ทราบสถานะ', tone: 'starting', description: 'ระบบสตรีมมิ่งส่วนกลางขัดข้อง' }
   }
 
   // 2. กำลังโหลด/ตรวจสอบเฉพาะกล้องตัวนี้
@@ -265,6 +270,7 @@ function CameraManagement() {
   const [selectedProfileToken, setSelectedProfileToken] = useState('')
 
   const latestCameraEvent = useNotificationStore((state) => state.latestCameraEvent)
+  const streamingServerDown = useNotificationStore((state) => state.streamingServerDown)
 
   // merge SSE event เข้า state คล้าย pattern latestDetection ใน Dashboard.jsx
   // syncWarning เป็น session-only field ไม่มีใน API — หายไปเมื่อ refresh หน้า (ตามที่ตกลงไว้)
@@ -423,22 +429,22 @@ function CameraManagement() {
   }, [searchInput, selectedVillageId])
 
   const readyCount = useMemo(() => {
-    return cameras.filter((c) => getUnifiedCameraStatusBadge(c).tone === 'ready').length
-  }, [cameras])
+    return cameras.filter((c) => getUnifiedCameraStatusBadge(c, false, streamingServerDown).tone === 'ready').length
+  }, [cameras, streamingServerDown])
 
   const issueCount = useMemo(() => {
-    return cameras.filter((c) => getUnifiedCameraStatusBadge(c).tone === 'error').length
-  }, [cameras])
+    return cameras.filter((c) => getUnifiedCameraStatusBadge(c, false, streamingServerDown).tone === 'error').length
+  }, [cameras, streamingServerDown])
 
   const KPI_PAGE_SIZE = 5
 
   const kpiModalCameras = useMemo(() => {
     if (!kpiModalType) return []
     if (kpiModalType === 'total') return cameras
-    if (kpiModalType === 'ready') return cameras.filter((c) => getUnifiedCameraStatusBadge(c).tone === 'ready')
-    if (kpiModalType === 'issues') return cameras.filter((c) => getUnifiedCameraStatusBadge(c).tone === 'error')
+    if (kpiModalType === 'ready') return cameras.filter((c) => getUnifiedCameraStatusBadge(c, false, streamingServerDown).tone === 'ready')
+    if (kpiModalType === 'issues') return cameras.filter((c) => getUnifiedCameraStatusBadge(c, false, streamingServerDown).tone === 'error')
     return []
-  }, [kpiModalType, cameras])
+  }, [kpiModalType, cameras, streamingServerDown])
 
   const kpiModalTotalPages = Math.max(1, Math.ceil(kpiModalCameras.length / KPI_PAGE_SIZE))
   const kpiModalVisiblePages = getVisiblePageNumbers(kpiModalPage, kpiModalTotalPages, MAX_VISIBLE_PAGES)
@@ -1328,7 +1334,7 @@ function CameraManagement() {
                 ) : paginatedCameras.length > 0 ? (
                   paginatedCameras.map((c) => {
                     const isChecking = checkingCameraIds.has(c.id)
-                    const badge = getUnifiedCameraStatusBadge(c, isChecking)
+                    const badge = getUnifiedCameraStatusBadge(c, isChecking, streamingServerDown)
                     return (
                       <tr key={c.id}>
                         <td className="cm-camera-name">{c.name}</td>
@@ -1851,7 +1857,7 @@ function CameraManagement() {
                     <tbody>
                       {paginatedKpiCameras.map((c) => {
                         const isChecking = checkingCameraIds.has(c.id)
-                        const badge = getUnifiedCameraStatusBadge(c, isChecking)
+                        const badge = getUnifiedCameraStatusBadge(c, isChecking, streamingServerDown)
                         const formattedCoord = formatCoordinate(c.lat, c.long)
 
                         return (

@@ -4,7 +4,8 @@ import Spinner from './Spinner'
 
 // ProtectedRoute — ห่อ route ที่ต้องการป้องกัน
 // allowedRoles: array ของ role ที่เข้าได้ เช่น ['admin', 'superadmin']
-//               ถ้าไม่ส่งมา (undefined) = ทุก role เข้าได้ แค่ต้อง login ก่อน
+// ถ้าไม่ส่งมา (undefined) = ทุก role เข้าได้ แค่ต้อง login ก่อน
+
 function ProtectedRoute({ children, allowedRoles }) {
   const { isLoggedIn, isLoading, user } = useAuthStore()
 

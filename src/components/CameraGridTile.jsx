@@ -8,7 +8,7 @@ import useCameraStream from '../hooks/useCameraStream'
 // แต่ละ tile มี HLS instance + refresh timer ของตัวเอง ผ่าน stream-token endpoint
 // แยกอิสระจากกล้องอื่นในกริด กล้องนึงล่ม/ถูกปิดใช้งาน ไม่กระทบตัวอื่น
 function CameraGridTile({ camera }) {
-  const { videoRef, isVideoLoading, hasStreamError, isDisabled } = useCameraStream(camera?.id)
+  const { videoRef, isVideoLoading, hasStreamError, isDisabled, isStreamingServerDown } = useCameraStream(camera?.id)
   const wrapperRef = useRef(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -51,6 +51,14 @@ function CameraGridTile({ camera }) {
             <EmptyState
               icon={<FaVideo />}
               title="กล้องถูกปิดใช้งาน"
+            />
+          </div>
+        ) : isStreamingServerDown ? (
+          <div className="video-skeleton">
+            <EmptyState
+              icon={<FaVideo />}
+              title="ไม่สามารถดูภาพสดได้ชั่วคราว"
+              description="เซิร์ฟเวอร์สตรีมมิ่งขัดข้อง"
             />
           </div>
         ) : hasStreamError ? (

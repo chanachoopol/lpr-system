@@ -74,6 +74,14 @@ function Navbar({ title, onToggle }) {
       if (user?.role === 'admin' || user?.role === 'superadmin') {
         navigate('/audit-logs')
       }
+    } else if (
+      notif.type === 'streaming_down' ||
+      notif.type === 'streaming_recovered' ||
+      notif.action?.startsWith('streaming_server')
+    ) {
+      if (user?.role === 'admin' || user?.role === 'superadmin') {
+        navigate('/cameras')
+      }
     }
   }
 
@@ -124,9 +132,9 @@ function Navbar({ title, onToggle }) {
                       onClick={() => handleNotifClick(notif)}
                     >
                       <div className={`notif-icon ${notif.type}`}>
-                        {notif.type === 'blacklist'
+                        {notif.type === 'blacklist' || notif.type === 'streaming_down'
                           ? <FaTriangleExclamation />
-                          : notif.type === 'whitelist'
+                          : notif.type === 'whitelist' || notif.type === 'streaming_recovered'
                           ? <FaCheck />
                           : notif.type === 'camera'
                           ? <FaVideo />
@@ -140,8 +148,15 @@ function Navbar({ title, onToggle }) {
                         {notif.plate && (
                           <p className={`notif-plate ${notif.type === 'whitelist' ? 'whitelist' : ''}`}>{notif.plate}</p>
                         )}
+                        {notif.detail && (notif.type === 'streaming_down' || notif.type === 'streaming_recovered') ? (
+                          <p className="notif-detail-text">{notif.detail}</p>
+                        ) : null}
                         <p className="notif-location">
-                          {notif.location ? `${notif.location} • ${notif.time}` : `${notif.detail || ''}${notif.detail ? ' • ' : ''}${notif.time}`}
+                          {notif.location ? `${notif.location} • ${notif.time}` : (
+                            (notif.type === 'streaming_down' || notif.type === 'streaming_recovered')
+                              ? notif.time
+                              : `${notif.detail || ''}${notif.detail ? ' • ' : ''}${notif.time}`
+                          )}
                         </p>
                       </div>
                       {!notif.read && <span className="notif-dot"></span>}

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Hls from 'hls.js'
 import { getCameraStreamTokenAPI } from '../data/api'
+import useNotificationStore from '../store/notificationStore'
 
 const EXPIRY_BUFFER_MS = 30_000 // เผื่อเวลา 30 วิ ก่อน JWT จะหมดอายุจริง กัน network latency (ตามที่ backend แนะนำ)
 const MIN_REFRESH_DELAY_MS = 5_000 // กันไม่ให้ refresh ถี่เกินไปกรณี clock skew ระหว่าง client/server
@@ -34,6 +35,9 @@ const MOCK_VIDEO_SRC = '/26555-358041198_medium.mp4'
  * - พอกล้องจริงพร้อมใช้งาน แค่เปลี่ยน IS_MOCK_CAMERA เป็น false โค้ด flow ปกติจะกลับมาทำงานทันที
  */
 function useCameraStream(cameraId) {
+  const streamingServerDown = useNotificationStore((state) => state.streamingServerDown)
+  const streamReloadKey = useNotificationStore((state) => state.streamReloadKey)
+
   const videoRef = useRef(null)
   const hlsRef = useRef(null)
   const refreshTimerRef = useRef(null)
@@ -263,7 +267,53 @@ function useCameraStream(cameraId) {
     }
   }, [cameraId, fetchAndRefresh, cleanup, attachMockVideo])
 
-  return { videoRef: setVideoRef, isVideoLoading, hasStreamError, isDisabled }
+  // ⚡ ลด Connection Pool Congestion: หยุดโหลด HLS segment เมื่อแท็บซ่อนอยู่
+  // HTTP/1.1 จำกัด 6 connection ต่อ origin — ถ้าวิดีโอโหลดค้างตลอด รูปใน Vehicle Detail Modal จะถูกบล็อก
+  // stopLoad() → หยุดดึง segment ใหม่ทันที (คืน connection ให้ request อื่น เช่น รูป)
+  // startLoad(-1) → โหลดต่อจาก live edge เมื่อผู้ใช้กลับมาดูหน้าเว็บ
+  useEffect(() => {
+    if (!cameraId || IS_MOCK_CAMERA) return
+
+    function handleVisibilityChange() {
+      const hls = hlsRef.current
+      if (!hls) return
+
+      if (document.hidden) {
+        hls.stopLoad()
+      } else {
+        // -1 = ให้ Hls.js คำนวณตำแหน่ง live edge เองอัตโนมัติ
+        hls.startLoad(-1)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [cameraId])
+
+  // เมื่อระบบสตรีมมิ่งขัดข้อง (MediaMTX down) หรือกู้คืนกลับมา (streamReloadKey หรือ streamingServerDown เป็น false)
+  useEffect(() => {
+    if (!isMountedRef.current || !cameraId || IS_MOCK_CAMERA) return
+
+    if (streamingServerDown) {
+      cleanup()
+      setIsVideoLoading(false)
+      setHasStreamError(false)
+    } else if (streamReloadKey > 0) {
+      setIsVideoLoading(true)
+      setHasStreamError(false)
+      fetchAndRefresh(cameraId)
+    }
+  }, [streamingServerDown, streamReloadKey, cameraId, fetchAndRefresh, cleanup])
+
+  return {
+    videoRef: setVideoRef,
+    isVideoLoading,
+    hasStreamError,
+    isDisabled,
+    isStreamingServerDown: streamingServerDown
+  }
 }
 
 export default useCameraStream

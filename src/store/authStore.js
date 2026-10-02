@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+
 import {
   refreshTokenAPI,
   logoutAPI,
@@ -9,6 +10,7 @@ import {
   getAccessTokenCookie,
   getTokenRemainingMs
 } from '../data/api'
+
 import useVillageStore from './villageStore'
 import useNotificationStore from './notificationStore'
 
@@ -260,6 +262,8 @@ const useAuthStore = create((set, get) => ({
 
   // Logout ปกติ
   logout: async () => {
+    // ปิด SSE ทันทีตั้งแต่ก่อนเริ่มยิง API เพื่อไม่ให้รับ event ตกค้างและงด reconnect
+    useNotificationStore.getState().prepareLogout?.()
     try {
       await logoutAPI()
     } catch (error) {

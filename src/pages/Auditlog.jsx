@@ -42,9 +42,11 @@ const ACTION_META = {
   user_update:         { label: 'Update User',        tone: 'orange' },
   user_delete:         { label: 'Delete User',        tone: 'red'    },
   password_reset:     { label: 'Reset Password',     tone: 'orange' },
-  camera_create:       { label: 'Add Camera',         tone: 'blue'   },
-  camera_update:       { label: 'Update Camera',      tone: 'orange' },
-  camera_delete:       { label: 'Delete Camera',      tone: 'red'    },
+  camera_create:              { label: 'Add Camera',                 tone: 'blue'   },
+  camera_update:              { label: 'Update Camera',              tone: 'orange' },
+  camera_delete:              { label: 'Delete Camera',              tone: 'red'    },
+  streaming_server_down:      { label: 'ระบบสตรีมมิ่งขัดข้อง',       tone: 'red'    },
+  streaming_server_recovered: { label: 'ระบบสตรีมมิ่งกลับมาปกติ',     tone: 'green'  },
 }
 
 // ตัวเลือกใน dropdown filter — ใช้ key เดียวกับ ACTION_META
@@ -533,7 +535,7 @@ function AuditLog() {
               </div>
               <div className="al-modal-row">
                 <span className="info-label">Village</span>
-                <span>{selectedLog.village_name || selectedLog.village_id || '-'}</span>
+                <span>{selectedLog.village_name || selectedLog.village_id || (selectedLog.action?.startsWith('streaming_server') ? 'ทั้งระบบ' : '-')}</span>
               </div>
               <div className="al-modal-row">
                 <span className="info-label">IP Address</span>

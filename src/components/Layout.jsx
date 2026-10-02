@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { FaCircleExclamation } from 'react-icons/fa6'
+import useNotificationStore from '../store/notificationStore'
 import '../styles/global.css'
 import '../styles/Layout.css'
 import Sidebar from './Sidebar'
@@ -24,6 +26,8 @@ function getInitialCollapsed() {
 function Layout({ children, title }) {
   const [isCollapsed, setIsCollapsed] = useState(getInitialCollapsed)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const streamingServerDown = useNotificationStore((state) => state.streamingServerDown)
+  const streamingServerMessage = useNotificationStore((state) => state.streamingServerMessage)
 
   // ปรับสถานะตามการ Resize หน้าจอจริง
   useEffect(() => {
@@ -80,6 +84,14 @@ function Layout({ children, title }) {
         title={title}
         onToggle={handleToggle}
       />
+      {streamingServerDown && (
+        <div className="streaming-alert-banner" role="alert">
+          <FaCircleExclamation className="streaming-alert-icon" />
+          <span className="streaming-alert-text">
+            {streamingServerMessage || 'ระบบสตรีมมิ่งมีปัญหา: เชื่อมต่อเซิร์ฟเวอร์สตรีมมิ่งไม่ได้'}
+          </span>
+        </div>
+      )}
       <main className="layout-content">
         <motion.div
           initial="initial"
