@@ -16,6 +16,7 @@
   --table-th-bg: #f1f5f9;
   --btn-view-bg: rgba(27, 42, 71, 0.06);
   --btn-view-color: rgb(27, 42, 71);
+  --kpi-card-height: 84px;
 }
 
 .dark {
