@@ -1,7 +1,7 @@
 .report-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   height: 100%;
   max-height: 100%;
   overflow-y: auto !important;
@@ -132,35 +132,42 @@
 .report-kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .report-kpi-card {
   background: var(--card-bg, rgba(255, 255, 255, 0.8));
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.6));
-  border-radius: 20px;
-  padding: 18px 20px;
-  box-shadow: 0 6px 20px rgba(27, 42, 71, 0.03);
+  border-radius: 18px;
+  padding: 12px 18px;
+  min-height: 76px;
+  box-sizing: border-box;
+  box-shadow: 0 4px 15px rgba(27, 42, 71, 0.04);
   display: flex;
   align-items: center;
-  gap: 16px;
-  transition: transform 0.3s ease;
+  gap: 14px;
 }
 
+
 .report-kpi-card:hover {
-  transform: translateY(-4px);
+  /* Plane style: ไม่มีการเด้งลอย */
 }
 
 .report-kpi-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 20px;
   flex-shrink: 0;
+}
+
+.report-kpi-info {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .report-kpi-icon.blue {
@@ -204,20 +211,34 @@
   font-weight: 700;
   color: var(--text-main, rgb(27, 42, 71));
   letter-spacing: 0.3px;
-  margin: 0 0 4px;
+  margin: 0 0 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .report-kpi-val {
   font-family: 'DM Sans', sans-serif;
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 700;
   color: var(--text-main, rgb(27, 42, 71));
   margin: 0;
+  line-height: 1.1;
 }
 
 .report-kpi-val.red {
   color: rgb(220, 38, 38);
 }
+
+.report-kpi-time {
+  font-size: 20px !important;
+  font-weight: 700;
+  white-space: nowrap !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
 
 /* ---------- Chart ---------- */
 .chart-wrapper {
@@ -300,23 +321,29 @@
 
 .report-table th {
   text-align: left;
-  padding: 12px 16px;
+  padding: 7px 12px;
   font-family: 'DM Sans', sans-serif;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid rgba(27, 42, 71, 0.08);
-  background: rgba(27, 42, 71, 0.02);
+  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  background: var(--table-th-bg, #f1f5f9);
+  backdrop-filter: blur(4px);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-sizing: border-box;
 }
 
 .report-table td {
-  padding: 14px 16px;
-  font-size: 14px;
-  color: var(--text-main, rgb(74, 85, 104));
-  border-bottom: 1px solid rgba(27, 42, 71, 0.04);
+  padding: 7px 12px;
+  font-size: 13.5px;
+  color: var(--text-main, rgb(27, 42, 71));
+  border-bottom: none;
   vertical-align: middle;
+  box-sizing: border-box;
 }
 
 .report-table tr:last-child td {
@@ -324,7 +351,7 @@
 }
 
 .report-table tr:hover td {
-  background: rgba(59, 130, 246, 0.03);
+  background: rgba(27, 42, 71, 0.02);
 }
 
 .plate-text {

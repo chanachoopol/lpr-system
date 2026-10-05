@@ -1,18 +1,19 @@
 :root {
-  /* ☀️ Light Mode (สีเดิมที่น้องเมษาออกแบบไว้ ห้ามเปลี่ยน!) */
-  --bg-body: linear-gradient(135deg, rgb(240, 244, 248) 0%, rgb(226, 232, 240) 100%);
+  /* ☀️ Light Mode */
+  --bg-body: #ffffff;
   --text-main: rgb(27, 42, 71);
-  --card-bg: rgba(255, 255, 255, 0.8);
-  --border-color: rgba(255, 255, 255, 0.6);
+  --card-bg: #ffffff;
+  --border-color: rgba(27, 42, 71, 0.08);
   --sidebar-bg: rgb(27, 42, 71);
-  --navbar-bg: rgba(255, 255, 255, 0.6);
+  --navbar-bg: #ffffff;
 
   /* เพิ่มตัวแปรสำหรับ UI อื่นๆ ให้ Light Mode ยังคงทำงานได้เป๊ะเหมือนเดิม */
   --sidebar-active-bg: rgb(255, 255, 255);
   --sidebar-active-color: rgb(27, 42, 71);
   --bg-input: rgb(255, 255, 255);
   --text-secondary: rgb(142, 154, 171);
-  --navbar-border: rgba(255, 255, 255, 0.9);
+  --navbar-border: rgba(27, 42, 71, 0.08);
+  --table-th-bg: #f1f5f9;
   --btn-view-bg: rgba(27, 42, 71, 0.06);
   --btn-view-color: rgb(27, 42, 71);
 }

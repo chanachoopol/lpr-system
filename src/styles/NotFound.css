@@ -1,0 +1,309 @@
+/* ==========================================================================
+   Public Route (Already Logged In) & 404 Not Found Page Styles
+   ========================================================================== */
+
+.route-state-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--bg-main, #f8fafc);
+  font-family: 'DM Sans', 'Prompt', sans-serif;
+  color: var(--text-main, #1b2a47);
+}
+
+.route-state-card {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(27, 42, 71, 0.08);
+  padding: 36px 32px;
+  text-align: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.route-state-icon-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.route-state-icon-wrap.info {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.route-state-icon-wrap.warning {
+  background: rgba(234, 88, 12, 0.1);
+  color: #ea580c;
+}
+
+.route-state-code {
+  font-size: 72px;
+  font-weight: 800;
+  line-height: 1;
+  color: #1b2a47;
+  letter-spacing: -2px;
+  margin: 0;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.route-state-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1b2a47;
+  margin: 0;
+  font-family: 'Prompt', 'DM Sans', sans-serif;
+}
+
+.route-state-desc {
+  font-size: 14.5px;
+  color: var(--text-secondary, #64748b);
+  line-height: 1.6;
+  margin: 0;
+  word-break: break-word;
+}
+
+.route-state-path-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #f1f5f9;
+  border: 1px solid rgba(27, 42, 71, 0.08);
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 13px;
+  color: #475569;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-state-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.btn-route-state-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 20px;
+  background: #1b2a47;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.btn-route-state-primary:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.btn-route-state-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 20px;
+  background: transparent;
+  color: #dc2626;
+  border: 1.5px solid rgba(220, 38, 38, 0.25);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.btn-route-state-secondary:hover {
+  background: rgba(220, 38, 38, 0.06);
+  border-color: #dc2626;
+}
+
+/* ==========================================================================
+   Minimalist 404 Page (No borders, no buttons, dark text)
+   ========================================================================== */
+
+.notfound-minimal-wrap {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--bg-main, #f8fafc);
+  text-align: center;
+  position: relative;
+}
+
+.notfound-text-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  max-width: 90vw;
+  box-sizing: border-box;
+}
+
+.notfound-block-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: #1b2a47;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Prompt', 'DM Sans', sans-serif;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.notfound-block-back-btn:hover {
+  color: #2563eb;
+  transform: translateX(-3px);
+}
+
+.notfound-top-left-back-btn {
+  position: absolute;
+  top: 28px;
+  left: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: #1b2a47;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Prompt', 'DM Sans', sans-serif;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.notfound-top-left-back-btn:hover {
+  background: rgba(27, 42, 71, 0.08);
+  transform: translateX(-3px);
+}
+
+.notfound-minimal-code {
+  font-size: 80px;
+  font-weight: 800;
+  line-height: 1;
+  color: #1b2a47;
+  letter-spacing: -2px;
+  margin: 0 0 12px 0;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.notfound-minimal-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1b2a47;
+  margin: 0 0 8px 0;
+  font-family: 'Prompt', 'DM Sans', sans-serif;
+}
+
+.notfound-minimal-desc {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1b2a47;
+  margin: 0;
+  line-height: 1.6;
+  font-family: 'Prompt', 'DM Sans', sans-serif;
+  max-width: 480px;
+}
+
+.notfound-minimal-desc.single-line {
+  max-width: none;
+  white-space: nowrap;
+}
+
+.notfound-minimal-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: #1b2a47;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Prompt', 'DM Sans', sans-serif;
+  cursor: pointer;
+  margin-top: 20px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.notfound-minimal-back-btn:hover {
+  background: rgba(27, 42, 71, 0.08);
+  transform: translateX(-3px);
+}
+
+@media (max-width: 768px) {
+  .notfound-minimal-desc.single-line {
+    white-space: normal;
+  }
+  .notfound-top-left-back-btn {
+    top: 16px;
+    left: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .route-state-card {
+    padding: 28px 20px;
+  }
+
+  .route-state-code,
+  .notfound-minimal-code {
+    font-size: 56px;
+  }
+
+  .route-state-title,
+  .notfound-minimal-title {
+    font-size: 18px;
+  }
+
+  .notfound-minimal-desc {
+    font-size: 14px;
+  }
+}

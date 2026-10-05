@@ -2,8 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: calc(100vh - 136px);
-  max-height: calc(100vh - 136px);
+  flex: 1;
+  height: 100%;
+  min-height: 0;
   box-sizing: border-box;
   overflow: hidden;
   padding-bottom: 0;
@@ -182,6 +183,22 @@
   cursor: not-allowed;
 }
 
+/* ---------- การ์ดสถานะว่าง / กำลังโหลด (ขยายเต็มพื้นที่จอ) ---------- */
+.rt-empty-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.rt-empty-card .empty-state,
+.rt-empty-card .spinner-wrapper {
+  margin: auto;
+}
+
 /* ---------- ตารางผลการค้นหา (ขั้นที่ 1) ---------- */
 .rt-table-card {
   flex: 1;
@@ -191,6 +208,7 @@
   overflow: hidden;
   box-sizing: border-box;
 }
+
 
 .rt-table-header {
   display: flex;
@@ -239,7 +257,7 @@
   min-height: 0;
   display: block;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 0;
 }
 
 .rt-table {
@@ -249,26 +267,28 @@
 
 .rt-table th {
   text-align: left;
-  padding: 8px 16px;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #1b2a47; /* สี Navy */
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid rgba(27, 42, 71, 0.12);
-  background: rgba(27, 42, 71, 0.04);
-  height: 40px;
+  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  background: var(--table-th-bg, #f1f5f9);
+  backdrop-filter: blur(4px);
+  position: sticky;
+  top: 0;
+  z-index: 2;
   box-sizing: border-box;
   white-space: nowrap;
 }
 
 .rt-table td {
-  padding: 6px 16px;
+  padding: 7px 12px;
   font-size: 13.5px;
-  color: var(--text-main);
-  border-bottom: 1px solid rgba(27, 42, 71, 0.05);
+  color: var(--text-main, rgb(27, 42, 71));
+  border-bottom: none;
   vertical-align: middle;
-  height: 44px;
   box-sizing: border-box;
   white-space: nowrap;
 }

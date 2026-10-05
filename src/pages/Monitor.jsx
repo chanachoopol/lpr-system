@@ -4,6 +4,7 @@ import { FaXmark, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/f
 import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import '../styles/Monitor.css'
+import { calculateFitRows } from '../utils/tableAutoFit'
 import { getCamerasAPI, getDetectionsAPI, getAuthedImageURL } from '../data/api'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
@@ -13,6 +14,7 @@ import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import CameraGridTile from '../components/CameraGridTile'
 import useCameraStream from '../hooks/useCameraStream'
+import CameraAutocomplete from '../components/CameraAutocomplete'
 
 const GRID_VIEW_VALUE = 'all' // 👈 ค่าพิเศษของ selectedCamera สำหรับโหมด Grid View
 const MONITOR_RECENT_LIMIT = 20
@@ -110,18 +112,15 @@ function Monitor() {
     return list
   }, [latestCaptures, searchQuery, sortOrder])
 
-  // คำนวณจำนวนแถวที่แสดงได้เต็ม 100% พอดีเป๊ะ (ปัดเศษทิ้ง) เมื่อหน้าจอเปลี่ยนขนาด
+  // คำนวณจำนวนแถวที่แสดงได้เต็ม 100% พอดีเป๊ะตามความสูงจริงของหน้าจอ (วัด DOM จริง - ปัดเศษทิ้ง)
   useEffect(() => {
     const el = tableContainerRef.current
     if (!el) return
 
     const updateRows = () => {
-      const height = el.clientHeight
-      if (height > 0) {
-        // thead = 36px, row = 44px
-        const maxRows = Math.floor((height - 36) / 44)
-        setVisibleRows(Math.max(1, maxRows))
-      }
+      // Monitor ตารางไม่มีปุ่ม Action มีแต่ข้อความ ความสูงแถวจริงประมาณ 24-28px
+      const maxRows = calculateFitRows(el, { defaultRowHeight: 28, defaultHeaderHeight: 24, minRows: 1 })
+      setVisibleRows((prev) => (prev !== maxRows ? maxRows : prev))
     }
 
     updateRows()
@@ -132,7 +131,7 @@ function Monitor() {
     observer.observe(el)
 
     return () => observer.disconnect()
-  }, [])
+  }, [processedCaptures.length])
 
   const visibleCaptures = useMemo(() => {
     return processedCaptures.slice(0, visibleRows)
@@ -423,29 +422,25 @@ function Monitor() {
         <div className="camera-bar content-card">
           <FaVideo className="camera-icon" />
           <label htmlFor="cameraSelect">Select Camera:</label>
-          <select
+          <CameraAutocomplete
             id="cameraSelect"
-            className="camera-select"
+            cameras={cameras}
             value={selectedCamera}
-            onChange={(e) => handleCameraChange(e.target.value)}
+            onChange={handleCameraChange}
+            allOptionLabel="ทุกกล้อง (Grid View)"
+            allOptionValue={GRID_VIEW_VALUE}
             disabled={isLoadingCameras || cameras.length === 0}
-          >
-            {isLoadingCameras ? (
-              <option value="">กำลังโหลดกล้อง...</option>
-            ) : cameras.length === 0 ? (
-              <option value="">ไม่พบกล้องในระบบ</option>
-            ) : (
-              <>
-                <option value={GRID_VIEW_VALUE}>ทุกกล้อง (Grid View)</option>
-                {cameras.map((cam) => (
-                  <option key={cam.id} value={cam.id}>
-                    {cam.name}
-                  </option>
-                ))}
-              </>
-            )}
-          </select>
+            placeholder={
+              isLoadingCameras
+                ? 'กำลังโหลดกล้อง...'
+                : cameras.length === 0
+                ? 'ไม่พบกล้องในระบบ'
+                : 'เลือกหรือค้นหากล้อง...'
+            }
+            variant="monitor"
+          />
         </div>
+
 
         {isGridMode ? (
           /* ---------- Grid View ---------- */

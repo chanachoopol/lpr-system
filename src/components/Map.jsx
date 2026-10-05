@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useVillageStore from '../store/villageStore'
+import useNotificationStore from '../store/notificationStore'
+import { isCameraReady, getUnifiedCameraStatusBadge } from '../utils/cameraStatus'
 
 const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af611860ee1d100bc5d530'
 const CARD_WIDTH = 240
@@ -69,9 +71,11 @@ function fitMapToCameras(map, cameras) {
   map.zoom(zoom, true)
 }
 
-function MapView({ cameras = [] }) {
+function MapView({ cameras = [], streamingServerDown: streamingServerDownProp }) {
   const navigate = useNavigate()
   const getVillageName = useVillageStore((state) => state.getVillageName)
+  const streamingServerDownFromStore = useNotificationStore((state) => state.streamingServerDown)
+  const streamingServerDown = streamingServerDownProp ?? streamingServerDownFromStore
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
@@ -79,6 +83,7 @@ function MapView({ cameras = [] }) {
   camerasRef.current = cameras
   const [isMapReady, setIsMapReady] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(14)
+
 
   // hoveredCamera = { camera, style: {top, left} } | null
   const [hoveredCamera, setHoveredCamera] = useState(null)
@@ -183,7 +188,7 @@ function MapView({ cameras = [] }) {
     const pinCenterX = pinRect.left + pinRect.width / 2 - containerRect.left
     const pinTop = pinRect.top - containerRect.top
     const pinBottom = pinRect.bottom - containerRect.top
-    const CARD_HEIGHT = 115
+    const CARD_HEIGHT = 140
 
     // 1. ตำแหน่งแนวนอน: วางตรงกลางหมุดพอดี
     let left = pinCenterX - CARD_WIDTH / 2
@@ -365,8 +370,8 @@ function MapView({ cameras = [] }) {
         if (pin.type === 'single') {
           // --- หมุดกล้องเดี่ยว ---
           const cam = pin.camera
-          const isActive = cam.is_active
-          const markerColor = isActive ? '#16a34a' : '#dc2626'
+          const isReady = isCameraReady(cam, streamingServerDown)
+          const markerColor = isReady ? '#16a34a' : '#dc2626'
 
           const marker = new window.longdo.Marker(
             { lon: pin.lon, lat: pin.lat },
@@ -405,6 +410,10 @@ function MapView({ cameras = [] }) {
         } else {
           // --- หมุด Cluster รวมกลุ่ม ---
           const count = pin.cameras.length
+          const allReady = pin.cameras.every((c) => isCameraReady(c, streamingServerDown))
+          const clusterColor = allReady ? '#16a34a' : '#dc2626'
+          const readyCount = pin.cameras.filter((c) => isCameraReady(c, streamingServerDown)).length
+
           const marker = new window.longdo.Marker(
             { lon: pin.lon, lat: pin.lat },
             {
@@ -412,11 +421,11 @@ function MapView({ cameras = [] }) {
               icon: {
                 offset: { x: 18, y: 18 },
                 html: `
-                  <div data-cluster-lat="${pin.lat}" data-cluster-lon="${pin.lon}" class="map-cluster-pin" title="มีกล้อง ${count} ตัว (คลิกเพื่อขยายดู)" style="
+                  <div data-cluster-lat="${pin.lat}" data-cluster-lon="${pin.lon}" class="map-cluster-pin" title="มีกล้อง ${count} ตัว (${readyCount} พร้อมใช้งาน) - คลิกเพื่อขยายดู" style="
                     width: 36px;
                     height: 36px;
                     border-radius: 50%;
-                    background: #16a34a;
+                    background: ${clusterColor};
                     border: 3px solid #ffffff;
                     box-shadow: 0 4px 10px rgba(0,0,0,0.35);
                     display: flex;
@@ -442,7 +451,7 @@ function MapView({ cameras = [] }) {
     } catch (error) {
       console.error('เกิดข้อผิดพลาดตอนปักหมุดกล้อง:', error)
     }
-  }, [cameras, isMapReady, currentZoom])
+  }, [cameras, isMapReady, currentZoom, streamingServerDown])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -477,10 +486,25 @@ function MapView({ cameras = [] }) {
                 : '-'}
             </span>
           </div>
+
+          <div className="map-hover-card-row" style={{ marginTop: 6 }}>
+            <span className="map-hover-card-label">สถานะ:</span>
+            {(() => {
+              const ready = isCameraReady(hoveredCamera.camera, streamingServerDown)
+              const badge = getUnifiedCameraStatusBadge(hoveredCamera.camera, false, streamingServerDown)
+              return (
+                <span className={`map-status-badge ${ready ? 'ready' : 'error'}`}>
+                  <span className={`map-status-dot ${ready ? 'ready' : 'error'}`} />
+                  {badge.label}
+                </span>
+              )
+            })()}
+          </div>
         </div>
       )}
     </div>
   )
+
 }
 
 export default MapView

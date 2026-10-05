@@ -114,6 +114,7 @@ const useVillageStore = create((set, get) => ({
   reset: () => {
     try {
       sessionStorage.removeItem(STORAGE_KEY_SELECTED_VILLAGE)
+      localStorage.removeItem(STORAGE_KEY_VILLAGES_HISTORY)
     } catch {}
     set({ villages: [], selectedVillageId: null, hasFetched: false })
   }

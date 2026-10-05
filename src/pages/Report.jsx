@@ -326,7 +326,7 @@ function Report() {
             </div>
             <div className="report-kpi-info">
               <p className="report-kpi-label">ช่วงเวลาหนาแน่นที่สุด</p>
-              <h2 className="report-kpi-val">{isLoading ? '—' : peakHour}</h2>
+              <h2 className="report-kpi-val report-kpi-time">{isLoading ? '—' : peakHour}</h2>
             </div>
           </div>
         </div>

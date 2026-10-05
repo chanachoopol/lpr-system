@@ -203,7 +203,7 @@ function ForgotPassword() {
       >
         <div className="card-right fp-panel">
           <button className="fp-back" onClick={() => navigate('/')}>
-            <FaArrowLeft /> กลับไปหน้าเข้าสู่ระบบ
+            <FaArrowLeft /> ย้อนกลับ
           </button>
 
           {!isSent ? (

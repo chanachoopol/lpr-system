@@ -80,11 +80,6 @@ function Login() {
     )
   }
 
-  // login อยู่แล้ว (ไม่ว่าจะ login เองในแท็บนี้ หรือ cookie จากแท็บอื่นถูก restore มา) → เด้งไป dashboard เลย ไม่ต้องโชว์ฟอร์ม
-  if (isLoggedIn) {
-    return <Navigate to="/dashboard" replace />
-  }
-
   function handleUsernameChange(e) {
     const val = stripEmoji(e.target.value)
     setUsername(val)

@@ -12,6 +12,7 @@ import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader'
 import '../styles/Auditlog.css'
+import { calculateFitRows } from '../utils/tableAutoFit'
 
 const DEFAULT_PAGE_SIZE = 6
 const MAX_VISIBLE_PAGES = 4
@@ -113,15 +114,11 @@ function AuditLog() {
   const [selectedLog, setSelectedLog] = useState(null)
   const tableContainerRef = useRef(null)
 
-  // คำนวณจำนวนแถวที่พอดีกับความสูงของแต่ละหน้าจอโดยอัตโนมัติ (Dynamic Auto-Fit)
+  // คำนวณจำนวนแถวที่พอดีกับความสูงของแต่ละหน้าจอโดยอัตโนมัติ (Dynamic Auto-Fit วัด DOM จริง)
   useEffect(() => {
     function calculatePageSize() {
       if (!tableContainerRef.current) return
-      const containerHeight = tableContainerRef.current.clientHeight
-      const theadHeight = 44
-      const availableHeight = containerHeight - theadHeight - 4
-      const rowHeight = 44 // ความสูงมาตรฐานของแถวในตาราง
-      const calculated = Math.max(4, Math.floor(availableHeight / rowHeight))
+      const calculated = calculateFitRows(tableContainerRef.current, { defaultRowHeight: 34, defaultHeaderHeight: 28, minRows: 4 })
       setPageSize((prev) => (prev !== calculated ? calculated : prev))
     }
 
@@ -144,7 +141,7 @@ function AuditLog() {
         window.removeEventListener('resize', calculatePageSize)
       }
     }
-  }, [])
+  }, [logs.length])
 
   // KPI — ยิงแยกจากตารางหลัก เพราะต้องใช้ total ของ query ที่ไม่ผูกกับ filter บนตาราง
   const [kpiLoading, setKpiLoading] = useState(true)

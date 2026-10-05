@@ -154,20 +154,29 @@
 }
 
 .vdm-table th {
-  padding: 10px 14px;
+  padding: 7px 12px;
   text-align: left;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #64748b);
+  color: var(--text-main, rgb(27, 42, 71));
   border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  background: var(--table-th-bg, #f1f5f9);
+  backdrop-filter: blur(4px);
+  position: sticky;
+  top: 0;
+  z-index: 2;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  box-sizing: border-box;
 }
 
 .vdm-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.05));
-  color: var(--text-primary, #1b2a47);
+  padding: 7px 12px;
+  border-bottom: none;
+  color: var(--text-main, rgb(27, 42, 71));
+  font-size: 13.5px;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
 .vdm-cam-name,

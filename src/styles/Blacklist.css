@@ -1,9 +1,10 @@
 .blacklist-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  height: calc(100vh - 125px);
-  max-height: calc(100vh - 125px);
+  gap: 12px;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
   box-sizing: border-box;
   overflow: hidden;
   padding-bottom: 0;
@@ -13,7 +14,7 @@
 .bl-kpi-row {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -22,28 +23,30 @@
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 18px;
-  padding: 10px 16px;
+  padding: 12px 18px;
+  min-height: 76px;
+  box-sizing: border-box;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: center;
-  gap: 12px;
-  transition: transform 0.3s ease;
+  gap: 14px;
 }
 
 .bl-kpi-card:hover {
-  transform: translateY(-2px);
+  /* Plane style: ไม่มีการเด้งลอย */
 }
 
 .bl-kpi-icon {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 20px;
   flex-shrink: 0;
 }
+
 
 .bl-kpi-icon.red {
   background: rgba(220, 38, 38, 0.1);
@@ -56,9 +59,9 @@
 }
 
 .bl-kpi-label {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  color: #1b2a47;
+  color: var(--text-main, #1b2a47);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 0 0 2px;
@@ -66,9 +69,9 @@
 
 .bl-kpi-val {
   font-family: 'DM Sans', sans-serif;
-  font-size: 24px;
-  font-weight: 800;
-  color: #1b2a47;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-main, #1b2a47);
   margin: 0;
   line-height: 1.1;
 }
@@ -133,23 +136,26 @@
   padding: 7px 12px;
   font-size: 12px;
   font-weight: 600;
-  color: rgb(27, 42, 71);
+  color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid rgba(27, 42, 71, 0.06);
-  background: rgba(248, 250, 252, 0.95);
+  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  background: var(--table-th-bg, #f1f5f9);
   backdrop-filter: blur(4px);
   position: sticky;
   top: 0;
   z-index: 2;
+  box-sizing: border-box;
 }
 
 .bl-table td {
   padding: 7px 12px;
   font-size: 13.5px;
-  color: var(--text-main);
-  border-bottom: 1px solid rgba(27, 42, 71, 0.04);
+  color: var(--text-main, rgb(27, 42, 71));
+  border-bottom: none;
   transition: background 0.15s;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
 .bl-table tr:hover td {
@@ -162,12 +168,12 @@
 
 /* Badges */
 .bl-plate-badge {
-  background: rgba(220, 38, 38, 0.08);
+  background: transparent;
   color: rgb(220, 38, 38);
-  padding: 6px 14px;
-  border-radius: 8px;
+  padding: 0;
+  border-radius: 0;
   font-family: 'DM Sans', sans-serif;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
   display: inline-block;
 }
@@ -321,12 +327,11 @@
 /* Clickable KPI Card */
 .bl-kpi-card.clickable {
   cursor: pointer;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 0.2s ease;
 }
 
 .bl-kpi-card.clickable:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 30px rgba(27, 42, 71, 0.08);
+  border-color: rgba(43, 127, 255, 0.35);
 }
 
 .bl-kpi-hint {
@@ -833,7 +838,7 @@
 }
 
 .bl-plate-badge.whitelist {
-  background: rgba(22, 163, 74, 0.08);
+  background: transparent;
   color: rgb(22, 163, 74);
 }
 
@@ -990,18 +995,20 @@
 }
 
 .bl-direction-modal .bl-table th {
-  color: var(--text-main, #1b2a47) !important;
-  font-size: 13.5px !important;
-  font-weight: 700 !important;
-  padding: 8px 12px !important;
-  height: 38px !important;
+  color: var(--text-main, rgb(27, 42, 71)) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  padding: 7px 12px !important;
+  background: var(--table-th-bg, #f1f5f9) !important;
+  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08)) !important;
   box-sizing: border-box;
 }
 
 .bl-direction-modal .bl-table td {
-  font-size: 14px !important;
-  padding: 6px 12px !important;
-  height: 46px !important;
+  font-size: 13.5px !important;
+  padding: 7px 12px !important;
   box-sizing: border-box;
   vertical-align: middle !important;
 }

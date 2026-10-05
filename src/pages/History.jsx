@@ -14,6 +14,8 @@ import EmptyState from '../components/EmptyState'
 import useVillageStore from '../store/villageStore'
 import { renderVillageDisplay } from '../components/VillageDisplay'
 import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader'
+import { calculateFitRows } from '../utils/tableAutoFit'
+import CameraAutocomplete from '../components/CameraAutocomplete'
 
 const SEARCH_DEBOUNCE_MS = 400
 const MAX_VISIBLE_PAGES = 4
@@ -21,7 +23,7 @@ const MAX_VISIBLE_PAGES = 4
 function getInitialHistoryLimit() {
   if (typeof window === 'undefined') return 8
   const availableTableHeight = window.innerHeight - 360
-  const rowHeight = 48
+  const rowHeight = 32
   const rows = Math.floor(availableTableHeight / rowHeight)
   return Math.max(4, rows)
 }
@@ -139,21 +141,14 @@ function History() {
   const tableContainerRef = useRef(null)
   const abortControllerRef = useRef(null)
 
-  // คำนวณจำนวนแถวให้พอดีกับความสูงของตารางแบบ Real-time โดยไม่ให้มี scrollbar
+  // คำนวณจำนวนแถวให้พอดีกับความสูงของตารางแบบ Real-time โดยวัด DOM จริง ไม่ให้มี scrollbar และไม่เหลือช่องว่าง
   useEffect(() => {
     const el = tableContainerRef.current
     if (!el) return
 
     const calculateRows = () => {
-      const height = el.clientHeight
-      if (!height) return
-      const headerHeight = 40
-      const rowHeight = 48
-      const available = height - headerHeight
-      if (available > 0) {
-        const calculated = Math.max(4, Math.floor(available / rowHeight))
-        setPageSize((prev) => (prev !== calculated ? calculated : prev))
-      }
+      const calculated = calculateFitRows(el, { defaultRowHeight: 32, defaultHeaderHeight: 28, minRows: 4 })
+      setPageSize((prev) => (prev !== calculated ? calculated : prev))
     }
 
     calculateRows()
@@ -161,7 +156,7 @@ function History() {
     observer.observe(el)
 
     return () => observer.disconnect()
-  }, [])
+  }, [historyData.length])
 
   const [selectedItem, setSelectedItem] = useState(null)
   const [modalImages, setModalImages] = useState({ crop: null, full: null })
@@ -523,18 +518,17 @@ function History() {
 
           <div className="filter-group">
             <label>Camera</label>
-            <select
+            <CameraAutocomplete
+              cameras={availableCameras}
               value={selectedCamera}
-              onChange={(e) => setSelectedCamera(e.target.value)}
-            >
-              <option value="all">All Cameras</option>
-              {availableCameras.map((cam) => (
-                <option key={cam.id} value={cam.id}>
-                  {cam.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedCamera(val)}
+              allOptionLabel="All Cameras"
+              allOptionValue="all"
+              placeholder="All Cameras"
+              variant="history"
+            />
           </div>
+
 
           <div className="filter-group filter-group-date">
             <label>Date Range</label>

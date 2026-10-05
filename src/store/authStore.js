@@ -37,12 +37,42 @@ function setCachedUserProfile(user) {
   }
 }
 
-function removeCachedUserProfile() {
+const POST_LOGIN_STORAGE_KEYS = [
+  USER_PROFILE_STORAGE_KEY,
+  'cookie_notice_dismissed',
+  'lpr_forgot_pwd_email',
+  'lpr_monitor_selected_camera',
+  'lpr_historical_cameras',
+  'lpr_historical_villages',
+  'lpr_historical_blacklist_plates',
+  'lpr_historical_whitelist_plates',
+  'ldmap_center_epsg3857',
+  'lpr_sidebar_collapsed'
+]
+
+function clearPostLoginStorage() {
   try {
-    localStorage.removeItem(USER_PROFILE_STORAGE_KEY)
+    POST_LOGIN_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key))
+    // ล้างคีย์ที่ Longdo Map SDK สร้างขึ้นทั้งหมด (ldmap_*)
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('ldmap_')) {
+        localStorage.removeItem(k)
+      }
+    }
   } catch {
-    // Ignore
+    // Ignore storage errors
   }
+  try {
+    sessionStorage.removeItem('lpr_history_search_plate')
+    sessionStorage.removeItem('lpr_selected_village_id')
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function removeCachedUserProfile() {
+  clearPostLoginStorage()
 }
 
 function normalizeUser(profile) {

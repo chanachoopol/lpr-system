@@ -24,6 +24,7 @@ import {
   deleteVillageAPI
 } from '../data/api'
 import '../styles/UserManagement.css'
+import { calculateFitRows } from '../utils/tableAutoFit'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import UserProfileModal from '../components/UserProfileModal'
@@ -33,8 +34,6 @@ import PasswordStrengthMeter from '../components/PasswordStrengthMeter'
 import { filterVisibleUsers } from '../utils/Permissions'
 import { isEmailValid, isPasswordValid, isThaiEnglishNameValid, filterThaiEnglishName, stripEmoji, hasEmoji } from '../utils/passwordPolicy'
 
-const PAGE_SIZE = 5
-const VILLAGE_PAGE_SIZE = 5
 const MAX_VISIBLE_PAGES = 4
 const SEARCH_DEBOUNCE_MS = 400
 const MIN_PASSWORD_LENGTH = 8
@@ -182,6 +181,25 @@ function UserManagement() {
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all') // all | active | inactive
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  const tableContainerRef = useRef(null)
+
+  // คำนวณจำนวนแถวตารางผู้ใช้ตามขนาดหน้าจอจริง (วัด DOM จริง - ปัดเศษทิ้ง)
+  useEffect(() => {
+    const el = tableContainerRef.current
+    if (!el) return
+
+    function calculateRows() {
+      const calculated = calculateFitRows(el, { defaultRowHeight: 34, defaultHeaderHeight: 28, minRows: 3 })
+      setPageSize((prev) => (prev !== calculated ? calculated : prev))
+    }
+
+    calculateRows()
+    const observer = new ResizeObserver(calculateRows)
+    observer.observe(el)
+
+    return () => observer.disconnect()
+  }, [users.length])
 
   // Add User modal
   const [showFormModal, setShowFormModal] = useState(false)
@@ -203,6 +221,25 @@ function UserManagement() {
   const [villagesList, setVillagesList] = useState([])
   const [isLoadingVillagesList, setIsLoadingVillagesList] = useState(true)
   const [villagePage, setVillagePage] = useState(1)
+  const [villagePageSize, setVillagePageSize] = useState(5)
+  const villageTableContainerRef = useRef(null)
+
+  // คำนวณจำนวนแถวตารางหมู่บ้านตามขนาดหน้าจอจริง (วัด DOM จริง - ปัดเศษทิ้ง)
+  useEffect(() => {
+    const el = villageTableContainerRef.current
+    if (!el) return
+
+    function calculateVillageRows() {
+      const calculated = calculateFitRows(el, { defaultRowHeight: 34, defaultHeaderHeight: 28, minRows: 3 })
+      setVillagePageSize((prev) => (prev !== calculated ? calculated : prev))
+    }
+
+    calculateVillageRows()
+    const observer = new ResizeObserver(calculateVillageRows)
+    observer.observe(el)
+
+    return () => observer.disconnect()
+  }, [villagesList.length])
 
   // Reset Password modal — API ต้องการ new_password + confirm ตรงๆ ไม่ auto-generate
   const [resetTargetUser, setResetTargetUser] = useState(null)
@@ -272,7 +309,7 @@ function UserManagement() {
         isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
         search: debouncedSearch || undefined,
         page: currentPage,
-        pageSize: PAGE_SIZE
+        pageSize: pageSize
       })
       setUsers(filterVisibleUsers(currentUser, data.items))
       setTotal(data.total)
@@ -1143,15 +1180,15 @@ function UserManagement() {
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
 
-  const totalVillagePages = Math.max(1, Math.ceil(villagesList.length / VILLAGE_PAGE_SIZE))
+  const totalVillagePages = Math.max(1, Math.ceil(villagesList.length / villagePageSize))
   const visibleVillagePages = getVisiblePageNumbers(villagePage, totalVillagePages, MAX_VISIBLE_PAGES)
   const paginatedVillages = useMemo(() => {
-    const start = (villagePage - 1) * VILLAGE_PAGE_SIZE
-    return villagesList.slice(start, start + VILLAGE_PAGE_SIZE)
-  }, [villagesList, villagePage])
+    const start = (villagePage - 1) * villagePageSize
+    return villagesList.slice(start, start + villagePageSize)
+  }, [villagesList, villagePage, villagePageSize])
 
   return (
     <Layout title="User Management">
@@ -1210,7 +1247,7 @@ function UserManagement() {
               </button>
             </div>
 
-            <div className="table-responsive">
+            <div className="table-responsive" ref={villageTableContainerRef}>
               <table className="um-table">
                 <thead>
                   <tr>
@@ -1372,7 +1409,7 @@ function UserManagement() {
             </div>
           </div>
 
-          <div className="table-responsive">
+          <div className="table-responsive" ref={tableContainerRef}>
             <table className="um-table">
               <thead>
                 <tr>

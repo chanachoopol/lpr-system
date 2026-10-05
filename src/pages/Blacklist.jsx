@@ -33,6 +33,7 @@ import {
   getAuthedImageURL
 } from '../data/api'
 import '../styles/Blacklist.css'
+import { calculateFitRows } from '../utils/tableAutoFit'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import ProvinceAutocomplete from '../components/ProvinceAutocomplete'
@@ -217,21 +218,14 @@ function Blacklist() {
   const [todaySortOrder, setTodaySortOrder] = useState('desc')
   const [todayPage, setTodayPage] = useState(1)
 
-  // คำนวณจำนวนแถวที่พอดีกับขนาดหน้าจอจริงอัตโนมัติ (Dynamic Rows per Page)
+  // คำนวณจำนวนแถวที่พอดีกับขนาดหน้าจอจริงอัตโนมัติ (Dynamic Rows per Page โดยวัด DOM จริง)
   useEffect(() => {
     const el = tableContainerRef.current
     if (!el) return
 
     const calculateRows = () => {
-      const height = el.clientHeight
-      if (!height) return
-      const headerHeight = 40
-      const rowHeight = 49
-      const available = height - headerHeight
-      if (available > 0) {
-        const calculated = Math.max(4, Math.floor(available / rowHeight))
-        setDynamicRowsPerPage(calculated)
-      }
+      const calculated = calculateFitRows(el, { defaultRowHeight: 32, defaultHeaderHeight: 28, minRows: 4 })
+      setDynamicRowsPerPage((prev) => (prev !== calculated ? calculated : prev))
     }
 
     calculateRows()
@@ -239,7 +233,7 @@ function Blacklist() {
     observer.observe(el)
 
     return () => observer.disconnect()
-  }, [])
+  }, [matchingDetections.length])
 
   // ---------- Modal ดูรูปรายละเอียดรถ (Image Modal) ----------
   const [selectedItem, setSelectedItem] = useState(null)

@@ -13,11 +13,11 @@ body {
 }
 
 .content-card {
-  background: var(--card-bg); /* ดึงตัวแปรมาใช้ */
+  background: var(--card-bg, #ffffff); /* ดึงตัวแปรมาใช้ */
   border-radius: 24px;
   padding: 28px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border-color); /* ดึงตัวแปรมาใช้ */
+  box-shadow: 0 4px 20px rgba(27, 42, 71, 0.04);
+  border: 1px solid var(--border-color, rgba(27, 42, 71, 0.08)); /* ดึงตัวแปรมาใช้ */
 }
 
 .card-title {
@@ -213,6 +213,88 @@ body {
   margin-right: 8px;
   white-space: nowrap;
   user-select: none;
+}
+
+/* ==========================================================================
+   Shared Table Design System (อ้างอิงจาก History Table เป็นมาตรฐานหลัก)
+   ========================================================================== */
+.table-responsive,
+.table-responsive table,
+.history-table,
+.bl-table,
+.al-table,
+.cm-table,
+.report-table,
+.rt-table,
+.um-table,
+.vdm-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 0 !important;
+}
+
+.history-table th,
+.bl-table th,
+.al-table th,
+.cm-table th,
+.report-table th,
+.rt-table th,
+.um-table th,
+.vdm-table th {
+  text-align: left;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main, rgb(27, 42, 71));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  background: var(--table-th-bg, #f1f5f9);
+  backdrop-filter: blur(4px);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  border-radius: 0 !important;
+}
+
+.history-table td,
+.bl-table td,
+.al-table td,
+.cm-table td,
+.report-table td,
+.rt-table td,
+.um-table td,
+.vdm-table td {
+  padding: 7px 12px;
+  font-size: 13.5px;
+  color: var(--text-main, rgb(27, 42, 71));
+  border-bottom: none;
+  transition: background 0.15s ease;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.history-table tr:hover td,
+.bl-table tr:hover td,
+.al-table tr:hover td,
+.cm-table tr:hover td,
+.report-table tr:hover td,
+.rt-table tr:hover td,
+.um-table tr:hover td,
+.vdm-table tr:hover td {
+  background: rgba(27, 42, 71, 0.02);
+}
+
+.history-table tr:last-child td,
+.bl-table tr:last-child td,
+.al-table tr:last-child td,
+.cm-table tr:last-child td,
+.report-table tr:last-child td,
+.rt-table tr:last-child td,
+.um-table tr:last-child td,
+.vdm-table tr:last-child td {
+  border-bottom: none;
 }
 
 /* ==========================================================================

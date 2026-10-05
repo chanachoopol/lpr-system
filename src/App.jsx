@@ -6,7 +6,9 @@ import { AnimatePresence } from 'framer-motion'
 import useAuthStore from './store/authStore'
 import useNotificationStore from './store/notificationStore'
 import ProtectedRoute from './components/ProtectedRoute'
+import PublicRoute from './components/PublicRoute'
 import BlacklistAlertModal from './components/BlacklistAlertModal'
+import NotFound from './pages/NotFound'
 
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
@@ -30,12 +32,12 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        {/* Public routes — ไม่ต้อง login */}
-        <Route path="/" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/set-password" element={<ResetPassword />} />
-        <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
-        <Route path="/confirm-email" element={<ConfirmEmailChange />} />
+        {/* Public routes — ไม่ต้อง login (ถ้า login อยู่แล้วจะแสดงแจ้งเตือนให้ Logout ก่อน) */}
+        <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+        <Route path="/set-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
+        <Route path="/confirm-email-change" element={<PublicRoute><ConfirmEmailChange /></PublicRoute>} />
+        <Route path="/confirm-email" element={<PublicRoute><ConfirmEmailChange /></PublicRoute>} />
 
         {/* Protected routes — ต้อง login ทุก role */}
         <Route path="/dashboard" element={
@@ -79,6 +81,9 @@ function AnimatedRoutes() {
             <AuditLog />
           </ProtectedRoute>
         } />
+
+        {/* 404 Not Found — สำหรับ URL ที่ไม่มีในระบบ */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
   )

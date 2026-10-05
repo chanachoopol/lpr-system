@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import MapView from '../components/Map'
-import { getTodayDashboardAPI, getCameraListAPI, getAuthedImageURL, getDetectionsAPI } from '../data/api'
+import { getTodayDashboardAPI, getCameraListAPI, getAuthedImageURL, getDetectionsAPI, getCameraStatusAPI } from '../data/api'
+import { applyCameraEventToCamera } from '../utils/cameraStatus'
 import useAuthStore from '../store/authStore'
 import useVillageStore from '../store/villageStore'
 import { renderVillageDisplay } from '../components/VillageDisplay'
@@ -14,6 +15,7 @@ import { FaXmark, FaArrowDownWideShort, FaArrowUpWideShort } from 'react-icons/f
 import '../styles/Dashboard.css'
 import '../styles/History.css' // 👈 ใช้ style ของ modal ดูรูป (modal-img-section, image-fullscreen-overlay ฯลฯ) ร่วมกับหน้า History
 import '../styles/Blacklist.css' // 👈 ใช้ style ของตารางและ modal แบบเดียวกับ Blacklist Detection Records
+import { calculateFitRows } from '../utils/tableAutoFit'
 
 const DASHBOARD_RECENT_LIMIT = 20
 
@@ -104,8 +106,7 @@ function Dashboard() {
   const { user } = useAuthStore()
   const { selectedVillageId, villages } = useVillageStore()
   const latestDetection = useNotificationStore((state) => state.latestDetection)
-
-  
+  const latestCameraEvent = useNotificationStore((state) => state.latestCameraEvent)
 
   // ---------- Camera Map ----------
   const [cameras, setCameras] = useState([])
@@ -120,8 +121,30 @@ function Dashboard() {
         page: 1,
         pageSize: 100
       })
-      setCameras(data.items)
-      saveHistoricalCameras(data.items)
+      const items = data.items || []
+      setCameras(items)
+      saveHistoricalCameras(items)
+
+      // ดึงสถานะกล้อง (status, stream_online, verification_status, detail) แบบคู่ขนาน
+      const statusResults = await Promise.allSettled(
+        items.map((c) => getCameraStatusAPI(c.id))
+      )
+      setCameras((prev) =>
+        prev.map((c, index) => {
+          const result = statusResults[index]
+          if (result?.status === 'fulfilled') {
+            return {
+              ...c,
+              stream_online: result.value.stream_online,
+              verification_status: result.value.verification_status ?? c.verification_status,
+              is_starting: result.value.is_starting,
+              status: result.value.status,
+              detail: result.value.detail
+            }
+          }
+          return c
+        })
+      )
     } catch (error) {
       console.error(error)
     } finally {
@@ -132,6 +155,13 @@ function Dashboard() {
   useEffect(() => {
     fetchCameras()
   }, [fetchCameras])
+
+  // ซิงค์สถานะกล้องแบบ Real-time ตาม SSE Event
+  useEffect(() => {
+    if (!latestCameraEvent) return
+    setCameras((prev) => prev.map((c) => applyCameraEventToCamera(c, latestCameraEvent)))
+  }, [latestCameraEvent])
+
 
   // คืนเฉพาะชื่อกล้องสำหรับแสดงในตาราง
   function getCameraNameOnly(cameraId, directName) {
@@ -312,6 +342,30 @@ function Dashboard() {
 
     return list
   }, [history, searchQuery, sortOrder, cameras])
+
+  const tableContainerRef = useRef(null)
+  const [visibleRows, setVisibleRows] = useState(8)
+
+  // คำนวณจำนวนแถวที่แสดงได้เต็ม 100% พอดีเป๊ะตามความสูงจริงของหน้าจอ (วัด DOM จริง - ปัดเศษทิ้ง)
+  useEffect(() => {
+    const el = tableContainerRef.current
+    if (!el) return
+
+    const updateRows = () => {
+      const maxRows = calculateFitRows(el, { defaultRowHeight: 32, defaultHeaderHeight: 24, minRows: 1 })
+      setVisibleRows((prev) => (prev !== maxRows ? maxRows : prev))
+    }
+
+    updateRows()
+    const observer = new ResizeObserver(updateRows)
+    observer.observe(el)
+
+    return () => observer.disconnect()
+  }, [processedHistory.length])
+
+  const visibleHistory = useMemo(() => {
+    return processedHistory.slice(0, visibleRows)
+  }, [processedHistory, visibleRows])
 
   // ---------- Modal ดูรายละเอียด/รูปภาพ (pattern เดียวกับ History.jsx) ----------
   const [selectedItem, setSelectedItem] = useState(null)
@@ -613,7 +667,7 @@ function Dashboard() {
                 </button>
               </div>
             </div>
-            <div className="table-responsive">
+            <div className="table-responsive" ref={tableContainerRef}>
               <table className="history-table">
                 <thead>
                   <tr>
@@ -631,8 +685,8 @@ function Dashboard() {
                         <Spinner text="กำลังโหลด..." />
                       </td>
                     </tr>
-                  ) : processedHistory.length > 0 ? (
-                    processedHistory.map((item) => {
+                  ) : visibleHistory.length > 0 ? (
+                    visibleHistory.map((item) => {
                       const isBlacklist = Boolean(
                         item.is_blacklist ||
                         item.is_blacklisted ||

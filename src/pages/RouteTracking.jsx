@@ -16,6 +16,7 @@ import useVillageStore from '../store/villageStore';
 import { renderCustomDatePickerHeader } from '../components/CustomDatePickerHeader';
 
 import '../styles/RouteTracking.css';
+import { calculateFitRows } from '../utils/tableAutoFit';
 
 const MAX_ROUTE_POINTS = 50;
 
@@ -254,19 +255,12 @@ function RouteTracking() {
     return list;
   }, [vehicleGroups, sortOrder]);
 
-  // คำนวณจำนวนแถวให้พอดีกับความสูงของตารางแบบ Real-time โดยไม่ให้มี scrollbar
+  // คำนวณจำนวนแถวให้พอดีกับความสูงของตารางแบบ Real-time โดยวัด DOM จริง
   const calculateRows = useCallback(() => {
     const el = tableContainerRef.current;
     if (!el) return;
-    const height = el.clientHeight;
-    if (!height) return;
-    const headerHeight = 40;
-    const rowHeight = 44;
-    const available = height - headerHeight;
-    if (available > 0) {
-      const calculated = Math.max(3, Math.floor(available / rowHeight));
-      setPageSize((prev) => (prev !== calculated ? calculated : prev));
-    }
+    const calculated = calculateFitRows(el, { defaultRowHeight: 34, defaultHeaderHeight: 28, minRows: 3 });
+    setPageSize((prev) => (prev !== calculated ? calculated : prev));
   }, []);
 
   useEffect(() => {
@@ -1083,11 +1077,11 @@ function RouteTracking() {
 
         {/* Loading / Results / Empty States */}
         {isSearching ? (
-          <div className="content-card">
+          <div className="content-card rt-empty-card">
             <Spinner text="กำลังค้นหาเส้นทาง..." />
           </div>
         ) : !hasSearched ? (
-          <div className="content-card">
+          <div className="content-card rt-empty-card">
             <EmptyState
               icon={<FaSearch />}
               title="ยังไม่มีข้อมูล"
@@ -1125,12 +1119,15 @@ function RouteTracking() {
             </div>
 
             {vehicleGroups.length === 0 ? (
-              <EmptyState
-                icon={<FaCar />}
-                title="ไม่พบข้อมูล"
-                description="ไม่พบป้ายทะเบียนนี้ในช่วงเวลาที่เลือก"
-              />
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <EmptyState
+                  icon={<FaCar />}
+                  title="ไม่พบข้อมูล"
+                  description="ไม่พบป้ายทะเบียนนี้ในช่วงเวลาที่เลือก"
+                />
+              </div>
             ) : (
+
               <>
                 <div className="table-responsive" ref={tableContainerRef}>
                   <table className="rt-table">

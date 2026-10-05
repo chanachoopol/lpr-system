@@ -13,14 +13,14 @@
 }
 
 .monitor-wrapper.single-view {
-  height: calc(100vh - 136px);
-  max-height: calc(100vh - 136px);
+  height: calc(100vh - 128px);
+  max-height: calc(100vh - 128px);
   overflow: hidden;
 }
 
 .monitor-wrapper.grid-view {
-  height: calc(100vh - 136px);
-  max-height: calc(100vh - 136px);
+  height: calc(100vh - 128px);
+  max-height: calc(100vh - 128px);
   overflow: hidden;
 }
 
@@ -372,7 +372,7 @@
   min-height: 0;
   display: block;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 0;
 }
 
 .monitor-right .history-table {
@@ -382,24 +382,28 @@
 
 .monitor-right .history-table th {
   text-align: left;
-  padding: 8px 6px;
-  font-size: 12.5px;
+  padding: 7px 12px;
+  font-size: 12px;
   font-weight: 600;
-  color: #1b2a47;
+  color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
-  border-bottom: 1px solid rgb(234, 229, 222);
-  height: 36px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  background: var(--table-th-bg, #f1f5f9);
+  backdrop-filter: blur(4px);
+  position: sticky;
+  top: 0;
+  z-index: 2;
   box-sizing: border-box;
   white-space: nowrap;
 }
 
 .monitor-right .history-table td {
-  padding: 8px 6px;
-  color: var(--text-main);
-  font-size: 13px;
-  border-bottom: 1px solid rgb(244, 238, 230);
+  padding: 7px 12px;
+  color: var(--text-main, rgb(27, 42, 71));
+  font-size: 13.5px;
+  border-bottom: none;
   transition: background 0.15s ease;
-  height: 44px;
   box-sizing: border-box;
   white-space: nowrap;
   vertical-align: middle;

@@ -5,6 +5,7 @@ import Swal from 'sweetalert2'
 import Layout from '../components/Layout'
 import ActionMenu from '../components/ActionMenu'
 import '../styles/CameraManagement.css'
+import { calculateFitRows } from '../utils/tableAutoFit'
 import Spinner from '../components/Spinner'
 import EmptyState from '../components/EmptyState'
 import useAuthStore from '../store/authStore'
@@ -22,8 +23,12 @@ import {
   probeOnvifCameraAPI
 } from '../data/api'
 import { hasEmoji } from '../utils/passwordPolicy'
+import {
+  formatCameraErrorDetail,
+  getUnifiedCameraStatusBadge,
+  applyCameraEventToCamera
+} from '../utils/cameraStatus'
 
-const PAGE_SIZE = 5
 const MAX_VISIBLE_PAGES = 4
 
 function getVisiblePageNumbers(currentPage, totalPages, maxVisible = 4) {
@@ -71,174 +76,8 @@ function formatCoordinate(lat, long) {
 // ฟอร์ม ONVIF — เป็นแค่ตัวช่วยหา RTSP URI ไม่ใช่ field ที่ backend เก็บถาวร (session state เท่านั้น)
 const EMPTY_ONVIF_FORM = { host: '', port: 80, username: '', password: '' }
 
-// แปลงข้อความ Technical Error จาก Backend ให้เป็นภาษาไทยที่สุภาพและเข้าใจง่าย
-function formatCameraErrorDetail(rawDetail) {
-  if (!rawDetail) return ''
-  let text = ''
-  if (typeof rawDetail === 'string') {
-    text = rawDetail
-  } else if (typeof rawDetail === 'object') {
-    text = rawDetail.detail || rawDetail.message || rawDetail.note || JSON.stringify(rawDetail)
-  }
-  const lower = text.toLowerCase()
+// formatCameraErrorDetail and getUnifiedCameraStatusBadge are imported from ../utils/cameraStatus
 
-  // 1. ตรวจจับกรณีข้อความรวม (Multiple status combined) เช่น:
-  // "Stream is offline, Camera is not active, Verification status is 'failed'"
-  // "Camera is offline, Verification status is 'pending'"
-  if (
-    (lower.includes('offline') || lower.includes('stream')) &&
-    (lower.includes('failed') || lower.includes('not active'))
-  ) {
-    return 'ไม่สามารถเชื่อมต่อสัญญาณกล้องได้ (สัญญาณออฟไลน์ หรือลิงก์ RTSP ไม่ถูกต้อง)'
-  }
-
-  if (lower.includes('offline') && lower.includes('pending')) {
-    return 'สัญญาณกล้องออฟไลน์ (ไม่พบการตอบสนองจากลิงก์ RTSP ที่ระบุ)'
-  }
-
-  if (
-    lower.includes('stream is offline') ||
-    lower.includes('stream offline') ||
-    lower.includes('stream is not online') ||
-    lower.includes('camera is offline')
-  ) {
-    return 'ไม่พบสัญญาณสตรีมของกล้อง กรุณาตรวจสอบลิงก์ RTSP หรือสถานะการเปิดของกล้อง'
-  }
-
-  if (
-    lower.includes("verification status is 'failed'") ||
-    lower.includes('verification status is failed') ||
-    lower.includes('verification failed') ||
-    lower.includes('verify failed')
-  ) {
-    return 'การยืนยันสัญญาณกล้องไม่สำเร็จ (ไม่สามารถดึงภาพวิดีโอจากลิงก์ได้)'
-  }
-
-  if (lower.includes("verification status is 'pending'") || lower.includes('verification status is pending')) {
-    return 'อยู่ระหว่างรอการยืนยันสัญญาณจากกล้อง'
-  }
-
-  if (
-    lower.includes('cannot connect') ||
-    lower.includes('connection refused') ||
-    lower.includes('failed to connect') ||
-    lower.includes('could not connect')
-  ) {
-    return 'ไม่สามารถเชื่อมต่อสัญญาณกล้องได้ กรุณาตรวจสอบ IP หรือเครือข่าย'
-  }
-
-  if (lower.includes('camera is not active') || lower.includes('camera inactive')) {
-    return 'กล้องถูกปิดการใช้งาน'
-  }
-
-  if (lower.includes('ai vision') || lower.includes('ai_vision')) {
-    return 'ไม่สามารถเชื่อมต่อระบบ AI Vision กับกล้องตัวนี้ได้'
-  }
-
-  if (lower.includes('timeout') || lower.includes('timed out')) {
-    return 'หมดเวลาการเชื่อมต่อสัญญาณกล้อง (กล้องไม่ตอบสนอง)'
-  }
-
-  // หากเป็นภาษาไทยอยู่แล้ว หรือข้อความอื่นๆ ให้คืนค่าเดิม
-  return text
-}
-
-// รวมสถานะกล้อง (Power, AI Vision, Streaming / MediaMTX) ให้เป็น Camera Status เดียวที่เข้าใจง่าย
-function getUnifiedCameraStatusBadge(camera, isChecking = false, isStreamingServerDown = false) {
-  if (!camera) {
-    return { label: 'ไม่ทราบสถานะ', tone: 'starting', description: 'ไม่มีข้อมูลสถานะกล้อง' }
-  }
-
-  // 1. ปิดใช้งานกล้อง (ผู้ใช้สั่งปิดการทำงานเอง — is_active: false)
-  // ต้องตรวจเช็คตรงนี้ก่อนเป็นลำดับแรกสุด เพราะเมื่อสั่งปิด Backend จะตัดสตรีม (status: false, stream_online: false)
-  // ซึ่งไม่ใช่ข้อผิดพลาดของกล้อง แต่เกิดจากความตั้งใจของผู้ใช้เอง
-  if (!camera.is_active) {
-    return { label: 'ปิดใช้งาน', tone: 'disabled', description: 'ผู้ใช้ปิดการทำงานกล้อง' }
-  }
-
-  // 1.1 เซิร์ฟเวอร์สตรีมมิ่ง (MediaMTX) มีปัญหา — แสดงสถานะเป็นไม่ทราบสถานะ ตามที่ backend แนะนำ
-  if (isStreamingServerDown) {
-    return { label: 'ไม่ทราบสถานะ', tone: 'starting', description: 'ระบบสตรีมมิ่งส่วนกลางขัดข้อง' }
-  }
-
-  // 2. กำลังโหลด/ตรวจสอบเฉพาะกล้องตัวนี้
-  if (isChecking) {
-    return { label: 'กำลังตรวจสอบสัญญาณ...', tone: 'starting', description: 'กำลังส่งคำขอตรวจสอบไปยังระบบ' }
-  }
-
-  // 3. อยู่ระหว่างรอยืนยันสัญญาณ / กำลังเริ่มระบบ (Pending / Connecting / Starting)
-  // ตรวจสอบตรงนี้ก่อน เพื่อไม่ให้กล้องที่เพิ่งเพิ่มใหม่ (verification_status = pending) หลุดไปเป็น "ขัดข้อง"
-  const isPending =
-    camera.verification_status === 'pending' ||
-    camera.verification_status === 'connecting' ||
-    camera.is_starting === true
-
-  if (isPending && camera.verification_status !== 'failed' && camera.status !== false) {
-    return {
-      label: 'รอยืนยันสัญญาณ...',
-      tone: 'starting',
-      description: 'กำลังตรวจสอบการเชื่อมต่อกับกล้อง (กรุณารอสักครู่)'
-    }
-  }
-
-  // 4. ขัดข้อง / เชื่อมต่อไม่สำเร็จ (เมื่อยืนยันว่าล้มเหลวจริง ในขณะที่กล้องยังเปิดใช้งานอยู่)
-  const hasFailureSignals =
-    camera.verification_status === 'failed' ||
-    (camera.status === false && camera.verification_status !== 'pending') ||
-    (camera.verification_status === 'verified' && camera.stream_online === false) ||
-    (camera.detail &&
-      camera.verification_status !== 'pending' &&
-      !camera.detail.includes('ถี่เกินไป') &&
-      !camera.detail.toLowerCase().includes('rate limit') &&
-      (
-        camera.detail.toLowerCase().includes('offline') ||
-        camera.detail.toLowerCase().includes('failed') ||
-        camera.detail.toLowerCase().includes('refused') ||
-        camera.detail.toLowerCase().includes('ขัดข้อง') ||
-        camera.detail.toLowerCase().includes('ไม่สำเร็จ')
-      ))
-
-  // กล้องที่ใส่ลิงก์ปลอม หรือสัญญาณหลุด หรือ verify ไม่ผ่าน ต้องขึ้น "ขัดข้อง" เสมอ ไม่ใช่ "ปิดใช้งาน"
-  if (hasFailureSignals) {
-    let errDetail = formatCameraErrorDetail(camera.detail)
-    if (!errDetail) {
-      if (camera.verification_status === 'failed') {
-        errDetail = 'การยืนยันกล้องไม่สำเร็จ (ไม่พบสัญญาณ)'
-      } else if (camera.stream_online === false) {
-        errDetail = 'สัญญาณสตรีมมิ่งออฟไลน์'
-      } else {
-        errDetail = 'ไม่สามารถเชื่อมต่อสัญญาณได้'
-      }
-    }
-    return {
-      label: 'ขัดข้อง',
-      tone: 'error',
-      description: errDetail,
-      canRetry: true
-    }
-  }
-
-  // 5. พร้อมใช้งาน (เมื่อ backend status === true หรือผ่านเงื่อนไข verified & stream_online)
-  const isReady = camera.status === true || (camera.verification_status === 'verified' && camera.stream_online === true)
-  if (isReady) {
-    return { label: 'พร้อมใช้งาน', tone: 'ready', description: 'กล้องพร้อมตรวจจับ' }
-  }
-
-  // 6. ถ้ายังไม่มี status ชัดเจน แต่ยังไม่ล้มเหลว
-  if (
-    (camera.status === undefined && camera.stream_online === undefined) ||
-    (camera.status === undefined && camera.stream_online === false)
-  ) {
-    return { label: 'รอยืนยันสัญญาณ...', tone: 'starting', description: 'กำลังเชื่อมต่อสัญญาณกล้อง' }
-  }
-
-  // Fallback
-  return {
-    label: camera.verification_status || 'รอยืนยันสัญญาณ...',
-    tone: 'starting',
-    description: 'กำลังเชื่อมต่อสัญญาณกล้อง'
-  }
-}
 
 function CameraManagement() {
   const { user } = useAuthStore()
@@ -276,76 +115,9 @@ function CameraManagement() {
   // syncWarning เป็น session-only field ไม่มีใน API — หายไปเมื่อ refresh หน้า (ตามที่ตกลงไว้)
   useEffect(() => {
     if (!latestCameraEvent) return
-    const { type, camera_id } = latestCameraEvent
-
-    setCameras((prev) =>
-      prev.map((c) => {
-        if (String(c.id) !== String(camera_id)) return c
-
-        if (type === 'verified') {
-          return {
-            ...c,
-            verification_status: 'verified',
-            stream_online: latestCameraEvent.stream_online ?? true,
-            status: latestCameraEvent.status ?? true,
-            is_starting: false,
-            is_active: latestCameraEvent.is_active ?? c.is_active,
-            detail: null,
-            syncWarning: null
-          }
-        }
-        if (type === 'verification_failed') {
-          // backend ปิดกล้องอัตโนมัติตอน verify failed → ต้อง sync is_active ด้วย ไม่ใช่แค่ badge
-          return {
-            ...c,
-            verification_status: 'failed',
-            stream_online: latestCameraEvent.stream_online ?? false,
-            status: latestCameraEvent.status ?? false,
-            is_starting: false,
-            is_active: latestCameraEvent.is_active ?? false,
-            detail: formatCameraErrorDetail(latestCameraEvent.detail) || 'การยืนยันกล้องไม่สำเร็จ (ไม่พบสัญญาณภาพ)',
-            syncWarning: null
-          }
-        }
-        if (type === 'sync_failed') {
-          return {
-            ...c,
-            status: false,
-            stream_online: false,
-            is_starting: false,
-            verification_status: 'failed',
-            detail: 'ซิงค์ระบบกับกล้องไม่สำเร็จ (ไม่สามารถเชื่อมต่อสัญญาณได้)',
-            syncWarning: { failedServices: latestCameraEvent.failed_services, at: new Date() }
-          }
-        }
-        if (type === 'online') {
-          return {
-            ...c,
-            status: true,
-            stream_online: true,
-            is_online: true,
-            verification_status: 'verified',
-            is_starting: false,
-            is_active: latestCameraEvent.is_active ?? c.is_active,
-            detail: null,
-            syncWarning: null
-          }
-        }
-        if (type === 'offline') {
-          return {
-            ...c,
-            status: false,
-            stream_online: false,
-            is_online: false,
-            is_starting: false,
-            detail: 'ไม่พบสัญญาณสตรีมของกล้อง กรุณาตรวจสอบลิงก์ RTSP หรือสถานะการเปิดของกล้อง',
-            syncWarning: null
-          }
-        }
-        return c
-      })
-    )
+    setCameras((prev) => prev.map((c) => applyCameraEventToCamera(c, latestCameraEvent)))
   }, [latestCameraEvent])
+
 
   // ดึงรายการกล้องจาก backend จริง — ยึดตาม selectedVillageId (หมู่บ้านที่กำลังดูอยู่)
   // superadmin เลือก "ทุกหมู่บ้าน" (null) → ไม่ส่ง village_id ได้ทุกหมู่บ้าน
@@ -463,18 +235,38 @@ function CameraManagement() {
     setKpiModalType(null)
   }
 
+  const tableContainerRef = useRef(null)
+  const [pageSize, setPageSize] = useState(5)
+
+  // คำนวณจำนวนแถวให้พอดีกับความสูงของหน้าจอจริง (วัด DOM จริง - ปัดเศษทิ้ง)
+  useEffect(() => {
+    const el = tableContainerRef.current
+    if (!el) return
+
+    function calculateRows() {
+      const calculated = calculateFitRows(el, { defaultRowHeight: 34, defaultHeaderHeight: 28, minRows: 3 })
+      setPageSize((prev) => (prev !== calculated ? calculated : prev))
+    }
+
+    calculateRows()
+    const observer = new ResizeObserver(calculateRows)
+    observer.observe(el)
+
+    return () => observer.disconnect()
+  }, [cameras.length])
+
   const filteredCameras = useMemo(() => {
     const keyword = searchInput.toLowerCase().trim()
     return keyword === '' ? cameras : cameras.filter((c) => c.name.toLowerCase().includes(keyword))
   }, [cameras, searchInput])
 
-  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / pageSize))
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages, MAX_VISIBLE_PAGES)
 
   const paginatedCameras = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE
-    return filteredCameras.slice(start, start + PAGE_SIZE)
-  }, [filteredCameras, currentPage])
+    const start = (currentPage - 1) * pageSize
+    return filteredCameras.slice(start, start + pageSize)
+  }, [filteredCameras, currentPage, pageSize])
 
   // ---------- ONVIF Panel Helpers ----------
   function resetOnvifPanel() {
@@ -1311,7 +1103,7 @@ function CameraManagement() {
             </div>
           </div>
 
-          <div className="cm-table-responsive">
+          <div className="cm-table-responsive" ref={tableContainerRef}>
             <table className="cm-table">
               <thead>
                 <tr>
