@@ -13,14 +13,14 @@
 }
 
 .monitor-wrapper.single-view {
-  height: calc(100vh - 128px);
-  max-height: calc(100vh - 128px);
+  height: calc(100vh - 124px);
+  max-height: calc(100vh - 124px);
   overflow: hidden;
 }
 
 .monitor-wrapper.grid-view {
-  height: calc(100vh - 128px);
-  max-height: calc(100vh - 128px);
+  height: calc(100vh - 124px);
+  max-height: calc(100vh - 124px);
   overflow: hidden;
 }
 

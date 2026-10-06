@@ -12,7 +12,7 @@
 .stat-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -74,7 +74,7 @@
 .bottom-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
