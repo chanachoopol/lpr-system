@@ -46,6 +46,8 @@
   flex-direction: column;
   gap: 8px;
   position: relative;
+  width: 220px;
+  flex: 0 0 220px;
 }
 
 .rt-search-field-plate {
@@ -54,11 +56,16 @@
 }
 
 .rt-search-field label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: rgb(27, 42, 71);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  height: 20px;
+  line-height: 20px;
 }
 
 .rt-required-star {
@@ -86,29 +93,48 @@
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
+}
+
+.rt-input-wrap .react-datepicker-wrapper,
+.rt-input-wrap .react-datepicker__input-container {
+  width: 100%;
+  display: block;
+}
+
+.rt-search-field .react-datepicker__close-icon {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-right: 10px;
 }
 
 .rt-input-icon {
   position: absolute;
   left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
   color: rgb(148, 163, 184);
   font-size: 14px;
   pointer-events: none;
+  z-index: 2;
 }
 
 .rt-input-wrap input,
 .datepicker-rt,
 .rt-select-camera {
   width: 100%;
-  padding: 10px 16px 10px 38px;
+  height: 38px;
+  padding: 0 16px 0 38px;
   border: 1px solid rgba(27, 42, 71, 0.1);
-  border-radius: 12px;
-  background: var(--bg-input);
+  border-radius: 9px;
+  background: var(--bg-input, #ffffff);
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--text-main);
   outline: none;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .rt-select-camera {
@@ -129,25 +155,29 @@
 }
 
 .btn-rt-reset {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--bg-card);
-  color: var(--text-main);
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  background: rgb(255, 255, 255);
+  color: rgb(27, 42, 71);
   border: 1px solid rgba(27, 42, 71, 0.15);
-  border-radius: 12px;
+  border-radius: 9px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
 .btn-rt-reset:hover:not(:disabled) {
-  background: rgba(27, 42, 71, 0.06);
-  border-color: rgba(27, 42, 71, 0.3);
+  background: rgb(241, 245, 249);
+  color: rgb(27, 42, 71);
+  border-color: rgba(27, 42, 71, 0.25);
   transform: translateY(-1px);
 }
 
@@ -232,8 +262,8 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  border: 1px solid rgba(27, 42, 71, 0.15);
+  border-radius: 9px;
+  border: 1px solid rgba(27, 42, 71, 0.12);
   background: #ffffff;
   color: #1b2a47;
   cursor: pointer;
@@ -243,7 +273,7 @@
 
 .rt-header-right .btn-sort-icon-toggle:hover {
   background: #f1f5f9;
-  border-color: rgba(27, 42, 71, 0.3);
+  border-color: rgba(27, 42, 71, 0.25);
   transform: translateY(-1px);
 }
 

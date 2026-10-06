@@ -60,14 +60,14 @@ function ConfirmEmailChange() {
       <div className="grain-overlay"></div>
 
       <motion.div
-        className="card fp-card"
+        className="card fp-card confirm-email-card"
         initial="initial"
         animate="animate"
         exit="exit"
         variants={pageVariants}
         transition={pageTransition}
       >
-        <div className="card-right fp-panel">
+        <div className="card-right fp-panel confirm-email-panel">
           <div className="fp-sent-state">
             {status === 'loading' && (
               <>

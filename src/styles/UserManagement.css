@@ -712,9 +712,9 @@
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  background: rgb(255, 255, 255);
-  color: rgb(27, 42, 71);
-  border: 1px solid rgba(27, 42, 71, 0.15);
+  background: rgb(27, 42, 71);
+  color: rgb(255, 255, 255);
+  border: none;
   border-radius: 12px;
   font-family: 'DM Sans', sans-serif;
   font-size: 13.5px;
@@ -725,7 +725,7 @@
 }
 
 .btn-add-village:hover:not(:disabled) {
-  background: rgb(241, 245, 249);
+  background: rgb(17, 30, 55);
   transform: translateY(-1px);
 }
 
