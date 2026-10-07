@@ -80,6 +80,11 @@ function Login() {
     )
   }
 
+  // ถ้าล็อกอินอยู่แล้ว (อ่านคุกกี้สำเร็จ) ห้ามพาไปหน้า Login — ดีดเข้า Dashboard ทันที
+  if (isLoggedIn) {
+    return <Navigate to="/dashboard" replace />
+  }
+
   function handleUsernameChange(e) {
     const val = stripEmoji(e.target.value)
     setUsername(val)

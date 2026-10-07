@@ -32,8 +32,10 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        {/* Public routes — ไม่ต้อง login (ถ้า login อยู่แล้วจะแสดงแจ้งเตือนให้ Logout ก่อน) */}
-        <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/" element={<Login />} />
+        <Route path="/login" element={<Login />} />
+
+        {/* Public routes — ถ้า login อยู่แล้วจะแสดงแจ้งเตือนให้ Logout ก่อน */}
         <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
         <Route path="/set-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
         <Route path="/confirm-email-change" element={<PublicRoute><ConfirmEmailChange /></PublicRoute>} />

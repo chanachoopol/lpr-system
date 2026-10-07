@@ -120,12 +120,6 @@ body {
   bottom: 12%;
   right: 0;
   width: 1px;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(27, 42, 71, 0.18) 50%,
-    transparent 100%
-  );
   filter: blur(2px);
 }
 

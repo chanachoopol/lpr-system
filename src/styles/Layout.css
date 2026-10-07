@@ -6,6 +6,7 @@
   gap: 20px;
   box-sizing: border-box;
   overflow: hidden;
+  background: #e0e0e0;
 }
 
 .layout-main {
