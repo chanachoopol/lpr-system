@@ -15,13 +15,13 @@ body {
 .content-card {
   background: var(--card-bg, #ffffff); /* ดึงตัวแปรมาใช้ */
   border-radius: 24px;
-  padding: 28px;
+  padding: 16px;
   box-shadow: 0 4px 20px rgba(27, 42, 71, 0.04);
   border: 1px solid var(--border-color, rgba(27, 42, 71, 0.08)); /* ดึงตัวแปรมาใช้ */
 }
 
 .card-title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'DM Sans', sans-serif;
   font-size: 20px;
   color: var(--text-main);
   margin-bottom: 24px;
@@ -248,7 +248,7 @@ body {
   color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  border-bottom: none;
   background: var(--table-th-bg, #f1f5f9);
   backdrop-filter: blur(4px);
   position: sticky;
@@ -295,6 +295,17 @@ body {
 .um-table tr:last-child td,
 .vdm-table tr:last-child td {
   border-bottom: none;
+}
+
+/* ส่วนท้ายตารางและแถบแบ่งหน้าทุกหน้า: ไม่มีเส้นขอบคั่นใต้ตาราง */
+.table-footer,
+.al-table-footer,
+.bl-table-footer,
+.cm-table-footer,
+.um-table-footer,
+.vdm-footer,
+.direction-pagination-bar {
+  border-top: none !important;
 }
 
 /* ==========================================================================
