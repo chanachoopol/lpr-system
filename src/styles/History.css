@@ -119,7 +119,8 @@
 
 .filter-input-wrap input {
   width: 100%;
-  padding: 7px 10px 7px 30px;
+  height: 32.4px;
+  padding: 0 10px 0 30px;
   border: 1px solid rgba(27, 42, 71, 0.1);
   border-radius: 9px;
   background: rgb(255, 255, 255);
@@ -142,7 +143,8 @@
 
 .filter-group select {
   width: 100%;
-  padding: 7px 10px;
+  height: 32.4px;
+  padding: 0 10px;
   border: 1px solid rgba(27, 42, 71, 0.1);
   border-radius: 9px;
   background: rgb(255, 255, 255);
@@ -171,7 +173,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 7px 12px;
+  height: 32.4px;
+  padding: 0 12px;
   background: rgb(255, 255, 255);
   color: rgb(27, 42, 71);
   border: 1px solid rgba(27, 42, 71, 0.15);
@@ -182,6 +185,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .btn-reset:hover {
@@ -268,7 +272,7 @@
   color: var(--text-main);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: none;
   background: var(--table-th-bg, #f1f5f9);
   backdrop-filter: blur(4px);
   position: sticky;

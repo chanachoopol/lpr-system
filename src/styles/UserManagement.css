@@ -137,21 +137,23 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px;
+  height: 32.4px;
+  padding: 0 16px;
   background: rgb(27, 42, 71);
   color: rgb(255, 255, 255);
   border: none;
-  border-radius: 12px;
+  border-radius: 9px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
 .btn-add-admin:hover:not(:disabled) {
-  background: rgb(194, 65, 12);
+  background: rgb(17, 30, 55);
   transform: translateY(-1px);
 }
 
@@ -171,16 +173,18 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px;
+  height: 32.4px;
+  padding: 0 16px;
   background: rgb(27, 42, 71);
   color: rgb(255, 255, 255);
   border: none;
-  border-radius: 12px;
+  border-radius: 9px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
@@ -203,8 +207,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  width: 240px;
-  min-width: 180px;
+  width: 260px;
 }
 
 .um-badge-readonly {
@@ -224,23 +227,25 @@
 
 .um-search-icon {
   position: absolute;
-  left: 14px;
+  left: 12px;
   color: rgb(148, 163, 184);
-  font-size: 14px;
+  font-size: 13px;
   pointer-events: none;
 }
 
 .um-search-input {
   width: 100%;
-  padding: 10px 16px 10px 38px;
+  height: 32.4px;
+  padding: 0 14px 0 34px;
   border: 1px solid rgba(27, 42, 71, 0.1);
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--bg-input);
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-main);
   outline: none;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .um-search-input:focus {
@@ -249,15 +254,17 @@
 }
 
 .um-filters select {
-  padding: 10px 16px;
+  height: 32.4px;
+  padding: 0 12px;
   border: 1px solid rgba(27, 42, 71, 0.1);
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--bg-input);
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-main);
   outline: none;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 /* Table */
@@ -274,7 +281,7 @@
   color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  border-bottom: none;
   background: var(--table-th-bg, #f1f5f9);
   backdrop-filter: blur(4px);
   position: sticky;
@@ -711,16 +718,18 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px;
+  height: 32.4px;
+  padding: 0 16px;
   background: rgb(27, 42, 71);
   color: rgb(255, 255, 255);
   border: none;
-  border-radius: 12px;
+  border-radius: 9px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 

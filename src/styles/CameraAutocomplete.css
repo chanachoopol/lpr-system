@@ -41,7 +41,8 @@
 
 .cam-auto-wrap.variant-history .cam-auto-input {
   width: 100%;
-  padding: 7px 28px 7px 10px;
+  height: 32.4px;
+  padding: 0 28px 0 10px;
   border: 1px solid rgba(27, 42, 71, 0.1);
   border-radius: 9px;
   background: rgb(255, 255, 255);

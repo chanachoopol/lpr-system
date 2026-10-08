@@ -16,7 +16,7 @@
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 16px;
 }
 
@@ -24,6 +24,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .rt-description {
@@ -36,9 +37,10 @@
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-left: auto;
+  gap: 12px;
+  flex-wrap: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .rt-search-field {
@@ -46,13 +48,17 @@
   flex-direction: column;
   gap: 8px;
   position: relative;
-  width: 220px;
-  flex: 0 0 220px;
+  width: 260px;
+  max-width: 260px;
+  min-width: 140px;
+  flex: 1 1 auto;
 }
 
 .rt-search-field-plate {
-  width: 220px;
-  flex: 0 0 220px;
+  width: 260px;
+  max-width: 260px;
+  min-width: 140px;
+  flex: 1 1 auto;
 }
 
 .rt-search-field label {
@@ -124,13 +130,13 @@
 .datepicker-rt,
 .rt-select-camera {
   width: 100%;
-  height: 38px;
+  height: 32.4px;
   padding: 0 16px 0 38px;
   border: 1px solid rgba(27, 42, 71, 0.1);
   border-radius: 9px;
   background: var(--bg-input, #ffffff);
   font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--text-main);
   outline: none;
   transition: all 0.2s ease;
@@ -152,6 +158,7 @@
 .rt-search-buttons {
   display: flex;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .btn-rt-reset {
@@ -159,7 +166,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 38px;
+  height: 32.4px;
   padding: 0 16px;
   background: rgb(255, 255, 255);
   color: rgb(27, 42, 71);
@@ -303,7 +310,7 @@
   color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  border-bottom: none;
   background: var(--table-th-bg, #f1f5f9);
   backdrop-filter: blur(4px);
   position: sticky;

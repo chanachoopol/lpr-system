@@ -122,7 +122,7 @@
 /* Filter Bar */
 .al-filter-bar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: flex-end;
   gap: 14px;
   flex-wrap: wrap;
@@ -153,16 +153,18 @@
 }
 
 .al-filter-group select {
-  padding: 9px 14px;
+  height: 32.4px;
+  padding: 0 14px;
   border: 1px solid rgba(27, 42, 71, 0.1);
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--bg-input);
   font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--text-main);
   outline: none;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .al-filter-group select:focus {
@@ -205,16 +207,18 @@
 
 .datepicker-al {
   width: 100%;
-  padding: 9px 14px 9px 38px;
+  height: 32.4px;
+  padding: 0 14px 0 38px;
   border: 1px solid rgba(27, 42, 71, 0.1);
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--bg-input);
   font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--text-main);
   outline: none;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .datepicker-al:focus {
@@ -227,7 +231,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 7px 12px;
+  height: 32.4px;
+  padding: 0 12px;
   background: rgb(255, 255, 255);
   color: rgb(27, 42, 71);
   border: 1px solid rgba(27, 42, 71, 0.15);
@@ -238,6 +243,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .btn-reset-al:hover {
@@ -278,7 +284,7 @@
   color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  border-bottom: none;
   background: var(--table-th-bg, #f1f5f9);
   backdrop-filter: blur(4px);
   white-space: nowrap;
@@ -396,7 +402,7 @@
   align-items: center;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid rgba(27, 42, 71, 0.06);
+  border-top: none;
   flex-shrink: 0;
   flex-wrap: wrap;
   gap: 12px;
@@ -571,7 +577,7 @@
   }
 
   .al-wrapper .content-card {
-    padding: 14px 12px !important;
+    padding: 14px 18px !important;
     border-radius: 16px !important;
   }
 

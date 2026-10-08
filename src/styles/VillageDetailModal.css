@@ -159,7 +159,7 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text-main, rgb(27, 42, 71));
-  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  border-bottom: none;
   background: var(--table-th-bg, #f1f5f9);
   backdrop-filter: blur(4px);
   position: sticky;
@@ -282,7 +282,7 @@
 
 .vdm-footer {
   padding: 16px 24px;
-  border-top: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  border-top: none;
   display: flex;
   justify-content: flex-end;
   background: var(--card-bg, #ffffff);

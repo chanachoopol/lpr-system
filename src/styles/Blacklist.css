@@ -141,7 +141,7 @@
   color: var(--text-main, rgb(27, 42, 71));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08));
+  border-bottom: none;
   background: var(--table-th-bg, #f1f5f9);
   backdrop-filter: blur(4px);
   position: sticky;
@@ -367,8 +367,8 @@
 }
 
 .bl-search-input {
-  height: 32px;
-  padding: 6px 12px 6px 30px;
+  height: 32.4px;
+  padding: 0 12px 0 30px;
   border: 1px solid rgba(27, 42, 71, 0.1);
   border-radius: 9px;
   background: var(--bg-input, #ffffff);
@@ -376,7 +376,7 @@
   font-size: 13px;
   color: var(--text-main);
   outline: none;
-  width: 210px;
+  width: 260px;
   transition: all 0.2s ease;
   caret-color: var(--text-main);
   box-sizing: border-box;
@@ -411,9 +411,9 @@
 }
 
 .bl-datepicker-input {
-  height: 32px;
+  height: 32.4px;
   width: 145px;
-  padding: 6px 28px 6px 30px;
+  padding: 0 28px 0 30px;
   border: 1px solid rgba(27, 42, 71, 0.1);
   border-radius: 9px;
   background: var(--bg-input, #ffffff);
@@ -655,7 +655,7 @@
   align-items: center;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid rgba(27, 42, 71, 0.06);
+  border-top: none;
   flex-shrink: 0;
 }
 
@@ -1006,7 +1006,7 @@
   letter-spacing: 0.5px !important;
   padding: 7px 12px !important;
   background: var(--table-th-bg, #f1f5f9) !important;
-  border-bottom: 1px solid var(--border-color, rgba(27, 42, 71, 0.08)) !important;
+  border-bottom: none !important;
   box-sizing: border-box;
 }
 
@@ -1163,7 +1163,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  width: 220px;
+  width: 260px;
   max-width: 100%;
 }
 
@@ -1179,7 +1179,8 @@
 .blacklist-wrapper .dash-search-input,
 .modal-content .dash-search-input {
   width: 100%;
-  padding: 7px 28px 7px 30px;
+  height: 32.4px;
+  padding: 0 28px 0 30px;
   font-size: 13px;
   font-family: 'DM Sans', sans-serif;
   background: #ffffff;
