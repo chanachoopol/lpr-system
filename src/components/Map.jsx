@@ -4,7 +4,7 @@ import useVillageStore from '../store/villageStore'
 import useNotificationStore from '../store/notificationStore'
 import { isCameraReady, getUnifiedCameraStatusBadge } from '../utils/cameraStatus'
 
-const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || ''
+const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af611860ee1d100bc5d530'
 const CARD_WIDTH = 240
 const CARD_GAP = 14 // ระยะห่างระหว่างหมุดกับการ์ด (14px)
 
