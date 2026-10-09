@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallba
 import { FaXmark } from 'react-icons/fa6';
 import Spinner from './Spinner';
 
-const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '77b3dd6ca1af611860ee1d100bc5d530';
+const LONGDO_API_KEY = import.meta.env.VITE_LONGDO_API_KEY || '';
 const CARD_WIDTH = 210;
 const CARD_HEIGHT = 145;
 const CARD_GAP = 12;
